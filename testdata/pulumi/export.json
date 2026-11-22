@@ -1,0 +1,9 @@
+{
+  "version": 3,
+  "deployment": {
+    "resources": [
+      {"urn":"urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage","type":"aws:s3/bucket:Bucket","inputs":{"password":"CANARY_SECRET"}},
+      {"urn":"urn:pulumi:dev::example::aws:lambda/function:Function::worker","type":"aws:lambda/function:Function","dependencies":["urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage"],"propertyDependencies":{"bucket":["urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage"]}}
+    ]
+  }
+}

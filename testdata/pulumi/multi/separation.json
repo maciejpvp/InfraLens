@@ -1,0 +1,30 @@
+{
+  "version": 3,
+  "deployment": {
+    "resources": [
+      {
+        "urn": "urn:pulumi:dev::separation::pulumi:pulumi:Stack::separation-dev",
+        "type": "pulumi:pulumi:Stack"
+      },
+      {
+        "urn": "urn:pulumi:dev::separation::pulumi:pulumi:StackReference::base-reference",
+        "type": "pulumi:pulumi:StackReference",
+        "parent": "urn:pulumi:dev::separation::pulumi:pulumi:Stack::separation-dev",
+        "inputs": {
+          "name": "example/base/dev",
+          "outputs": {
+            "token": "MULTI_CANARY_SECRET"
+          }
+        }
+      },
+      {
+        "urn": "urn:pulumi:dev::separation::aws:lambda/function:Function::worker",
+        "type": "aws:lambda/function:Function",
+        "parent": "urn:pulumi:dev::separation::pulumi:pulumi:Stack::separation-dev",
+        "dependencies": [
+          "urn:pulumi:dev::separation::pulumi:pulumi:StackReference::base-reference"
+        ]
+      }
+    ]
+  }
+}

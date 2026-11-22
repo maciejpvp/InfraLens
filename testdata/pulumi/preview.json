@@ -1,0 +1,6 @@
+{
+  "steps": [
+    {"op":"same","urn":"urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage","oldState":{"urn":"urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage","type":"aws:s3/bucket:Bucket"},"newState":{"urn":"urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage","type":"aws:s3/bucket:Bucket"}},
+    {"op":"create","urn":"urn:pulumi:dev::example::aws:lambda/function:Function::worker","newState":{"urn":"urn:pulumi:dev::example::aws:lambda/function:Function::worker","type":"aws:lambda/function:Function","dependencies":["urn:pulumi:dev::example::aws:s3/bucket:Bucket::storage"],"outputs":{"token":"CANARY_SECRET"}}}
+  ]
+}

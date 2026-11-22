@@ -1,0 +1,165 @@
+package cli
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestCommands(t *testing.T) {
+	for _, command := range []string{"graph", "render"} {
+		for _, fixture := range []string{"export", "preview"} {
+			t.Run(command+"/"+fixture, func(t *testing.T) {
+				output := filepath.Join(t.TempDir(), "result")
+				var stdout, stderr bytes.Buffer
+				if code := Run([]string{command, "--input", "../../testdata/pulumi/" + fixture + ".json", "--output", output}, &stdout, &stderr); code != 0 {
+					t.Fatal(stderr.String())
+				}
+				data, err := os.ReadFile(output)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(data) == 0 || strings.Contains(string(data), "CANARY_SECRET") || strings.Contains(stdout.String()+stderr.String(), "CANARY_SECRET") {
+					t.Fatal("invalid or unsafe output")
+				}
+			})
+		}
+	}
+}
+
+func TestInputAndOutputProtection(t *testing.T) {
+	dir := t.TempDir()
+	input := filepath.Join(dir, "input")
+	output := filepath.Join(dir, "output")
+	bad := []byte(`{"secret":"CANARY_SECRET",`)
+	if err := os.WriteFile(input, bad, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(output, []byte("existing"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	if Run([]string{"render", "--input", input, "--output", output}, &logs, &logs) == 0 {
+		t.Fatal("accepted malformed input")
+	}
+	data, _ := os.ReadFile(output)
+	if string(data) != "existing" || strings.Contains(logs.String(), "CANARY_SECRET") {
+		t.Fatal("destroyed output or leaked input")
+	}
+	if err := os.WriteFile(input, []byte(`{"version":3,"deployment":{}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, alias := range []string{input, filepath.Join(dir, "hardlink"), filepath.Join(dir, "symlink")} {
+		if alias != input {
+			var err error
+			if strings.HasSuffix(alias, "hardlink") {
+				err = os.Link(input, alias)
+			} else {
+				err = os.Symlink(input, alias)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if Run([]string{"graph", "--input", input, "--output", alias}, &logs, &logs) == 0 {
+			t.Fatal("accepted input/output alias")
+		}
+	}
+}
+
+func TestHelpAndInvalidFlags(t *testing.T) {
+	for _, args := range [][]string{nil, {"--help"}, {"graph", "--help"}, {"generate", "--help"}} {
+		var out bytes.Buffer
+		if Run(args, &out, &out) != 0 || out.Len() == 0 {
+			t.Fatal("help failed")
+		}
+	}
+	for _, args := range [][]string{{"unknown"}, {"graph"}, {"render", "--secret=CANARY_SECRET"}} {
+		var out bytes.Buffer
+		if Run(args, &out, &out) == 0 || strings.Contains(out.String(), "CANARY_SECRET") {
+			t.Fatal("unsafe argument error")
+		}
+	}
+}
+
+func TestMultipleInputs(t *testing.T) {
+	for _, command := range []string{"graph", "render"} {
+		output := filepath.Join(t.TempDir(), "result")
+		args := []string{command, "--output", output}
+		for _, name := range []string{"base", "separation", "transcription"} {
+			args = append(args, "--input", "example/"+name+"/dev=../../testdata/pulumi/multi/"+name+".json")
+		}
+		var logs bytes.Buffer
+		if Run(args, &logs, &logs) != 0 {
+			t.Fatal(logs.String())
+		}
+		data, err := os.ReadFile(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(data), "stackReference") || strings.Contains(string(data), "MULTI_CANARY_SECRET") {
+			t.Fatal("missing stack links or secret leak")
+		}
+	}
+}
+
+func TestOutputCannotOverwriteAnyInput(t *testing.T) {
+	first := filepath.Join(t.TempDir(), "first")
+	second := filepath.Join(t.TempDir(), "second")
+	for _, p := range []string{first, second} {
+		if err := os.WriteFile(p, []byte(`{"version":3,"deployment":{}}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var logs bytes.Buffer
+	if Run([]string{"graph", "--input", first, "--input", second, "--output", second}, &logs, &logs) == 0 {
+		t.Fatal("accepted output equal to second input")
+	}
+	data, _ := os.ReadFile(second)
+	if string(data) != `{"version":3,"deployment":{}}` {
+		t.Fatal("overwrote input")
+	}
+}
+
+func TestSimulationCommand(t *testing.T) {
+	dir := t.TempDir()
+	module := filepath.Join(dir, "module")
+	if err := os.MkdirAll(module, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, data := range map[string]string{"go.mod": "module example\n", "main.go": "package main\n"} {
+		if err := os.WriteFile(filepath.Join(module, name), []byte(data), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tools := filepath.Join(dir, "tools")
+	if err := os.Mkdir(tools, 0700); err != nil {
+		t.Fatal(err)
+	}
+	script := `#!/bin/sh
+printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev","type":"pulumi:pulumi:Stack"},{"urn":"urn:pulumi:dev::base::test:Resource::item","type":"test:Resource"}]}}' > "$INFRALENS_CAPTURE"
+`
+	if err := os.WriteFile(filepath.Join(tools, "go"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", tools)
+	output := filepath.Join(dir, "result.html")
+	var logs bytes.Buffer
+	if Run([]string{"simulate", "--project", "org/base/dev=" + module, "--output", output}, &logs, &logs) != 0 {
+		t.Fatal(logs.String())
+	}
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "SIMULATION") || !strings.Contains(string(data), "+ create") {
+		t.Fatal("simulation not labeled")
+	}
+	for _, args := range [][]string{{"simulate", "--input", "x", "--output", output}, {"render", "--project", "org/base/dev=" + module, "--output", output}, {"simulate", "--project", "invalid", "--output", output}} {
+		if Run(args, &logs, &logs) == 0 {
+			t.Fatal("accepted incompatible flags")
+		}
+	}
+}

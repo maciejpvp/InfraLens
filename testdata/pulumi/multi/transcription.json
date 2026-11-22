@@ -1,0 +1,30 @@
+{
+  "version": 3,
+  "deployment": {
+    "resources": [
+      {
+        "urn": "urn:pulumi:dev::transcription::pulumi:pulumi:Stack::transcription-dev",
+        "type": "pulumi:pulumi:Stack"
+      },
+      {
+        "urn": "urn:pulumi:dev::transcription::pulumi:pulumi:StackReference::base-reference",
+        "type": "pulumi:pulumi:StackReference",
+        "parent": "urn:pulumi:dev::transcription::pulumi:pulumi:Stack::transcription-dev",
+        "inputs": {
+          "name": "example/base/dev",
+          "outputs": {
+            "token": "MULTI_CANARY_SECRET"
+          }
+        }
+      },
+      {
+        "urn": "urn:pulumi:dev::transcription::aws:lambda/function:Function::worker",
+        "type": "aws:lambda/function:Function",
+        "parent": "urn:pulumi:dev::transcription::pulumi:pulumi:Stack::transcription-dev",
+        "dependencies": [
+          "urn:pulumi:dev::transcription::pulumi:pulumi:StackReference::base-reference"
+        ]
+      }
+    ]
+  }
+}

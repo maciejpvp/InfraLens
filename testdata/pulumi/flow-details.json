@@ -1,0 +1,363 @@
+{
+  "steps": [
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:s3/bucket:Bucket::media",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:s3/bucket:Bucket::media",
+        "type": "aws:s3/bucket:Bucket",
+        "id": "private-bucket",
+        "outputs": {
+          "bucket": "private-bucket",
+          "password": "CANARY_SECRET"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:sqs/queue:Queue::jobs",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:sqs/queue:Queue::jobs",
+        "type": "aws:sqs/queue:Queue",
+        "outputs": {
+          "arn": "private-queue-arn",
+          "url": "private-queue-url"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:s3/bucketNotification:BucketNotification::events",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:s3/bucketNotification:BucketNotification::events",
+        "type": "aws:s3/bucketNotification:BucketNotification",
+        "inputs": {
+          "bucket": "private-bucket",
+          "eventbridge": true,
+          "queues": [
+            {
+              "queueArn": "private-queue-arn",
+              "events": [
+                "s3:ObjectCreated:*"
+              ],
+              "filterPrefix": "uploads/",
+              "filterSuffix": ".jpg"
+            },
+            {
+              "queueArn": "private-queue-arn",
+              "events": [
+                "s3:ObjectRemoved:*"
+              ],
+              "filterPrefix": "deleted/"
+            }
+          ],
+          "lambdaFunctions": [
+            {
+              "lambdaFunctionArn": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+              "events": [
+                "s3:ObjectCreated:*"
+              ],
+              "filterSuffix": ".png"
+            }
+          ]
+        },
+        "propertyDependencies": {
+          "lambdaFunctions": [
+            "urn:pulumi:dev::app::aws:lambda/function:Function::prepare"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventRule:EventRule::created",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventRule:EventRule::created",
+        "type": "aws:cloudwatch/eventRule:EventRule",
+        "outputs": {
+          "name": "private-rule"
+        },
+        "inputs": {
+          "eventPattern": "{\"source\":[\"aws.s3\"],\"detail\":{\"bucket\":{\"name\":[\"private-bucket\"]}}}"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:lambda/function:Function::prepare",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:lambda/function:Function::prepare",
+        "type": "aws:lambda/function:Function",
+        "outputs": {
+          "arn": "private-function"
+        },
+        "inputs": {
+          "environment": {
+            "variables": {
+              "MEDIA_BUCKET": "private-bucket",
+              "PASSWORD": "CANARY_SECRET"
+            }
+          }
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:sfn/stateMachine:StateMachine::workflow",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:sfn/stateMachine:StateMachine::workflow",
+        "type": "aws:sfn/stateMachine:StateMachine",
+        "outputs": {
+          "arn": "private-workflow"
+        },
+        "inputs": {
+          "definition": "{\"States\": {\"Prepare\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::lambda:invoke\", \"Parameters\": {\"FunctionName\": \"private-function\"}}, \"Batch\": {\"Type\": \"Map\", \"ItemProcessor\": {\"States\": {\"Run\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::lambda:invoke\", \"Parameters\": {\"FunctionName\": \"private-function\", \"InvocationType\": \"Event\", \"Payload\": {\"password\": \"CANARY_SECRET\"}}}}}}}}"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventTarget:EventTarget::start",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventTarget:EventTarget::start",
+        "type": "aws:cloudwatch/eventTarget:EventTarget",
+        "inputs": {
+          "rule": "private-rule",
+          "arn": "private-workflow",
+          "deadLetterConfig": {
+            "arn": "private-queue-arn"
+          }
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:ecs/taskDefinition:TaskDefinition::worker",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:ecs/taskDefinition:TaskDefinition::worker",
+        "type": "aws:ecs/taskDefinition:TaskDefinition",
+        "inputs": {
+          "containerDefinitions": "[{\"environment\":[{\"name\":\"QUEUE_URL\",\"value\":\"private-queue-url\"}]}]"
+        },
+        "outputs": {
+          "arn": "private-task"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:dynamodb/table:Table::records",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:dynamodb/table:Table::records",
+        "type": "aws:dynamodb/table:Table",
+        "inputs": {
+          "streamEnabled": true,
+          "streamViewType": "NEW_AND_OLD_IMAGES"
+        },
+        "outputs": {
+          "name": "private-table",
+          "streamArn": "arn:aws:dynamodb:eu-west-1:123456789012:table/private-table/stream/timestamp"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:lambda/function:Function::search",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:lambda/function:Function::search",
+        "type": "aws:lambda/function:Function",
+        "inputs": {
+          "environment": {
+            "variables": {
+              "TABLE_NAME": "private-table",
+              "PASSWORD": "CANARY_SECRET"
+            }
+          }
+        },
+        "outputs": {
+          "arn": "private-search-function"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:lambda/eventSourceMapping:EventSourceMapping::records-events",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:lambda/eventSourceMapping:EventSourceMapping::records-events",
+        "type": "aws:lambda/eventSourceMapping:EventSourceMapping",
+        "inputs": {
+          "eventSourceArn": "arn:aws:dynamodb:eu-west-1:123456789012:table/private-table/stream/timestamp",
+          "functionName": "private-function",
+          "filterCriteria": {
+            "filters": [
+              {
+                "pattern": "{\"eventName\": [\"MODIFY\", \"INSERT\"]}"
+              }
+            ]
+          },
+          "startingPosition": "LATEST",
+          "batchSize": 10,
+          "maximumBatchingWindowInSeconds": 2,
+          "enabled": false
+        },
+        "outputs": {}
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:lambda/eventSourceMapping:EventSourceMapping::queue-events",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:lambda/eventSourceMapping:EventSourceMapping::queue-events",
+        "type": "aws:lambda/eventSourceMapping:EventSourceMapping",
+        "inputs": {
+          "eventSourceArn": "private-queue-arn",
+          "functionName": "private-function",
+          "enabled": true,
+          "batchSize": 5
+        },
+        "outputs": {}
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:apigatewayv2/api:Api::http",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:apigatewayv2/api:Api::http",
+        "type": "aws:apigatewayv2/api:Api",
+        "inputs": {},
+        "outputs": {},
+        "id": "private-api"
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:apigatewayv2/integration:Integration::search-integration",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:apigatewayv2/integration:Integration::search-integration",
+        "type": "aws:apigatewayv2/integration:Integration",
+        "inputs": {
+          "apiId": "private-api",
+          "integrationType": "AWS_PROXY",
+          "integrationUri": "private-search-function"
+        },
+        "outputs": {},
+        "id": "private-integration"
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::get",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::get",
+        "type": "aws:apigatewayv2/route:Route",
+        "inputs": {
+          "apiId": "private-api",
+          "target": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+          "routeKey": "GET /search"
+        },
+        "outputs": {},
+        "propertyDependencies": {
+          "target": [
+            "urn:pulumi:dev::app::aws:apigatewayv2/integration:Integration::search-integration"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::post",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::post",
+        "type": "aws:apigatewayv2/route:Route",
+        "inputs": {
+          "apiId": "private-api",
+          "target": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+          "routeKey": "POST /search"
+        },
+        "outputs": {},
+        "propertyDependencies": {
+          "target": [
+            "urn:pulumi:dev::app::aws:apigatewayv2/integration:Integration::search-integration"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::default",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::default",
+        "type": "aws:apigatewayv2/route:Route",
+        "inputs": {
+          "apiId": "private-api",
+          "target": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+          "routeKey": "$default"
+        },
+        "outputs": {},
+        "propertyDependencies": {
+          "target": [
+            "urn:pulumi:dev::app::aws:apigatewayv2/integration:Integration::search-integration"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:ecs/service:Service::service",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:ecs/service:Service::service",
+        "type": "aws:ecs/service:Service",
+        "inputs": {
+          "taskDefinition": "private-task"
+        },
+        "outputs": {}
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventRule:EventRule::schedule",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventRule:EventRule::schedule",
+        "type": "aws:cloudwatch/eventRule:EventRule",
+        "inputs": {
+          "scheduleExpression": "rate(5 minutes)"
+        },
+        "outputs": {
+          "name": "private-schedule"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventTarget:EventTarget::scheduled-target",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:cloudwatch/eventTarget:EventTarget::scheduled-target",
+        "type": "aws:cloudwatch/eventTarget:EventTarget",
+        "inputs": {
+          "rule": "private-schedule",
+          "arn": "private-search-function"
+        },
+        "outputs": {}
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::get-any",
+      "newState": {
+        "urn": "urn:pulumi:dev::app::aws:apigatewayv2/route:Route::get-any",
+        "type": "aws:apigatewayv2/route:Route",
+        "inputs": {
+          "apiId": "private-api",
+          "target": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+          "routeKey": "ANY /{proxy+}"
+        },
+        "outputs": {},
+        "propertyDependencies": {
+          "target": [
+            "urn:pulumi:dev::app::aws:apigatewayv2/integration:Integration::search-integration"
+          ]
+        }
+      }
+    }
+  ]
+}

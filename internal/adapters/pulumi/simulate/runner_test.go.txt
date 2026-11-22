@@ -1,0 +1,165 @@
+package main
+
+import (
+	"encoding/json"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+)
+
+type infraLensCapture struct {
+	URN                  string              `json:"urn"`
+	Type                 string              `json:"type"`
+	ID                   string              `json:"id,omitempty"`
+	Parent               string              `json:"parent,omitempty"`
+	Dependencies         []string            `json:"dependencies,omitempty"`
+	PropertyDependencies map[string][]string `json:"propertyDependencies,omitempty"`
+	Inputs               map[string]any      `json:"inputs,omitempty"`
+	Outputs              map[string]any      `json:"outputs,omitempty"`
+}
+
+type infraLensMonitor struct {
+	pulumi.MockResourceMonitor
+	sync.Mutex
+	references           map[string]map[string]any
+	resources            []infraLensCapture
+	project, stack, root string
+}
+
+func (m *infraLensMonitor) rewrite(t *testing.T, urn string) string {
+	if urn == "" {
+		return ""
+	}
+	parts := strings.Split(urn, "::")
+	if len(parts) != 4 || parts[1] != m.project {
+		t.Error("unexpected mock resource identity")
+		return ""
+	}
+	if parts[2] == "pulumi:pulumi:Stack" {
+		return m.root
+	}
+	parts[0] = "urn:pulumi:" + m.stack
+	return strings.Join(parts, "::")
+}
+
+func (m *infraLensMonitor) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
+	var id string
+	var outputs resource.PropertyMap
+	var err error
+	if args.TypeToken == "pulumi:pulumi:StackReference" {
+		name, ok := args.Inputs["name"]
+		if !ok || !name.IsString() {
+			return "", nil, os.ErrInvalid
+		}
+		values, ok := m.references[name.StringValue()]
+		if !ok {
+			return "", nil, os.ErrNotExist
+		}
+		outputs = args.Inputs.Copy()
+		outputs["outputs"] = resource.NewObjectProperty(resource.NewPropertyMapFromMap(values))
+		id = args.Name
+	} else {
+		id, outputs, err = m.MockResourceMonitor.NewResource(args)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+	// Capture only configuration needed by typed relationship rules. No arbitrary inputs.
+	item := infraLensCapture{Type: args.TypeToken, ID: id, Inputs: map[string]any{}, Outputs: map[string]any{}, PropertyDependencies: map[string][]string{}}
+	for _, key := range []string{"name", "bucket", "queues", "lambdaFunctions", "topics", "eventbridge", "rule", "arn", "eventPattern", "definition", "taskDefinition", "containerDefinitions", "environment", "eventSourceArn", "functionName", "deadLetterConfig", "apiId", "integrationType", "integrationUri", "routeKey", "target", "authorizationType", "filterCriteria", "enabled", "startingPosition", "batchSize", "maximumBatchingWindowInSeconds", "scheduleExpression", "streamEnabled", "streamViewType"} {
+		if value, ok := args.Inputs[resource.PropertyKey(key)]; ok && !value.ContainsSecrets() && !value.ContainsUnknowns() {
+			item.Inputs[key] = value.Mappable()
+		}
+	}
+	for _, key := range []string{"name", "arn", "bucket", "url", "streamArn"} {
+		if value, ok := outputs[resource.PropertyKey(key)]; ok && value.IsString() {
+			item.Outputs[key] = value.StringValue()
+		}
+	}
+	parent := ""
+	if rpc := args.RegisterRPC; rpc != nil {
+		parent = rpc.GetParent()
+		item.Dependencies = rpc.GetDependencies()
+		for key, deps := range rpc.GetPropertyDependencies() {
+			item.PropertyDependencies[key] = deps.GetUrns()
+		}
+	} else if rpc := args.ReadRPC; rpc != nil {
+		parent = rpc.GetParent()
+		item.Dependencies = rpc.GetDependencies()
+	} else {
+		return "", nil, os.ErrInvalid
+	}
+	parentType := ""
+	if parent != "" {
+		parts := strings.Split(parent, "::")
+		if len(parts) != 4 {
+			return "", nil, os.ErrInvalid
+		}
+		parentType = parts[2]
+		if parentType == "pulumi:pulumi:Stack" {
+			parentType = ""
+		}
+	}
+	item.URN = string(resource.NewURN(tokens.QName(m.stack), tokens.PackageName(m.project), tokens.Type(parentType), tokens.Type(args.TypeToken), args.Name))
+	item.Parent = parent
+	m.Lock()
+	m.resources = append(m.resources, item)
+	m.Unlock()
+	return id, outputs, nil
+}
+
+func TestInfraLensSimulation(t *testing.T) {
+	identity := strings.Split(os.Getenv("INFRALENS_STACK"), "/")
+	if len(identity) != 3 {
+		t.Fatal("invalid simulation identity")
+	}
+	project, stack := identity[1], identity[2]
+	root := string(resource.NewURN(tokens.QName(stack), tokens.PackageName(project), "", "pulumi:pulumi:Stack", project+"-"+stack))
+	raw, err := os.ReadFile(os.Getenv("INFRALENS_REFERENCES"))
+	if err != nil {
+		t.Fatal("missing simulation references")
+	}
+	m := &infraLensMonitor{MockResourceMonitor: &infraMocks{}, project: project, stack: stack, root: root}
+	if json.Unmarshal(raw, &m.references) != nil {
+		t.Fatal("invalid simulation references")
+	}
+	var exports map[string]any
+	wrapped := func(ctx *pulumi.Context) error {
+		if err := deploy(ctx); err != nil {
+			return err
+		}
+		pulumi.ToOutput(pulumi.Map(ctx.GetCurrentExportMap())).ApplyT(func(values map[string]any) error { exports = values;return nil })
+		return nil
+	}
+	if err := pulumi.RunErr(wrapped, pulumi.WithMocksWithOrganization(identity[0], project, stack, m), withStackConfig(t, nil)); err != nil {
+		t.Fatal("mock deployment failed")
+	}
+	resources := []infraLensCapture{{URN: root, Type: "pulumi:pulumi:Stack"}}
+	for _, item := range m.resources {
+		item.Parent = m.rewrite(t, item.Parent)
+		if item.Parent == "" {
+			item.Parent = root
+		}
+		for i, dep := range item.Dependencies {
+			item.Dependencies[i] = m.rewrite(t, dep)
+		}
+		for key, deps := range item.PropertyDependencies {
+			for i, dep := range deps {
+				item.PropertyDependencies[key][i] = m.rewrite(t, dep)
+			}
+		}
+		resources = append(resources, item)
+	}
+	data, err := json.Marshal(map[string]any{"version": 3, "deployment": map[string]any{"resources": resources}, "exports": exports})
+	if err != nil {
+		t.Fatal("cannot encode simulation capture")
+	}
+	if err := os.WriteFile(os.Getenv("INFRALENS_CAPTURE"), data, 0600); err != nil {
+		t.Fatal("cannot write simulation capture")
+	}
+}

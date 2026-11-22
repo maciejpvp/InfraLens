@@ -1,0 +1,19 @@
+{
+  "version": 3,
+  "deployment": {
+    "resources": [
+      {
+        "urn": "urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev",
+        "type": "pulumi:pulumi:Stack"
+      },
+      {
+        "urn": "urn:pulumi:dev::base::aws:s3/bucket:Bucket::storage",
+        "type": "aws:s3/bucket:Bucket",
+        "parent": "urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev",
+        "outputs": {
+          "password": "MULTI_CANARY_SECRET"
+        }
+      }
+    ]
+  }
+}

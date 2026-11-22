@@ -1,0 +1,150 @@
+{
+  "steps": [
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::example::aws:s3/bucket:Bucket::uploads-bucket",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:s3/bucket:Bucket::uploads-bucket",
+        "type": "aws:s3/bucket:Bucket",
+        "inputs": {}
+      },
+      "oldState": {
+        "urn": "urn:pulumi:dev::example::aws:s3/bucket:Bucket::uploads-bucket",
+        "type": "aws:s3/bucket:Bucket",
+        "inputs": {}
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::example::aws:lambda/function:Function::onCreateLambda",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:lambda/function:Function::onCreateLambda",
+        "type": "aws:lambda/function:Function",
+        "inputs": {
+          "environment": {
+            "variables": {
+              "OPENSEARCH_ENDPOINT": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+              "PASSWORD": "CANARY_SECRET"
+            }
+          }
+        },
+        "propertyDependencies": {
+          "environment": [
+            "urn:pulumi:dev::example::aws:ec2/instance:Instance::opensearch-instance"
+          ],
+          "role": [
+            "urn:pulumi:dev::example::aws:iam/role:Role::lambdaRole"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::example::aws:lambda/function:Function::searchLambda",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:lambda/function:Function::searchLambda",
+        "type": "aws:lambda/function:Function",
+        "inputs": {
+          "environment": "04da6b54-80e4-46f7-96ec-b56ff0331ba9"
+        },
+        "propertyDependencies": {
+          "environment": [
+            "urn:pulumi:dev::example::aws:ec2/instance:Instance::opensearch-instance"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::example::aws:ec2/instance:Instance::opensearch-instance",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:ec2/instance:Instance::opensearch-instance",
+        "type": "aws:ec2/instance:Instance",
+        "inputs": {
+          "userData": "CANARY_SECRET"
+        }
+      }
+    },
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::example::aws:apigatewayv2/api:Api::searchApi",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:apigatewayv2/api:Api::searchApi",
+        "type": "aws:apigatewayv2/api:Api",
+        "inputs": {}
+      },
+      "oldState": {
+        "urn": "urn:pulumi:dev::example::aws:apigatewayv2/api:Api::searchApi",
+        "type": "aws:apigatewayv2/api:Api",
+        "inputs": {},
+        "id": "private-api-id",
+        "outputs": {
+          "arn": "private-api-arn",
+          "password": "CANARY_SECRET"
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::example::aws:s3/bucketNotification:BucketNotification::bucketNotification",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:s3/bucketNotification:BucketNotification::bucketNotification",
+        "type": "aws:s3/bucketNotification:BucketNotification",
+        "inputs": {
+          "bucket": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+          "lambdaFunctions": [
+            {
+              "lambdaFunctionArn": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+              "events": [
+                "s3:ObjectCreated:*"
+              ]
+            }
+          ]
+        },
+        "propertyDependencies": {
+          "bucket": [
+            "urn:pulumi:dev::example::aws:s3/bucket:Bucket::uploads-bucket"
+          ],
+          "lambdaFunctions": [
+            "urn:pulumi:dev::example::aws:lambda/function:Function::onCreateLambda"
+          ]
+        }
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::example::aws:apigatewayv2/integration:Integration::searchApiIntegration",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:apigatewayv2/integration:Integration::searchApiIntegration",
+        "type": "aws:apigatewayv2/integration:Integration",
+        "inputs": {
+          "apiId": "private-api-id",
+          "integrationUri": "04da6b54-80e4-46f7-96ec-b56ff0331ba9",
+          "integrationType": "AWS_PROXY"
+        },
+        "propertyDependencies": {
+          "apiId": [
+            "urn:pulumi:dev::example::aws:apigatewayv2/api:Api::searchApi"
+          ],
+          "integrationUri": [
+            "urn:pulumi:dev::example::aws:lambda/function:Function::searchLambda"
+          ]
+        }
+      }
+    },
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::example::aws:iam/role:Role::lambdaRole",
+      "newState": {
+        "urn": "urn:pulumi:dev::example::aws:iam/role:Role::lambdaRole",
+        "type": "aws:iam/role:Role",
+        "inputs": {}
+      },
+      "oldState": {
+        "urn": "urn:pulumi:dev::example::aws:iam/role:Role::lambdaRole",
+        "type": "aws:iam/role:Role",
+        "inputs": {}
+      }
+    }
+  ]
+}
