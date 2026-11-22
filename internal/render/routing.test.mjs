@@ -24,6 +24,11 @@ test('aligned resources connect directly, perpendicular to their boundaries',()=
   const {view,layout}=scene({a:box(0,0),b:box(400,0)}),[route]=routeEdges(view,layout);
   assert.deepEqual(route.points,[{x:244,y:47},{x:400,y:47}]);assertClear(route,view.edges[0],layout.positions);
 });
+test('facing vertical ports connect directly when their stubs meet',()=>{
+  const {view,layout}=scene({a:box(0,0),b:box(0,122)}),[route]=routeEdges(view,layout);
+  assert.deepEqual(route.points,[{x:122,y:94},{x:122,y:122}]);
+  assertClear(route,view.edges[0],layout.positions);
+});
 test('parallel arrows have separate landing points and straight leads even in a narrow gap',()=>{
   const edges=['triggers','connects_to','depends_on'].map(kind=>({from:'a',to:'b',kind}));
   const {view,layout}=scene({a:box(0,0),b:box(272,0)},edges);
@@ -50,10 +55,13 @@ test('backwards, vertical and cyclic connections avoid multiple obstacles',()=>{
 });
 test('expanded ancestors allow passage through their content but protect headers and unrelated groups',()=>{
   const root={id:'root',expanded:true,parent:null},other={id:'other',expanded:true,parent:null};
-  const view={items:new Map([['root',root],['a',{id:'a',expanded:false,parent:root}],['b',{id:'b',expanded:false,parent:null}],['other',other],['child',{id:'child',expanded:false,parent:other}]]),edges:[{from:'a',to:'b'},{from:'root',to:'b'}]};
+  const view={items:new Map([['root',root],['a',{id:'a',expanded:false,parent:root}],['b',{id:'b',expanded:false,parent:null}],['other',other],['child',{id:'child',expanded:false,parent:other}]]),edges:[{from:'a',to:'b'},{from:'root',to:'b'},{from:'child',to:'b'}]};
   const layout={positions:new Map([['root',box(0,0,400,250)],['a',box(20,80)],['other',box(440,0,280,250)],['child',box(460,60)],['b',box(800,80)]])};
   const obstacles=new Map(layout.positions);obstacles.set('root',box(0,0,400,44));
-  routeEdges(view,layout).forEach((route,i)=>assertClear(route,view.edges[i],obstacles));
+  const routes=routeEdges(view,layout);
+  routes.slice(0,2).forEach((route,i)=>assertClear(route,view.edges[i],obstacles));
+  const otherObstacles=new Map(layout.positions);otherObstacles.set('other',box(440,0,280,44));
+  assertClear(routes[2],view.edges[2],otherObstacles);
 });
 test('group expansion and collapse reroute all connections without losing any',()=>{
   const nodes=['root','component','a','b','support','target'].map(id=>({id,name:id,type:id==='root'?'pulumi:pulumi:Stack':'test',stack:'stack'}));

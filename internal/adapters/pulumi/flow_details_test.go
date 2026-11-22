@@ -123,9 +123,18 @@ func TestDetailRedaction(t *testing.T) {
 	}
 }
 
+func TestDetailRedactionOmitsPrivatePairs(t *testing.T) {
+	raw := json.RawMessage(`{"https://private.invalid/a":["alpha"],"https://private.invalid/b":["beta"],"[redacted]":"ordinary","ok":"INSERT"}`)
+	want := `{"[redacted]":"ordinary","ok":"INSERT"} · contains [redacted] keys`
+	if got := detailValue(raw); got != want {
+		t.Fatalf("detailValue = %q, want %q", got, want)
+	}
+}
+
 func TestMappingFilterDescriptions(t *testing.T) {
 	for _, tc := range []struct{ raw, label string }{
 		{`null`, "INSERT, MODIFY, REMOVE"}, {`{}`, "INSERT, MODIFY, REMOVE"}, {`{"filters":[]}`, "INSERT, MODIFY, REMOVE"},
+		{`{"filters":null}`, "INSERT, MODIFY, REMOVE"}, {`{"other":[]}`, "filtered"},
 		{`"` + unknownValue + `"`, "unknown filter"},
 		{`{"filters":[{"pattern":"{\"eventName\":[\"REMOVE\"]}"}]}`, "REMOVE"},
 		{`{"filters":[{"pattern":"{\"dynamodb\":{\"Keys\":{\"id\":[\"a\"]}}}"}]}`, "filtered"},

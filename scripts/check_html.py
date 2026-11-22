@@ -130,6 +130,19 @@ try {
     assert(!opened(members),'Group accordion should start closed');
     await click(trigger(members));
     assert(opened(members),'Group accordion could not be opened');
+    if(group.dataset.item.startsWith('stack:')){
+      const stack=group.dataset.item.slice('stack:'.length);
+      const resources=new Set(graph.nodes.filter(node=>(node.stack||'No stack')===stack).map(node=>node.id));
+      const within=graph.edges.find(edge=>edge.kind!=='contains'&&(!edge.state||edge.state==='after')&&resources.has(edge.from)&&resources.has(edge.to));
+      if(within){
+        const relationNames={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Pulumi dependencies'};
+        const section=accordionItems().find(item=>trigger(item).textContent.startsWith(relationNames[within.kind]));
+        assert(section,'Missing internal relationship section');
+        await click(trigger(section));
+        assert([...section.querySelectorAll('.connection-item')].some(button=>button.textContent.includes('within group')),'Missing internal group relationship');
+        await click(trigger(section));
+      }
+    }
     const member=[...members.querySelectorAll('.connection-item')].find(button=>graph.nodes.some(node=>node.type!=='pulumi:pulumi:Stack'&&node.name===button.textContent));
     if(member){
       const memberName=member.textContent;
@@ -279,6 +292,15 @@ try {
     assert(!inspector()&&view()!==beforePan,'Pan failed to track');
     $('stage').setPointerCapture=originalCapture;
     await click($('filter-button'));assert(!$('filters').hidden,'Filter popover failed');
+    if(graph.edges.some(edge=>edge.state)){
+      const select=$('topology'),cameraBeforeSwitch=view();
+      assert(select.labels[0].textContent==='Connections','Preview filter should describe its scope');
+      for(const state of ['before','after']){
+        select.value=state;
+        await dispatch(select,new Event('change',{bubbles:true}));
+        assert(select.value===state&&view()===cameraBeforeSwitch,'Connection filter changed camera');
+      }
+    }
     await dispatch(document,new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert($('filters').hidden,'Filter dismissal failed');
     const cameraBeforeResize=view().split(' ').map(Number),width=$('stage').clientWidth;
     $('stage').style.width=(width-20)+'px';await wait(50);

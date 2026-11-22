@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"slices"
 	"strings"
 
 	"infralens/internal/graph"
@@ -49,202 +50,254 @@ func Read(r io.Reader) (graph.Graph, error) {
 }
 
 func ReadSources(sources ...Source) (graph.Graph, error) {
-	g := graph.Graph{SchemaVersion: 1, Nodes: []graph.Node{}, Edges: []graph.Edge{}}
-	if len(sources) == 0 {
-		return g, errors.New("at least one input is required")
+	b := graphBuilder{
+		graph:   graph.Graph{SchemaVersion: 1, Nodes: []graph.Node{}, Edges: []graph.Edge{}},
+		nodeIDs: map[string]string{}, roots: map[string]string{}, edges: map[edgeKey]int{},
+		multi: len(sources) > 1,
 	}
-	var resources []resourceState
-	seen := map[string]bool{}
-	roots := map[string]string{}
-	named := map[string]bool{}
+	if len(sources) == 0 {
+		return b.graph, errors.New("at least one input is required")
+	}
 	for _, source := range sources {
-		if source.Reader == nil {
-			return g, errors.New("missing input reader")
+		if err := b.readSource(source); err != nil {
+			return b.graph, err
 		}
-		if source.Stack != "" {
-			parts := strings.Split(source.Stack, "/")
-			if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" || named[source.Stack] {
-				return g, errors.New("input stack names must be unique org/project/stack identities")
-			}
-			named[source.Stack] = true
-		}
-		foundRoot := false
+	}
+	for _, entry := range b.resources {
+		b.linkResource(entry)
+	}
+	b.linkAWSRelations()
+	b.graph.Normalize()
+	return b.graph, b.graph.Validate()
+}
 
-		var doc struct {
-			Version    int `json:"version"`
-			Deployment *struct {
-				Resources []resource `json:"resources"`
-			} `json:"deployment"`
-			Steps json.RawMessage `json:"steps"`
+// ParseStackIdentity returns the project/stack portion shared with resource URNs.
+func ParseStackIdentity(identity string) (string, bool) {
+	parts := strings.Split(identity, "/")
+	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return "", false
+	}
+	return parts[1] + "/" + parts[2], true
+}
+
+type edgeKey struct {
+	from, to string
+	kind     graph.Kind
+	state    string
+}
+
+type graphBuilder struct {
+	graph     graph.Graph
+	nodeIDs   map[string]string
+	roots     map[string]string
+	edges     map[edgeKey]int
+	resources []resourceState
+	multi     bool
+	preview   bool
+}
+
+type document struct {
+	Version    int `json:"version"`
+	Deployment *struct {
+		Resources []resource `json:"resources"`
+	} `json:"deployment"`
+	Steps json.RawMessage `json:"steps"`
+}
+
+func decodeDocument(reader io.Reader) (document, error) {
+	var doc document
+	decoder := json.NewDecoder(reader)
+	if decoder.Decode(&doc) != nil {
+		return doc, errors.New("invalid Pulumi JSON")
+	}
+	var trailing any
+	if decoder.Decode(&trailing) != io.EOF {
+		return doc, errors.New("expected one JSON document; streaming JSON is unsupported")
+	}
+	return doc, nil
+}
+
+func (b *graphBuilder) readSource(source Source) error {
+	if source.Reader == nil {
+		return errors.New("missing input reader")
+	}
+	var stack string
+	if source.Stack != "" {
+		var ok bool
+		stack, ok = ParseStackIdentity(source.Stack)
+		if !ok || b.roots[source.Stack] != "" {
+			return errors.New("input stack names must be unique org/project/stack identities")
 		}
-		decoder := json.NewDecoder(source.Reader)
-		if err := decoder.Decode(&doc); err != nil {
-			return graph.Graph{}, errors.New("invalid Pulumi JSON")
+	}
+	doc, err := decodeDocument(source.Reader)
+	if err != nil {
+		return err
+	}
+	var root string
+	switch {
+	case doc.Deployment != nil && doc.Steps == nil:
+		if doc.Version != 3 {
+			return errors.New("unsupported Pulumi export version; expected version 3")
 		}
-		var trailing any
-		if err := decoder.Decode(&trailing); err != io.EOF {
-			return graph.Graph{}, errors.New("expected one JSON document; streaming JSON is unsupported")
+		for _, res := range doc.Deployment.Resources {
+			if err := b.addNode(res, "", stack, &root); err != nil {
+				return err
+			}
+			b.resources = append(b.resources, resourceState{res, ""})
 		}
-		add := func(res resource, change graph.Change) error {
-			parts := strings.Split(res.URN, "::")
-			if len(parts) != 4 || !strings.HasPrefix(parts[0], "urn:pulumi:") || parts[1] == "" || parts[2] == "" || parts[3] == "" || res.Type == "" {
-				return errors.New("invalid Pulumi resource identity")
-			}
-			if seen[res.URN] {
-				return errors.New("duplicate Pulumi resource")
-			}
-			seen[res.URN] = true
-			stack := parts[1] + "/" + strings.TrimPrefix(parts[0], "urn:pulumi:")
-			if source.Stack != "" {
-				identity := strings.Split(source.Stack, "/")
-				if identity[1]+"/"+identity[2] != stack {
-					return errors.New("input stack identity does not match resource URN")
-				}
-			}
-			if res.Type == "pulumi:pulumi:Stack" {
-				if foundRoot {
-					return errors.New("multiple stack roots in one input")
-				}
-				foundRoot = true
-				if source.Stack != "" {
-					roots[source.Stack] = res.URN
-				}
-				if len(sources) == 1 {
-					return nil
-				}
-			}
-			if strings.HasPrefix(res.Type, "pulumi:providers:") {
-				return nil
-			}
-			g.Nodes = append(g.Nodes, graph.Node{ID: id(res.URN), Name: parts[3], Type: res.Type, Provider: strings.SplitN(res.Type, ":", 2)[0], Change: change, Stack: stack})
+	case doc.Deployment == nil && doc.Steps != nil:
+		if err := b.readPreview(doc.Steps, stack, &root); err != nil {
+			return err
+		}
+	default:
+		return errors.New("expected Pulumi export or preview steps")
+	}
+	if source.Stack == "" {
+		return nil
+	}
+	if root == "" {
+		return errors.New("named input must contain its stack root; include unchanged resources in preview")
+	}
+	b.roots[source.Stack] = root
+	return nil
+}
+
+func (b *graphBuilder) addNode(res resource, change graph.Change, expectedStack string, root *string) error {
+	parts := strings.Split(res.URN, "::")
+	if len(parts) != 4 || !strings.HasPrefix(parts[0], "urn:pulumi:") || parts[1] == "" || parts[2] == "" || parts[3] == "" || res.Type == "" {
+		return errors.New("invalid Pulumi resource identity")
+	}
+	if _, seen := b.nodeIDs[res.URN]; seen {
+		return errors.New("duplicate Pulumi resource")
+	}
+	stack := parts[1] + "/" + strings.TrimPrefix(parts[0], "urn:pulumi:")
+	if expectedStack != "" && expectedStack != stack {
+		return errors.New("input stack identity does not match resource URN")
+	}
+	b.nodeIDs[res.URN] = ""
+	if res.Type == "pulumi:pulumi:Stack" {
+		if *root != "" {
+			return errors.New("multiple stack roots in one input")
+		}
+		*root = res.URN
+		if !b.multi {
 			return nil
 		}
-		switch {
-		case doc.Deployment != nil && doc.Steps == nil:
-			if doc.Version != 3 {
-				return g, errors.New("unsupported Pulumi export version; expected version 3")
-			}
-			for _, r := range doc.Deployment.Resources {
-				if err := add(r, ""); err != nil {
-					return g, err
-				}
-				resources = append(resources, resourceState{r, ""})
-			}
-		case doc.Deployment == nil && doc.Steps != nil:
-			var steps []step
-			if err := json.Unmarshal(doc.Steps, &steps); err != nil || string(doc.Steps) == "null" {
-				return g, errors.New("invalid Pulumi preview steps")
-			}
-			for _, s := range steps {
-				var change graph.Change
-				// shortcut: only logical preview operations, extend with fixtures for other Pulumi operations.
-				switch s.Op {
-				case "same":
-					change = graph.Unchanged
-				case "create":
-					change = graph.Create
-				case "update":
-					change = graph.Update
-				case "delete":
-					change = graph.Delete
-				case "replace":
-					change = graph.Replace
-				default:
-					return g, errors.New("unsupported Pulumi preview operation")
-				}
-				if s.URN == "" || (s.Old != nil && s.Old.URN != s.URN) || (s.New != nil && s.New.URN != s.URN) {
-					return g, errors.New("inconsistent preview resource identity")
-				}
-				if (change == graph.Create && s.New == nil) || (change == graph.Delete && s.Old == nil) || ((change == graph.Update || change == graph.Replace) && (s.Old == nil || s.New == nil)) || (s.Old == nil && s.New == nil) {
-					return g, errors.New("missing preview resource state")
-				}
-				// Unchanged preview registrations can omit IDs and provider outputs.
-				if change == graph.Unchanged && s.Old != nil && s.New != nil {
-					if s.New.ID == "" {
-						s.New.ID = s.Old.ID
-					}
-					if len(s.New.Outputs) == 0 {
-						s.New.Outputs = s.Old.Outputs
-					}
-				}
-				res := s.New
-				if res == nil {
-					res = s.Old
-				}
-				if err := add(*res, change); err != nil {
-					return g, err
-				}
-				if s.Old != nil {
-					resources = append(resources, resourceState{*s.Old, "before"})
-				}
-				if s.New != nil {
-					resources = append(resources, resourceState{*s.New, "after"})
-				}
-			}
-		default:
-			return g, errors.New("expected Pulumi export or preview steps")
+	}
+	if strings.HasPrefix(res.Type, "pulumi:providers:") {
+		return nil
+	}
+	nodeID := id(res.URN)
+	b.nodeIDs[res.URN] = nodeID
+	provider, _, _ := strings.Cut(res.Type, ":")
+	b.graph.Nodes = append(b.graph.Nodes, graph.Node{
+		ID: nodeID, Name: parts[3], Type: res.Type, Provider: provider, Change: change, Stack: stack,
+	})
+	return nil
+}
+
+func (b *graphBuilder) readPreview(raw json.RawMessage, stack string, root *string) error {
+	var steps []step
+	if json.Unmarshal(raw, &steps) != nil || steps == nil {
+		return errors.New("invalid Pulumi preview steps")
+	}
+	b.preview = true
+	for _, s := range steps {
+		change, err := normalizePreviewStep(s)
+		if err != nil {
+			return err
 		}
-		if source.Stack != "" && !foundRoot {
-			return g, errors.New("named input must contain its stack root; include unchanged resources in preview")
+		res := s.New
+		if res == nil {
+			res = s.Old
+		}
+		if err := b.addNode(*res, change, stack, root); err != nil {
+			return err
+		}
+		if s.Old != nil {
+			b.resources = append(b.resources, resourceState{*s.Old, "before"})
+		}
+		if s.New != nil {
+			b.resources = append(b.resources, resourceState{*s.New, "after"})
 		}
 	}
-	nodes := map[string]bool{}
-	for _, n := range g.Nodes {
-		nodes[n.ID] = true
+	return nil
+}
+
+func normalizePreviewStep(s step) (graph.Change, error) {
+	var change graph.Change
+	// shortcut: logical preview operations only, extend with fixtures for other Pulumi operations.
+	switch s.Op {
+	case "same":
+		change = graph.Unchanged
+	case "create":
+		change = graph.Create
+	case "update":
+		change = graph.Update
+	case "delete":
+		change = graph.Delete
+	case "replace":
+		change = graph.Replace
+	default:
+		return "", errors.New("unsupported Pulumi preview operation")
 	}
-	type edgeKey struct {
-		from, to string
-		kind     graph.Kind
-		state    string
+	if s.URN == "" || (s.Old != nil && s.Old.URN != s.URN) || (s.New != nil && s.New.URN != s.URN) {
+		return "", errors.New("inconsistent preview resource identity")
 	}
-	edges := map[edgeKey]int{}
-	link := func(from, to string, kind graph.Kind, state string, evidence graph.Evidence) {
-		from, to = id(from), id(to)
-		if !nodes[from] || !nodes[to] {
-			g.OmittedRelations++
-			return
-		}
-		key := edgeKey{from, to, kind, state}
-		if i, ok := edges[key]; ok {
-			for _, v := range g.Edges[i].Evidence {
-				if v == evidence {
-					return
-				}
-			}
-			g.Edges[i].Evidence = append(g.Edges[i].Evidence, evidence)
-			return
-		}
-		edges[key] = len(g.Edges)
-		g.Edges = append(g.Edges, graph.Edge{From: from, To: to, Kind: kind, State: state, Evidence: []graph.Evidence{evidence}})
+	if (change == graph.Create && s.New == nil) || (change == graph.Delete && s.Old == nil) ||
+		((change == graph.Update || change == graph.Replace) && (s.Old == nil || s.New == nil)) ||
+		(s.Old == nil && s.New == nil) {
+		return "", errors.New("missing preview resource state")
 	}
-	for _, entry := range resources {
-		r := entry.res
-		if !nodes[id(r.URN)] {
-			continue
+	if change != graph.Unchanged || s.Old == nil || s.New == nil {
+		return change, nil
+	}
+	// Unchanged preview registrations can omit IDs and provider outputs.
+	if s.New.ID == "" {
+		s.New.ID = s.Old.ID
+	}
+	if len(s.New.Outputs) == 0 {
+		s.New.Outputs = s.Old.Outputs
+	}
+	return change, nil
+}
+
+func (b *graphBuilder) link(from, to string, kind graph.Kind, state string, evidence graph.Evidence) {
+	from, to = b.nodeIDs[from], b.nodeIDs[to]
+	if from == "" || to == "" {
+		b.graph.OmittedRelations++
+		return
+	}
+	key := edgeKey{from, to, kind, state}
+	if i, ok := b.edges[key]; ok {
+		edge := &b.graph.Edges[i]
+		if !slices.Contains(edge.Evidence, evidence) {
+			edge.Evidence = append(edge.Evidence, evidence)
 		}
-		if len(sources) > 1 && r.Type == "pulumi:pulumi:StackReference" {
-			var target string
-			if err := json.Unmarshal(r.Inputs["name"], &target); err != nil || target == "" {
-				g.OmittedRelations++
-			} else if root, ok := roots[target]; ok {
-				link(r.URN, root, graph.DependsOn, entry.state, graph.Evidence{Source: "stackReference", Property: "inputs.name"})
-			} else {
-				g.OmittedRelations++
-			}
-		}
-		if r.Parent != "" {
-			link(r.Parent, r.URN, graph.Contains, entry.state, graph.Evidence{Source: "parent"})
-		}
-		for _, dep := range r.Dependencies {
-			link(r.URN, dep, graph.DependsOn, entry.state, graph.Evidence{Source: "dependencies"})
-		}
-		for property, deps := range r.PropertyDependencies {
-			for _, dep := range deps {
-				link(r.URN, dep, graph.DependsOn, entry.state, graph.Evidence{Source: "propertyDependencies", Property: property})
-			}
+		return
+	}
+	b.edges[key] = len(b.graph.Edges)
+	b.graph.Edges = append(b.graph.Edges, graph.Edge{From: from, To: to, Kind: kind, State: state, Evidence: []graph.Evidence{evidence}})
+}
+
+func (b *graphBuilder) linkResource(entry resourceState) {
+	r := entry.res
+	if b.nodeIDs[r.URN] == "" {
+		return
+	}
+	if b.multi && r.Type == "pulumi:pulumi:StackReference" {
+		root := b.roots[scalar(r.Inputs["name"])]
+		b.link(r.URN, root, graph.DependsOn, entry.state, graph.Evidence{Source: "stackReference", Property: "inputs.name"})
+	}
+	if r.Parent != "" {
+		b.link(r.Parent, r.URN, graph.Contains, entry.state, graph.Evidence{Source: "parent"})
+	}
+	for _, dep := range r.Dependencies {
+		b.link(r.URN, dep, graph.DependsOn, entry.state, graph.Evidence{Source: "dependencies"})
+	}
+	for property, deps := range r.PropertyDependencies {
+		for _, dep := range deps {
+			b.link(r.URN, dep, graph.DependsOn, entry.state, graph.Evidence{Source: "propertyDependencies", Property: property})
 		}
 	}
-	awsRelations(resources, link)
-	g.Normalize()
-	return g, g.Validate()
 }

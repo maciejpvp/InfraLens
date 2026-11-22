@@ -123,7 +123,7 @@ Obsługa wielu wejść działa także dla wspieranego podzbioru preview, ale wid
 - Interfejs i generowane opisy są po angielsku; nazwy zasobów i dane projektu zachowują oryginalną postać. Oficjalne ikony AWS z pakietu 31 lipca 2026 są osadzone jako SVG w HTML i działają offline ([źródło i warunki](internal/render/icons/NOTICE.md)). Pomocnicze liście mają osobne, domyślnie zwinięte grupy usług w obrębie swojego stosu lub komponentu, np. IAM, S3 i CloudWatch. Klasyfikacja korzysta z typu Pulumi; zasoby uczestniczące w flow pozostają na głównym diagramie.
 - Ciemny canvas zajmuje całe okno. Stosy zawierają rzeczywiste komponenty Pulumi; gałęzie pomocnicze początkowo pozostają zwinięte. Przyciski +/− rozwijają grupy, a połączenia na ich granicach łączą się z zachowaniem wszystkich dowodów.
 - Kliknięcie, dotknięcie, Enter lub Spacja otwiera modal szczegółów zasobu, grupy albo połączenia. Akordeony porządkują zasoby w grupie, typy połączeń i dowody. Kliknięcie wspólnego odcinka strzałek pokazuje wszystkie relacje pod wskaźnikiem, a klawiatura otwiera relację z fokusem. Escape, przycisk zamknięcia lub kliknięcie tła zamyka modal i przywraca fokus do grafu. Liczniki połączeń omijają karty i inne liczniki.
-- Wyszukiwanie obejmuje wszystkie zasoby, także wewnątrz zwiniętych grup; rozwija przodków i wskazuje wynik. Zoom działa kółkiem lub przyciskami, przesuwanie przez przeciągnięcie tła. Rozwijanie, wybór i zmiana rozmiaru okna zachowują kamerę. „Dopasuj” pokazuje całość. Telefon rozpoczyna od czytelnego fragmentu zamiast miniatury całego grafu. Filtry i legenda są w przycisku obok widoku; preview pozwala przełączyć topologię przed/po zmianie.
+- Wyszukiwanie obejmuje wszystkie zasoby, także wewnątrz zwiniętych grup; rozwija przodków i wskazuje wynik. Zoom działa kółkiem lub przyciskami, przesuwanie przez przeciągnięcie tła. Rozwijanie, wybór i zmiana rozmiaru okna zachowują kamerę. „Dopasuj” pokazuje całość. Telefon rozpoczyna od czytelnego fragmentu zamiast miniatury całego grafu. Filtry i legenda są w przycisku obok widoku; preview pozwala przełączyć połączenia przed zmianą lub po niej. Statusy zasobów są dostępne w obu widokach.
 - Bez rozpoznanych reguł domyślnie pokazujemy infrastrukturę; nie zamieniamy dependencies na fikcyjny przepływ.
 
 Pierwszy zestaw reguł AWS obejmuje S3 notifications do SQS/Lambda/SNS, EventBridge targety (w tym DLQ), EventBridge patterns dla S3/Step Functions, statyczne wywołania Lambda w definicji Step Functions, SQS event source mapping, referencję ECS Service → TaskDefinition oraz wybrane zmienne środowiskowe Lambda/ECS (`MEDIA_BUCKET`, `BUCKET_NAME`, `S3_BUCKET`, `QUEUE_URL`, `QUEUE_ARN`). Dopasowanie identyfikatora musi być jednoznaczne; wartości nieznane/sekretne nie są zgadywane. Dla S3 → EventBridge sprawdzamy też włączenie EventBridge w BucketNotification.
@@ -151,10 +151,14 @@ Jeśli używasz globalnej komendy `InfraLens`, po buildzie frontendu ponownie zb
 
 ```bash
 go test ./...
+go test -tags=integration ./internal/adapters/pulumi/simulate
 node --test internal/render/*.test.mjs
+node internal/render/routing.bench.mjs
 go run ./cmd/infralens render --input testdata/pulumi/flow-details.json --output /tmp/infralens.html
 python3 scripts/check_html.py /tmp/infralens.html /sciezka/do/chrome-headless-shell
 ```
+
+Test z tagiem `integration` uruchamia dwa projekty z mockami i sprawdza przekazanie outputs przez StackReference. Działa offline, po wcześniejszym pobraniu zależności przez `go -C internal/adapters/pulumi/simulate/testdata/stack-reference mod download`.
 
 Test przeglądarkowy wymaga już zainstalowanego Chromium. Otwiera faktyczny plik przez `file://`, sprawdza rozwijanie grup, dostępność przycisków pod wskaźnikiem, akordeony, zamykanie modalu i przywracanie fokusu, wyszukanie każdego zasobu, zachowanie kamery, pan/zoom, układ desktop/mobile i brak zasobów HTTP/HTTPS. Osobne przypadki obejmują pusty graf, długie nazwy, ograniczenie ruchu i wspólne odcinki różnych typów relacji. Test sprawdza też rzeczywisty element pod wskaźnikiem oraz obszary etykiet. Zrzuty QA zapisuje w `/tmp/infralens-desktop.png` i `/tmp/infralens-mobile.png`.
 

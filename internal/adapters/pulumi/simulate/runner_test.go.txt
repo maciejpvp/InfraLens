@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/tokens"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/internals"
 )
 
 type infraLensCapture struct {
@@ -71,12 +73,12 @@ func (m *infraLensMonitor) NewResource(args pulumi.MockResourceArgs) (string, re
 	}
 	// Capture only configuration needed by typed relationship rules. No arbitrary inputs.
 	item := infraLensCapture{Type: args.TypeToken, ID: id, Inputs: map[string]any{}, Outputs: map[string]any{}, PropertyDependencies: map[string][]string{}}
-	for _, key := range []string{"name", "bucket", "queues", "lambdaFunctions", "topics", "eventbridge", "rule", "arn", "eventPattern", "definition", "taskDefinition", "containerDefinitions", "environment", "eventSourceArn", "functionName", "deadLetterConfig", "apiId", "integrationType", "integrationUri", "routeKey", "target", "authorizationType", "filterCriteria", "enabled", "startingPosition", "batchSize", "maximumBatchingWindowInSeconds", "scheduleExpression", "streamEnabled", "streamViewType"} {
+	for _, key := range []string{"name", "bucket", "queues", "lambdaFunctions", "topics", "eventbridge", "rule", "arn", "eventPattern", "definition", "taskDefinition", "containerDefinitions", "environment", "eventSourceArn", "functionName", "deadLetterConfig", "apiId", "integrationType", "integrationUri", "routeKey", "target", "authorizationType", "filterCriteria", "enabled", "startingPosition", "batchSize", "maximumBatchingWindowInSeconds", "scheduleExpression"} {
 		if value, ok := args.Inputs[resource.PropertyKey(key)]; ok && !value.ContainsSecrets() && !value.ContainsUnknowns() {
 			item.Inputs[key] = value.Mappable()
 		}
 	}
-	for _, key := range []string{"name", "arn", "bucket", "url", "streamArn"} {
+	for _, key := range []string{"name", "arn", "bucket", "url", "streamArn", "invokeArn"} {
 		if value, ok := outputs[resource.PropertyKey(key)]; ok && value.IsString() {
 			item.Outputs[key] = value.StringValue()
 		}
@@ -128,16 +130,21 @@ func TestInfraLensSimulation(t *testing.T) {
 	if json.Unmarshal(raw, &m.references) != nil {
 		t.Fatal("invalid simulation references")
 	}
-	var exports map[string]any
+	var output pulumi.Output
 	wrapped := func(ctx *pulumi.Context) error {
 		if err := deploy(ctx); err != nil {
 			return err
 		}
-		pulumi.ToOutput(pulumi.Map(ctx.GetCurrentExportMap())).ApplyT(func(values map[string]any) error { exports = values;return nil })
+		output = pulumi.ToOutputWithContext(ctx.Context(), pulumi.Map(ctx.GetCurrentExportMap()))
 		return nil
 	}
 	if err := pulumi.RunErr(wrapped, pulumi.WithMocksWithOrganization(identity[0], project, stack, m), withStackConfig(t, nil)); err != nil {
 		t.Fatal("mock deployment failed")
+	}
+	// SDK completion does not wait for standalone callbacks on constant exports.
+	exports, err := internals.UnsafeAwaitOutput(context.Background(), output)
+	if err != nil {
+		t.Fatal("cannot resolve simulated stack outputs")
 	}
 	resources := []infraLensCapture{{URN: root, Type: "pulumi:pulumi:Stack"}}
 	for _, item := range m.resources {
@@ -155,7 +162,7 @@ func TestInfraLensSimulation(t *testing.T) {
 		}
 		resources = append(resources, item)
 	}
-	data, err := json.Marshal(map[string]any{"version": 3, "deployment": map[string]any{"resources": resources}, "exports": exports})
+	data, err := json.Marshal(map[string]any{"version": 3, "deployment": map[string]any{"resources": resources}, "exports": exports.Value})
 	if err != nil {
 		t.Fatal("cannot encode simulation capture")
 	}

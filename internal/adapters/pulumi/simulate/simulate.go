@@ -26,115 +26,137 @@ type Project struct {
 	Directory string
 }
 
+type simulation struct {
+	tmp, output string
+	modules     map[string]string
+	references  map[string]json.RawMessage
+}
+
 // Run executes trusted project code. Pulumi operations use the project's mocks;
 // this is not a sandbox for arbitrary Go code.
 func Run(ctx context.Context, projects []Project, output string) (graph.Graph, error) {
-	var empty graph.Graph
 	if len(projects) == 0 {
-		return empty, errors.New("at least one --project is required")
+		return graph.Graph{}, errors.New("at least one --project is required")
+	}
+	absoluteOutput, err := filepath.Abs(output)
+	if err != nil {
+		return graph.Graph{}, errors.New("invalid output path")
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(absoluteOutput))
+	if err != nil {
+		return graph.Graph{}, errors.New("cannot resolve output directory")
 	}
 	tmp, err := os.MkdirTemp("", "infralens-simulate-")
 	if err != nil {
-		return empty, errors.New("cannot create simulation directory")
+		return graph.Graph{}, errors.New("cannot create simulation directory")
 	}
 	defer os.RemoveAll(tmp)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	modules := map[string]string{}
-	var sources []pulumi.Source
-	references := map[string]json.RawMessage{}
-	referencePath := filepath.Join(tmp, "references.json")
+	s := simulation{
+		tmp: tmp, output: filepath.Join(parent, filepath.Base(absoluteOutput)),
+		modules: map[string]string{}, references: map[string]json.RawMessage{},
+	}
+	sources := make([]pulumi.Source, 0, len(projects))
 	for _, project := range projects {
-		identity := strings.Split(project.Stack, "/")
-		if len(identity) != 3 || identity[0] == "" || identity[1] == "" || identity[2] == "" {
-			return empty, errors.New("--project requires org/project/stack=DIRECTORY")
-		}
-		directory, err := filepath.Abs(project.Directory)
+		source, err := s.runProject(ctx, project)
 		if err != nil {
-			return empty, errors.New("invalid project directory")
+			return graph.Graph{}, err
 		}
-		directory, err = filepath.EvalSymlinks(directory)
-		if err != nil {
-			return empty, errors.New("cannot resolve project directory")
-		}
-		module, err := moduleRoot(directory)
-		if err != nil {
-			return empty, err
-		}
-		absoluteOutput, err := filepath.Abs(output)
-		if err != nil {
-			return empty, errors.New("invalid output path")
-		}
-		parent, err := filepath.EvalSymlinks(filepath.Dir(absoluteOutput))
-		if err != nil {
-			return empty, errors.New("cannot resolve output directory")
-		}
-		if within(module, filepath.Join(parent, filepath.Base(absoluteOutput))) {
-			return empty, errors.New("simulation output must be outside source modules")
-		}
-		copy, ok := modules[module]
-		if !ok {
-			folder, err := os.MkdirTemp(tmp, "module-")
-			if err != nil {
-				return empty, errors.New("cannot prepare module copy")
-			}
-			if err := copyModule(module, folder); err != nil {
-				return empty, errors.New("cannot copy Go module for simulation")
-			}
-			copy = folder
-			modules[module] = copy
-		}
-		relative, err := filepath.Rel(module, directory)
-		if err != nil {
-			return empty, errors.New("invalid project path")
-		}
-		work := filepath.Join(copy, relative)
-		if err := os.WriteFile(filepath.Join(work, "zz_infralens_simulation_test.go"), []byte(runner), 0600); err != nil {
-			return empty, errors.New("cannot prepare simulation test")
-		}
-		result, err := os.CreateTemp(tmp, "capture-*.json")
-		if err != nil {
-			return empty, errors.New("cannot prepare simulation capture")
-		}
-		result.Close()
-		command := exec.CommandContext(ctx, "go", "test", "-buildvcs=false", "-count=1", "-run=^TestInfraLensSimulation$", "-timeout=8m", ".")
-		command.Dir = work
-		raw, _ := json.Marshal(references)
-		if err := os.WriteFile(referencePath, raw, 0600); err != nil {
-			return empty, errors.New("cannot prepare simulated stack outputs")
-		}
-		command.Env = append(environment(project.Stack, result.Name()), "INFRALENS_REFERENCES="+referencePath)
-		// Test/build logs can contain project secrets and are never forwarded.
-		if err := command.Run(); err != nil {
-			if ctx.Err() != nil {
-				return empty, errors.New("simulation cancelled or timed out")
-			}
-			return empty, errors.New("simulation failed: requires cached Go dependencies, deploy/infraMocks/withStackConfig test helpers, and dependencies listed before consumers; run project tests to diagnose")
-		}
-		data, err := os.ReadFile(result.Name())
-		if err != nil || len(data) == 0 {
-			return empty, errors.New("simulation produced no capture; check the Go test hook")
-		}
-		var captured struct {
-			Exports json.RawMessage `json:"exports"`
-		}
-		if json.Unmarshal(data, &captured) != nil {
-			return empty, errors.New("invalid simulation capture")
-		}
-		if captured.Exports != nil {
-			references[project.Stack] = captured.Exports
-		}
-		sources = append(sources, pulumi.Source{Stack: project.Stack, Reader: bytes.NewReader(data)})
+		sources = append(sources, source)
 	}
 	g, err := pulumi.ReadSources(sources...)
 	if err != nil {
-		return empty, err
+		return graph.Graph{}, err
 	}
 	g.Simulated = true
 	for i := range g.Nodes {
 		g.Nodes[i].Change = graph.Create
 	}
 	return g, g.Validate()
+}
+
+func (s *simulation) runProject(ctx context.Context, project Project) (pulumi.Source, error) {
+	if _, ok := pulumi.ParseStackIdentity(project.Stack); !ok {
+		return pulumi.Source{}, errors.New("--project requires org/project/stack=DIRECTORY")
+	}
+	work, err := s.projectCopy(project.Directory)
+	if err != nil {
+		return pulumi.Source{}, err
+	}
+	if err := os.WriteFile(filepath.Join(work, "zz_infralens_simulation_test.go"), []byte(runner), 0600); err != nil {
+		return pulumi.Source{}, errors.New("cannot prepare simulation test")
+	}
+	result, err := os.CreateTemp(s.tmp, "capture-*.json")
+	if err != nil {
+		return pulumi.Source{}, errors.New("cannot prepare simulation capture")
+	}
+	if err := result.Close(); err != nil {
+		return pulumi.Source{}, errors.New("cannot prepare simulation capture")
+	}
+	referencePath := filepath.Join(s.tmp, "references.json")
+	raw, _ := json.Marshal(s.references)
+	if err := os.WriteFile(referencePath, raw, 0600); err != nil {
+		return pulumi.Source{}, errors.New("cannot prepare simulated stack outputs")
+	}
+	command := exec.CommandContext(ctx, "go", "test", "-buildvcs=false", "-count=1", "-run=^TestInfraLensSimulation$", "-timeout=8m", ".")
+	command.Dir = work
+	command.Env = append(environment(project.Stack, result.Name()), "INFRALENS_REFERENCES="+referencePath)
+	// Test/build logs can contain project secrets and are never forwarded.
+	if err := command.Run(); err != nil {
+		if ctx.Err() != nil {
+			return pulumi.Source{}, errors.New("simulation cancelled or timed out")
+		}
+		return pulumi.Source{}, errors.New("simulation failed: requires cached Go dependencies, deploy/infraMocks/withStackConfig test helpers, and dependencies listed before consumers; run project tests to diagnose")
+	}
+	data, err := os.ReadFile(result.Name())
+	if err != nil || len(data) == 0 {
+		return pulumi.Source{}, errors.New("simulation produced no capture; check the Go test hook")
+	}
+	var captured struct {
+		Exports json.RawMessage `json:"exports"`
+	}
+	if json.Unmarshal(data, &captured) != nil {
+		return pulumi.Source{}, errors.New("invalid simulation capture")
+	}
+	if captured.Exports != nil {
+		s.references[project.Stack] = captured.Exports
+	}
+	return pulumi.Source{Stack: project.Stack, Reader: bytes.NewReader(data)}, nil
+}
+
+func (s *simulation) projectCopy(directory string) (string, error) {
+	directory, err := filepath.Abs(directory)
+	if err != nil {
+		return "", errors.New("invalid project directory")
+	}
+	directory, err = filepath.EvalSymlinks(directory)
+	if err != nil {
+		return "", errors.New("cannot resolve project directory")
+	}
+	module, err := moduleRoot(directory)
+	if err != nil {
+		return "", err
+	}
+	if within(module, s.output) {
+		return "", errors.New("simulation output must be outside source modules")
+	}
+	relative, err := filepath.Rel(module, directory)
+	if err != nil {
+		return "", errors.New("invalid project path")
+	}
+	folder, ok := s.modules[module]
+	if !ok {
+		folder, err = os.MkdirTemp(s.tmp, "module-")
+		if err != nil {
+			return "", errors.New("cannot prepare module copy")
+		}
+		if err := copyModule(module, folder); err != nil {
+			return "", errors.New("cannot copy Go module for simulation")
+		}
+		s.modules[module] = folder
+	}
+	return filepath.Join(folder, relative), nil
 }
 
 func within(root, path string) bool {

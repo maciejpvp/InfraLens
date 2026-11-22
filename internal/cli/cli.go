@@ -2,7 +2,6 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -19,27 +18,50 @@ import (
 	"infralens/internal/render"
 )
 
+type commandLine struct {
+	stdout, stderr io.Writer
+}
+
+const graphUsage = " --input [org/project/stack=]FILE [--input ...] --output FILE"
+const simulateUsage = "infralens simulate --project org/project/stack=DIRECTORY [--project ...] --output FILE"
+
 func Run(args []string, stdout, stderr io.Writer) int {
-	if err := run(args, stdout, stderr); err != nil {
+	c := commandLine{stdout: stdout, stderr: stderr}
+	if err := c.run(args); err != nil {
 		fmt.Fprintln(stderr, "infralens:", err)
 		return 1
 	}
 	return 0
 }
 
-func run(args []string, stdout, stderr io.Writer) error {
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
-		fmt.Fprintln(stdout, "Usage: InfraLens generate [--output infralens.html] [--no-open]\n       infralens <graph|render> --input [org/project/stack=]FILE [--input ...] --output FILE\nReads Pulumi export v3 or non-streaming preview JSON.\n       infralens simulate --project org/project/stack=DIRECTORY [--project ...] --output FILE")
+func (c commandLine) run(args []string) error {
+	if len(args) == 0 {
+		c.help()
 		return nil
 	}
-	if args[0] == "generate" {
-		return generate(args[1:], stdout, stderr)
-	}
-	if args[0] != "graph" && args[0] != "render" && args[0] != "simulate" {
+	switch args[0] {
+	case "help", "--help", "-h":
+		c.help()
+		return nil
+	case "generate":
+		return c.generate(args[1:])
+	case "graph", "render":
+		return c.graphOrRender(args[0], args[1:])
+	case "simulate":
+		return c.simulate(args[1:])
+	default:
 		return errors.New("unknown command; use --help")
 	}
-	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
-	// Flag parsing errors can contain user-supplied values; report a fixed message.
+}
+
+func (c commandLine) help() {
+	fmt.Fprintln(c.stdout, "Usage: InfraLens generate [--output infralens.html] [--no-open]\n       infralens <graph|render>"+graphUsage+
+		"\nReads Pulumi export v3 or non-streaming preview JSON.\n       "+simulateUsage)
+}
+
+func (c commandLine) graphOrRender(command string, args []string) error {
+	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+	// Flag parsing errors can contain user-supplied values.
 	flags.SetOutput(io.Discard)
 	var inputs []string
 	flags.Func("input", "Pulumi JSON file, optionally org/project/stack=FILE; repeat for multiple stacks", func(value string) error {
@@ -49,6 +71,35 @@ func run(args []string, stdout, stderr io.Writer) error {
 		inputs = append(inputs, value)
 		return nil
 	})
+	output := flags.String("output", "", "destination file")
+	err := flags.Parse(args)
+	if errors.Is(err, flag.ErrHelp) {
+		fmt.Fprintln(c.stdout, "Usage: infralens "+command+graphUsage)
+		return nil
+	}
+	if err != nil {
+		return errors.New("invalid flags; use --help")
+	}
+	if *output == "" || flags.NArg() != 0 {
+		return errors.New("--output is required; positional arguments are unsupported")
+	}
+	if len(inputs) == 0 {
+		return errors.New("graph/render require --input and do not accept --project")
+	}
+	outputInfo, err := inspectOutput(*output)
+	if err != nil {
+		return err
+	}
+	g, err := readInputs(inputs, outputInfo)
+	if err != nil {
+		return err
+	}
+	return c.writeOutput(*output, g, command == "graph")
+}
+
+func (c commandLine) simulate(args []string) error {
+	flags := flag.NewFlagSet("simulate", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
 	var projects []simulate.Project
 	flags.Func("project", "Go Pulumi project with deploy/infraMocks/withStackConfig test helpers: org/project/stack=DIRECTORY", func(value string) error {
 		stack, directory, ok := strings.Cut(value, "=")
@@ -59,68 +110,71 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return nil
 	})
 	output := flags.String("output", "", "destination file")
-	if err := flags.Parse(args[1:]); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			if args[0] == "simulate" {
-				fmt.Fprintln(stdout, "Usage: infralens simulate --project org/project/stack=DIRECTORY [--project ...] --output FILE")
-			} else {
-				fmt.Fprintln(stdout, "Usage: infralens", args[0], "--input [org/project/stack=]FILE [--input ...] --output FILE")
-			}
-			return nil
-		}
+	err := flags.Parse(args)
+	if errors.Is(err, flag.ErrHelp) {
+		fmt.Fprintln(c.stdout, "Usage: "+simulateUsage)
+		return nil
+	}
+	if err != nil {
 		return errors.New("invalid flags; use --help")
 	}
 	if *output == "" || flags.NArg() != 0 {
 		return errors.New("--output is required; positional arguments are unsupported")
 	}
-	if args[0] == "simulate" {
-		if len(projects) == 0 || len(inputs) != 0 {
-			return errors.New("simulate requires --project and does not accept --input")
-		}
-	} else if len(inputs) == 0 || len(projects) != 0 {
-		return errors.New("graph/render require --input and do not accept --project")
+	if len(projects) == 0 {
+		return errors.New("simulate requires --project and does not accept --input")
 	}
-	outputInfo, err := inspectOutput(*output)
+	if _, err := inspectOutput(*output); err != nil {
+		return err
+	}
+	fmt.Fprintln(c.stderr, "Simulating trusted Go project code with test mocks; first build may take several minutes.")
+	g, err := simulate.Run(context.Background(), projects, *output)
 	if err != nil {
 		return err
 	}
-	var g graph.Graph
-	if args[0] == "simulate" {
-		fmt.Fprintln(stderr, "Simulating trusted Go project code with test mocks; first build may take several minutes.")
-		g, err = simulate.Run(context.Background(), projects, *output)
+	return c.writeOutput(*output, g, false)
+}
+
+func readInputs(inputs []string, outputInfo os.FileInfo) (graph.Graph, error) {
+	sources := make([]pulumi.Source, 0, len(inputs))
+	for _, input := range inputs {
+		name, path := splitInput(input)
+		info, err := os.Stat(path)
 		if err != nil {
-			return err
+			return graph.Graph{}, errors.New("cannot open input file")
 		}
-	} else {
-		var sources []pulumi.Source
-		for _, input := range inputs {
-			name, path := "", input
-			if before, after, ok := strings.Cut(input, "="); ok {
-				name, path = before, after
-				if name == "" {
-					return errors.New("missing input stack identity")
-				}
-			}
-			in, err := os.Open(path)
-			if err != nil {
-				return errors.New("cannot open input file")
-			}
-			defer in.Close()
-			info, err := in.Stat()
-			if err != nil || !info.Mode().IsRegular() {
-				return errors.New("input must be a regular file")
-			}
-			if outputInfo != nil && os.SameFile(info, outputInfo) {
-				return errors.New("input and output must be different files")
-			}
-			sources = append(sources, pulumi.Source{Reader: in, Stack: name})
+		if !info.Mode().IsRegular() {
+			return graph.Graph{}, errors.New("input must be a regular file")
 		}
-		g, err = pulumi.ReadSources(sources...)
+		in, err := os.Open(path)
 		if err != nil {
-			return err
+			return graph.Graph{}, errors.New("cannot open input file")
 		}
+		defer in.Close()
+		info, err = in.Stat()
+		if err != nil || !info.Mode().IsRegular() {
+			return graph.Graph{}, errors.New("input must be a regular file")
+		}
+		if outputInfo != nil && os.SameFile(info, outputInfo) {
+			return graph.Graph{}, errors.New("input and output must be different files")
+		}
+		sources = append(sources, pulumi.Source{Reader: in, Stack: name})
 	}
-	return writeOutput(*output, g, args[0] == "graph", stderr)
+	return pulumi.ReadSources(sources...)
+}
+
+func splitInput(input string) (stack, path string) {
+	stack, path, named := strings.Cut(input, "=")
+	if !named {
+		return "", input
+	}
+	if _, ok := pulumi.ParseStackIdentity(stack); !ok {
+		return "", input
+	}
+	if _, err := os.Stat(input); err == nil {
+		return "", input
+	}
+	return stack, path
 }
 
 func inspectOutput(path string) (os.FileInfo, error) {
@@ -137,34 +191,28 @@ func inspectOutput(path string) (os.FileInfo, error) {
 	return info, nil
 }
 
-func writeOutput(path string, g graph.Graph, asJSON bool, stderr io.Writer) error {
-	var data bytes.Buffer
-	var err error
-	if asJSON {
-		encoder := json.NewEncoder(&data)
-		encoder.SetIndent("", "  ")
-		err = encoder.Encode(g)
-	} else {
-		err = render.HTML(&data, g)
-	}
-	if err != nil {
-		return errors.New("cannot encode output")
-	}
+func (c commandLine) writeOutput(path string, g graph.Graph, asJSON bool) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".infralens-*")
 	if err != nil {
 		return errors.New("cannot create output file")
 	}
 	defer os.Remove(tmp.Name())
-	_, writeErr := tmp.Write(data.Bytes())
+	if asJSON {
+		encoder := json.NewEncoder(tmp)
+		encoder.SetIndent("", "  ")
+		err = encoder.Encode(g)
+	} else {
+		err = render.HTML(tmp, g)
+	}
 	closeErr := tmp.Close()
-	if writeErr != nil || closeErr != nil {
+	if err != nil || closeErr != nil {
 		return errors.New("cannot write output file")
 	}
 	if err := os.Rename(tmp.Name(), path); err != nil {
 		return errors.New("cannot replace output file")
 	}
 	if g.OmittedRelations > 0 {
-		fmt.Fprintln(stderr, "Omitted references to hidden or missing resources:", g.OmittedRelations)
+		fmt.Fprintln(c.stderr, "Omitted references to hidden or missing resources:", g.OmittedRelations)
 	}
 	return nil
 }

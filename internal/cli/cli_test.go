@@ -105,6 +105,28 @@ func TestMultipleInputs(t *testing.T) {
 	}
 }
 
+func TestInputPathsWithEquals(t *testing.T) {
+	fixture, err := os.ReadFile("../../testdata/pulumi/multi/base.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(t.TempDir())
+	if err := os.MkdirAll("org/base", 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"stack=dev.json", "org/base/dev=literal.json"} {
+		if err := os.WriteFile(path, fixture, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, input := range []string{"stack=dev.json", "org/base/dev=literal.json", "org/base/dev=stack=dev.json"} {
+		var logs bytes.Buffer
+		if Run([]string{"graph", "--input", input, "--output", "result.json"}, &logs, &logs) != 0 {
+			t.Fatalf("%q: %s", input, logs.String())
+		}
+	}
+}
+
 func TestOutputCannotOverwriteAnyInput(t *testing.T) {
 	first := filepath.Join(t.TempDir(), "first")
 	second := filepath.Join(t.TempDir(), "second")

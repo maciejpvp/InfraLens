@@ -38,10 +38,10 @@ test('stack and component hierarchy retains every resource, missing parents and 
 test('collapsed connections aggregate by kind and retain each original edge and evidence',()=>{
   const graph={nodes:[node('g'),node('a'),node('b'),node('target')],edges:[edge('g','a'),edge('g','b'),edge('a','target','triggers'),edge('b','target','triggers'),edge('a','b','connects_to'),edge('a','target','connects_to')]};
   const tree=buildHierarchy(graph),view=projectGraph(tree,'flow',true,new Set(tree.roots.map(r=>r.id)));
-  assert.equal(view.edges.length,2);assert.equal(view.hiddenEdges.length,1);
+  assert.equal(view.edges.length,2);
   const aggregate=view.edges.find(e=>e.kind==='triggers');assert.equal(aggregate.from,'group:g');assert.equal(aggregate.originals.length,2);
   assert.equal(aggregate.originals[0],graph.edges[2]);assert.equal(aggregate.originals[1].evidence[0].property,'b.target');
-  assert.equal(view.edges.flatMap(e=>e.originals).length+view.hiddenEdges.length,4);
+  assert.equal(view.edges.flatMap(e=>e.originals).length,3);
 });
 test('active topology controls both parentage and connections; filters do not lose resources',()=>{
   const graph={nodes:[node('old'),node('new'),node('a'),node('b')],edges:[edge('old','a','contains','before'),edge('new','a','contains','after'),edge('a','b','triggers','before'),edge('b','a','depends_on')]};

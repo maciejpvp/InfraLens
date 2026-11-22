@@ -21,6 +21,7 @@ func detailValue(raw json.RawMessage) string {
 	if s, ok := value.(string); ok && json.Valid([]byte(s)) {
 		_ = json.Unmarshal([]byte(s), &value)
 	}
+	redactedKeys := false
 	var clean func(any) any
 	clean = func(v any) any {
 		switch x := v.(type) {
@@ -43,11 +44,11 @@ func detailValue(raw json.RawMessage) string {
 			}
 			result := map[string]any{}
 			for k, v := range x {
-				key := k
 				if privateIdentifier.MatchString(k) {
-					key = "[redacted]"
+					redactedKeys = true
+					continue
 				}
-				result[key] = clean(v)
+				result[k] = clean(v)
 			}
 			return result
 		case []any:
@@ -63,6 +64,9 @@ func detailValue(raw json.RawMessage) string {
 		return s
 	}
 	data, _ := json.Marshal(value)
+	if redactedKeys {
+		return string(data) + " · contains [redacted] keys"
+	}
 	return string(data)
 }
 
@@ -93,58 +97,70 @@ func eventLabel(raw json.RawMessage, fallback string) string {
 func mappingDescription(r resource, dynamo bool) (string, string) {
 	label := "SQS messages"
 	if dynamo {
-		label = "DynamoDB Streams"
-		if raw, ok := r.Inputs["filterCriteria"]; !ok || string(raw) == "null" {
-			label += " · INSERT, MODIFY, REMOVE"
-		} else {
-			var criteria struct {
-				Filters []struct {
-					Pattern string `json:"pattern"`
-				} `json:"filters"`
-			}
-			var fields map[string]json.RawMessage
-			var filters []json.RawMessage
-			empty := json.Unmarshal(raw, &fields) == nil && fields != nil && (len(fields) == 0 || len(fields) == 1 && fields["filters"] != nil && json.Unmarshal(fields["filters"], &filters) == nil && len(filters) == 0)
-			events := map[string]bool{}
-			simple := json.Unmarshal(raw, &criteria) == nil && len(criteria.Filters) > 0
-			for _, f := range criteria.Filters {
-				var pattern map[string]json.RawMessage
-				if json.Unmarshal([]byte(f.Pattern), &pattern) != nil || len(pattern) != 1 {
-					simple = false
-					break
-				}
-				var names []string
-				if json.Unmarshal(pattern["eventName"], &names) != nil || len(names) == 0 {
-					simple = false
-					break
-				}
-				for _, name := range names {
-					if name != "INSERT" && name != "MODIFY" && name != "REMOVE" {
-						simple = false
-					}
-					events[name] = true
-				}
-			}
-			if simple {
-				names := make([]string, 0, len(events))
-				for n := range events {
-					names = append(names, n)
-				}
-				sort.Strings(names)
-				label += " · " + strings.Join(names, ", ")
-			} else if unavailable(raw) {
-				label += " · unknown filter"
-			} else if empty {
-				label += " · INSERT, MODIFY, REMOVE"
-			} else {
-				label += " · filtered"
-			}
-		}
+		label = "DynamoDB Streams · " + dynamoFilterLabel(r.Inputs["filterCriteria"])
 	}
 	if string(r.Inputs["enabled"]) == "false" {
 		label += " · disabled"
 	}
 	return label, detailFields(r.Inputs, "filterCriteria", "enabled", "startingPosition", "batchSize", "maximumBatchingWindowInSeconds")
+}
+
+func dynamoFilterLabel(raw json.RawMessage) string {
+	const allEvents = "INSERT, MODIFY, REMOVE"
+	if len(raw) == 0 || string(raw) == "null" {
+		return allEvents
+	}
+	// Read the outer object once so missing, empty and unrecognized filters stay distinct.
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) == nil && fields != nil {
+		if len(fields) == 0 {
+			return allEvents
+		}
+		if names, ok := dynamoFilterEvents(fields["filters"]); ok {
+			if len(names) > 0 {
+				return strings.Join(names, ", ")
+			}
+			if len(fields) == 1 {
+				return allEvents
+			}
+		}
+	}
+	if unavailable(raw) {
+		return "unknown filter"
+	}
+	return "filtered"
+}
+
+func dynamoFilterEvents(raw json.RawMessage) ([]string, bool) {
+	var filters []struct{ Pattern string }
+	if json.Unmarshal(raw, &filters) != nil {
+		return nil, false
+	}
+	events := map[string]bool{}
+	for _, f := range filters {
+		var pattern map[string]json.RawMessage
+		if json.Unmarshal([]byte(f.Pattern), &pattern) != nil || len(pattern) != 1 {
+			return nil, false
+		}
+		var names []string
+		if json.Unmarshal(pattern["eventName"], &names) != nil || len(names) == 0 {
+			return nil, false
+		}
+		for _, name := range names {
+			switch name {
+			case "INSERT", "MODIFY", "REMOVE":
+				events[name] = true
+			default:
+				return nil, false
+			}
+		}
+	}
+	names := make([]string, 0, len(events))
+	for name := range events {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, true
 }
 
 func eventBridgeDescription(r resource) (string, string) {

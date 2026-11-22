@@ -132,7 +132,7 @@ export function DetailsDialog({ inspector, byId, onResource, onEdges }) {
   const page = pages.at(-1)
   const title = page?.item?.name ?? (page?.edges?.length === 1 ? edgeTitle(page.edges[0], byId) : page && `Connections at this point (${page.edges.length})`)
   return <Dialog open={Boolean(page)} onOpenChange={open => { if (!open) close() }}>
-    <DialogContent id="inspector" showCloseButton={false} aria-describedby={undefined}
+    <DialogContent id="inspector" aria-describedby={undefined}
       className="flex max-h-[min(50rem,calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom))))] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl bg-card p-0 sm:max-w-[44rem]"
       onOpenAutoFocus={event => { event.preventDefault(); closeButton.current?.focus() }}
       onCloseAutoFocus={restoreGraphFocus} onPointerDownOutside={event => event.preventDefault()}

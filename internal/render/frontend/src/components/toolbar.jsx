@@ -80,7 +80,7 @@ export function Toolbar({ graph, search, mode, setMode, dependencies, setDepende
         <label htmlFor="dependencies">Pulumi deployment dependencies</label>
       </div>
       <div id="topology-label" hidden={!graph.edges.some(edge => edge.state)} className="mt-4 space-y-2">
-        <label htmlFor="topology">Topology</label>
+        <label htmlFor="topology">Connections</label>
         <NativeSelect id="topology" value={topology} onChange={event => setTopology(event.target.value)}>
           <NativeSelectOption value="after">After changes</NativeSelectOption>
           <NativeSelectOption value="before">Before changes</NativeSelectOption>

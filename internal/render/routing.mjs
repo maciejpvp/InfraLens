@@ -5,17 +5,46 @@ function crosses(a,b,box){
   return a.x>box.x&&a.x<box.x+box.width&&Math.max(a.y,b.y)>box.y&&Math.min(a.y,b.y)<box.y+box.height;
 }
 function inside(point,box){return point.x>box.x&&point.x<box.x+box.width&&point.y>box.y&&point.y<box.y+box.height;}
-function ancestors(view,id){const result=new Set([id]);for(let p=view.items.get(id).parent;p;p=p.parent)result.add(p.id);return result;}
-function obstaclesFor(view,layout,edge){
-  const allowed=new Set([...ancestors(view,edge.from),...ancestors(view,edge.to)]),obstacles=[];
-  for(const item of view.items.values()){
-    let covered=false;
-    for(let p=item.parent;p;p=p.parent)if(!allowed.has(p.id)){covered=true;break;}
-    if(covered)continue;
-    const p=layout.positions.get(item.id),height=item.expanded&&allowed.has(item.id)?44:p.height;
-    obstacles.push({id:item.id,x:p.x-ROUTE_GAP,y:p.y-ROUTE_GAP,width:p.width+ROUTE_GAP*2,height:height+ROUTE_GAP*2});
+function routingGroups(view,id){
+  const item=view.items.get(id),result=item.expanded?[id]:[];
+  for(let parent=item.parent;parent;parent=parent.parent)result.push(parent.id);
+  return result;
+}
+
+function obstacleGeometry(view,layout){
+  return [...view.items.values()].map(item=>{
+    const {x,y,width,height}=layout.positions.get(item.id);
+    const box={id:item.id,x:x-ROUTE_GAP,y:y-ROUTE_GAP,width:width+ROUTE_GAP*2,height:height+ROUTE_GAP*2};
+    const header=item.expanded?{...box,height:44+ROUTE_GAP*2}:box;
+    return {box,header,parent:item.parent?.id};
+  });
+}
+
+function routingObstacles(geometry,groups){
+  const allowed=new Set(groups),boxes=[];
+  for(const {box,header,parent} of geometry){
+    // The allowed set already includes every ancestor of an allowed parent.
+    if(parent!==undefined&&!allowed.has(parent))continue;
+    boxes.push(allowed.has(box.id)?header:box);
   }
-  return obstacles;
+  const lines={x:new Map(),y:new Map()},axes={};
+  function crossesSegment(p,q){
+    const axis=p.y===q.y?'y':'x',span=axis==='x'?'width':'height';
+    const coordinate=p[axis],cache=lines[axis];
+    if(!cache.has(coordinate)){
+      cache.set(coordinate,boxes.filter(box=>coordinate>box[axis]&&coordinate<box[axis]+box[span]));
+    }
+    return cache.get(coordinate).some(box=>crosses(p,q,box));
+  }
+  function coordinates(axis){
+    if(!axes[axis]){
+      const span=axis==='x'?'width':'height';
+      const values=[...new Set(boxes.flatMap(box=>[box[axis],box[axis]+box[span]]))].sort((a,b)=>a-b);
+      axes[axis]=[values[0]-16,...values,values.at(-1)+16];
+    }
+    return axes[axis];
+  }
+  return {boxes,crossesSegment,coordinates};
 }
 const portKey=point=>`${point.x},${point.y}`;
 function portsFor(view,layout,id,obstacles,occupied,degree){
@@ -26,18 +55,17 @@ function portsFor(view,layout,id,obstacles,occupied,degree){
     {point:{x:box.x+box.width/2,y:box.y+height},dx:0,dy:1,axis:1},
     {point:{x:box.x+box.width/2,y:box.y},dx:0,dy:-1,axis:1}
   ];
-  return sides.map(({point:center,dx,dy,axis})=>{
+  return sides.map(function* ({point:center,dx,dy,axis}){
     const range=Math.max(0,(axis===0?height:box.width)/2-PORT_INSET);
     const steps=range>0?Math.max(Math.floor(range/PORT_SPACING),Math.ceil((degree-1)/2)):0;
-    const spacing=steps>0?Math.min(PORT_SPACING,range/steps):0,ports=[];
+    const spacing=steps>0?Math.min(PORT_SPACING,range/steps):0;
     for(let slot=0;slot<=steps*2;slot++){
       const offset=Math.ceil(slot/2)*spacing*(slot%2?1:-1);
       const point={x:center.x+Math.abs(dy)*offset,y:center.y+Math.abs(dx)*offset};
       const stub={x:point.x+dx*PORT_LENGTH,y:point.y+dy*PORT_LENGTH};
       if(occupied.has(portKey(point))||obstacles.some(b=>inside(stub,b)||(b.id!==id&&crosses(point,stub,b))))continue;
-      ports.push({point,stub,dx,dy,axis});
+      yield {point,stub,dx,dy,axis};
     }
-    return ports;
   });
 }
 
@@ -49,18 +77,43 @@ class RouteQueue{
 }
 function simplify(points){const result=[];for(const p of points){const last=result.at(-1),before=result.at(-2);if(last&&last.x===p.x&&last.y===p.y)continue;if(before&&((before.x===last.x&&last.x===p.x)||(before.y===last.y&&last.y===p.y)))result.pop();result.push(p);}return result;}
 
+function svgRoute(points){
+  return {points,d:points.map((p,i)=>i===0?`M${p.x} ${p.y}`:p.x===points[i-1].x?`V${p.y}`:`H${p.x}`).join(' ')};
+}
+
+function straightRoute(obstacles,starts,goals){
+  let lowerBound=Infinity;
+  const straight=[];
+  for(const start of starts)for(const goal of goals){
+    const dx=goal.stub.x-start.stub.x,dy=goal.stub.y-start.stub.y;
+    const distance=Math.abs(dx)+Math.abs(dy);
+    lowerBound=Math.min(lowerBound,distance);
+    if(start.dx!==-goal.dx||start.dy!==-goal.dy)continue;
+    if((start.dx&&dy!==0)||(start.dy&&dx!==0)||dx*start.dx+dy*start.dy<0)continue;
+    straight.push({start,goal,distance});
+  }
+  for(const {start,goal,distance} of straight){
+    if(distance===lowerBound&&!obstacles.some(box=>crosses(start.stub,goal.stub,box))){
+      return svgRoute([start.point,goal.point]);
+    }
+  }
+  return null;
+}
+
 function routeEdge(obstacles,starts,goals){
   if(!starts.length||!goals.length)return null;
-  const coordinates=axis=>{
-    const size=axis==='x'?'width':'height',values=obstacles.flatMap(b=>[b[axis],b[axis]+b[size]]);
-    values.push(Math.min(...values)-16,Math.max(...values)+16,...starts.map(p=>p.stub[axis]),...goals.map(p=>p.stub[axis]));
-    return [...new Set(values)].sort((a,b)=>a-b);
-  };
+  const coordinates=axis=>[...new Set([
+    ...obstacles.coordinates(axis),...starts.map(port=>port.stub[axis]),...goals.map(port=>port.stub[axis]),
+  ])].sort((a,b)=>a-b);
   const xs=coordinates('x'),ys=coordinates('y'),width=xs.length;
   const index=p=>ys.indexOf(p.y)*width+xs.indexOf(p.x),point=i=>({x:xs[i%width],y:ys[Math.floor(i/width)]});
   const goalAt=new Map(goals.map(p=>[index(p.stub),p])),size=xs.length*ys.length*2;
   const distance=new Float64Array(size).fill(Infinity),parent=new Int32Array(size).fill(-1),roots=new Map(),queue=new RouteQueue(),visibility=new Map();
-  const heuristic=p=>Math.min(...goals.map(g=>Math.abs(p.x-g.stub.x)+Math.abs(p.y-g.stub.y)))+PORT_LENGTH;
+  function heuristic(p){
+    let min=Infinity;
+    for(const {stub} of goals)min=Math.min(min,Math.abs(p.x-stub.x)+Math.abs(p.y-stub.y));
+    return min+PORT_LENGTH;
+  }
   for(const port of starts){const state=index(port.stub)*2+port.axis;distance[state]=PORT_LENGTH;roots.set(state,port);queue.push({state,cost:PORT_LENGTH,score:PORT_LENGTH+heuristic(port.stub)});}
   let best=null,bestCost=Infinity;
   while(queue.values.length){
@@ -73,7 +126,7 @@ function routeEdge(obstacles,starts,goals){
       const q=point(next),nextAxis=p.y===q.y?0:1,nextState=next*2+nextAxis,end=goalAt.get(next);
       if(end&&nextAxis===end.axis&&(p.x-q.x)*end.dx+(p.y-q.y)*end.dy<0)continue;
       const key=Math.min(i,next)*size+Math.max(i,next);
-      if(!visibility.has(key))visibility.set(key,!obstacles.some(b=>crosses(p,q,b)));
+      if(!visibility.has(key))visibility.set(key,!obstacles.crossesSegment(p,q));
       if(!visibility.get(key))continue;
       const cost=entry.cost+Math.abs(p.x-q.x)+Math.abs(p.y-q.y)+(axis===nextAxis?0:BEND_COST);
       if(cost>=distance[nextState])continue;
@@ -84,23 +137,34 @@ function routeEdge(obstacles,starts,goals){
   const reverse=[];let state=best.state;
   while(parent[state]!==-1){reverse.push(point(state>>1));state=parent[state];}
   const start=roots.get(state);reverse.push(start.stub);
-  const points=simplify([start.point,...reverse.reverse(),best.goal.point]);
-  return {points,d:points.map((p,i)=>i===0?`M${p.x} ${p.y}`:p.x===points[i-1].x?`V${p.y}`:`H${p.x}`).join(' ')};
+  return svgRoute(simplify([start.point,...reverse.reverse(),best.goal.point]));
 }
 
 // Reserve both ends so arrowheads never share a landing point with another wire.
 export function routeEdges(view,layout){
-  const endpoints=new Map();
+  if(!view.edges.length)return [];
+  const geometry=obstacleGeometry(view,layout),endpoints=new Map();
   for(const {from,to} of view.edges)for(const id of [from,to]){
-    if(!endpoints.has(id))endpoints.set(id,{degree:0,occupied:new Set()});
+    if(!endpoints.has(id))endpoints.set(id,{degree:0,occupied:new Set(),groups:routingGroups(view,id)});
     endpoints.get(id).degree++;
   }
+  // Reuse the last geometry without retaining a cache for every pair of groups.
+  let obstacles, previousGroupKey;
   return view.edges.map(edge=>{
-    const obstacles=obstaclesFor(view,layout,edge),from=endpoints.get(edge.from),to=endpoints.get(edge.to);
-    const starts=portsFor(view,layout,edge.from,obstacles,from.occupied,from.degree);
-    const goals=portsFor(view,layout,edge.to,obstacles,to.occupied,to.degree);
-    const route=routeEdge(obstacles,starts.map(side=>side[0]).filter(Boolean),goals.map(side=>side[0]).filter(Boolean))
-      ||routeEdge(obstacles,starts.flat(),goals.flat());
+    const from=endpoints.get(edge.from),to=endpoints.get(edge.to);
+    const groups=[...new Set([...from.groups,...to.groups])].sort();
+    const groupKey=JSON.stringify(groups);
+    if(groupKey!==previousGroupKey){
+      obstacles=routingObstacles(geometry,groups);
+      previousGroupKey=groupKey;
+    }
+    const startSides=portsFor(view,layout,edge.from,obstacles.boxes,from.occupied,from.degree);
+    const goalSides=portsFor(view,layout,edge.to,obstacles.boxes,to.occupied,to.degree);
+    const firstStarts=startSides.map(side=>side.next().value),firstGoals=goalSides.map(side=>side.next().value);
+    const starts=firstStarts.filter(Boolean),goals=firstGoals.filter(Boolean);
+    const remaining=(sides,first)=>sides.flatMap((side,i)=>first[i]?[first[i],...side]:[]);
+    const route=straightRoute(obstacles.boxes,starts,goals)||routeEdge(obstacles,starts,goals)
+      ||routeEdge(obstacles,remaining(startSides,firstStarts),remaining(goalSides,firstGoals));
     if(route){
       from.occupied.add(portKey(route.points[0]));
       to.occupied.add(portKey(route.points.at(-1)));

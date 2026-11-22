@@ -74,8 +74,8 @@ exec /bin/cat "$TEST_PREVIEW"
 		t.Fatal("generate did not embed the React viewer")
 	}
 	rendered := filepath.Join(dir, "rendered.html")
-	if err := run([]string{"render", "--input", filepath.Join(dir, "preview.json"), "--output", rendered}, &logs, &logs); err != nil {
-		t.Fatal(err)
+	if Run([]string{"render", "--input", filepath.Join(dir, "preview.json"), "--output", rendered}, &logs, &logs) != 0 {
+		t.Fatal(logs.String())
 	}
 	same, err := os.ReadFile(rendered)
 	if err != nil || !bytes.Equal(same, data) {

@@ -97,18 +97,17 @@ export function projectGraph(tree,mode,dependencies,expanded) {
     else {if(item.node)representatives.set(item.node.id,item.id);for(const child of item.children)visit(child);}
   }
   for(const root of tree.roots)visit(root);
-  const edges=[],hiddenEdges=[],aggregates=new Map();
+  const edges=[],aggregates=new Map();
   for(const original of tree.edges){
     if(original.kind==='contains'||(mode==='flow'?!isFlow(original):original.kind==='depends_on'&&!dependencies))continue;
     const from=representatives.get(original.from),to=representatives.get(original.to);
-    if(!from||!to)continue;
-    if(from===to){hiddenEdges.push(original);continue;}
+    if(!from||!to||from===to)continue;
     const key=JSON.stringify([from,to,original.kind,original.state||'']);
     if(!aggregates.has(key)){const edge={from,to,kind:original.kind,state:original.state,originals:[]};aggregates.set(key,edge);edges.push(edge);}
     aggregates.get(key).originals.push(original);
   }
   edges.sort((a,b)=>JSON.stringify([a.from,a.to,a.kind,a.state]).localeCompare(JSON.stringify([b.from,b.to,b.kind,b.state])));
-  return {items,roots:tree.roots.map(g=>g.id),edges,hiddenEdges,representatives};
+  return {items,roots:tree.roots.map(g=>g.id),edges,representatives};
 }
 
 // Tarjan collapses cycles before assigning layers. Presentation never changes edge direction.
