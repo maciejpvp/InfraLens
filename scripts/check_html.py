@@ -15,7 +15,9 @@ try {
   const assert=(ok,message)=>{if(!ok)throw Error(message);};
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const graph=JSON.parse($('infralens-data').textContent);
-  const view=()=>$('diagram').getAttribute('viewBox');
+  const view=()=>$('diagram').querySelector('.react-flow__viewport').style.transform;
+  const card=item=>item.closest('[data-diagram-card]');
+  const edgeLabel=edge=>document.querySelector(`[data-edge-label="${edge.dataset.edge}"]`);
   const dialog=()=>$('inspector'),close=()=>$('clear-selection'),back=()=>$('inspector-back');
   const title=()=>dialog().querySelector('[data-slot="dialog-title"]').textContent;
   const inspector=()=>dialog()?.matches('[role="dialog"][data-state="open"]');
@@ -23,27 +25,37 @@ try {
   const accordionItems=()=>[...activePage().querySelectorAll('[data-slot="accordion-item"]')];
   const trigger=section=>section.querySelector('[data-slot="accordion-trigger"]');
   const opened=section=>trigger(section).getAttribute('aria-expanded')==='true';
+  const waitForLayout=async()=>{
+    for(let attempt=0;$('stage')?.getAttribute('aria-busy')!=='false'&&attempt<100;attempt++)await wait(10);
+    assert($('stage')?.getAttribute('aria-busy')==='false','Layout did not finish');
+    assert(!$('stage').querySelector('[role=alert]'),'Layout failed');
+  };
   async function dispatch(target,event){
     target.dispatchEvent(event);
-    await wait(20);
+    await wait(40);
+    await waitForLayout();
   }
   const clickAt=(target,x,y)=>dispatch(target,new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
-  async function click(target){target.click();await wait(20);}
+  async function click(target){target.click();await wait(40);await waitForLayout();}
   function hitCenter(element){
     const rect=element.getBoundingClientRect();
     const x=rect.x+rect.width/2,y=rect.y+rect.height/2;
     return {x,y,target:document.elementFromPoint(x,y)};
   }
+  await waitForLayout();
+  await wait(50);
   const initial=view();
   function checkRoutes(){
-    const boxes=[...document.querySelectorAll('[data-item]')].map(item=>{const rect=item.querySelector('.body,.header-bg'),matrix=item.transform.baseVal.consolidate().matrix;return {id:item.dataset.item,x:matrix.e,y:matrix.f,w:+rect.getAttribute('width'),h:+rect.getAttribute('height')};});
+    const boxes=[...document.querySelectorAll('[data-item]')].map(item=>{const node=item.closest('.react-flow__node'),matrix=new DOMMatrix(node.style.transform);return {id:item.dataset.item,x:matrix.e,y:matrix.f,w:item.offsetWidth,h:item.offsetHeight};});
     const ports=new Set();
     for(const edge of document.querySelectorAll('[data-edge]')){
       const wire=edge.querySelector('.wire'),d=wire.getAttribute('d');assert(!/[CQ]/.test(d),'Curved connection');
       const points=[];for(const command of d.match(/[MHV][^MHV]*/g)){const numbers=command.slice(1).trim().split(/\s+/).map(Number),previous=points.at(-1);points.push(command[0]==='M'?{x:numbers[0],y:numbers[1]}:command[0]==='H'?{x:numbers[0],y:previous.y}:{x:previous.x,y:numbers[0]});}
-      const end=points.at(-1),lead=points.at(-2),marker=document.querySelector(wire.getAttribute('marker-end').slice(4,-1));
+      const end=points.at(-1),lead=points.at(-2),marker=document.getElementById(wire.getAttribute('marker-end').replace(/^url\(['"]?#|['"]?\)$/g,''));
       assert(marker?.getAttribute('markerUnits')==='userSpaceOnUse','Missing fixed-size arrowhead');
-      assert(Math.abs(end.x-lead.x)+Math.abs(end.y-lead.y)>=Number(marker.getAttribute('markerWidth')),'Arrowhead has no straight lead');
+      const arrow=marker.querySelector('polyline').getBBox();
+      const arrowLength=arrow.width/marker.viewBox.baseVal.width*marker.markerWidth.baseVal.value;
+      assert(Math.abs(end.x-lead.x)+Math.abs(end.y-lead.y)>=arrowLength,'Arrowhead has no straight lead');
       for(const [id,point] of [[edge.dataset.from,points[0]],[edge.dataset.to,end]]){
         const key=JSON.stringify([id,point.x,point.y]);assert(!ports.has(key),'Two wires share a port on '+id);ports.add(key);
       }
@@ -51,8 +63,8 @@ try {
     }
     const labelBoxes=[];
     for(const edge of document.querySelectorAll('[data-edge]')){
-      const label=edge.querySelector('.edge-label');if(+edge.dataset.count>1)assert(label,'Missing connection count');if(!label)continue;
-      const box=label.getBBox(),r={x:box.x-3,y:box.y-3,w:box.width+6,h:box.height+6};
+      const label=edgeLabel(edge);if(+edge.dataset.count>1)assert(label,'Missing connection count');if(!label)continue;
+      const r={x:parseFloat(label.style.left)-3,y:parseFloat(label.style.top)-3,w:label.offsetWidth+6,h:label.offsetHeight+6};
       for(const other of [...boxes,...labelBoxes])assert(!(r.x<other.x+other.w&&r.x+r.w>other.x&&r.y<other.y+other.h&&r.y+r.h>other.y),'Connection count overlaps an element');
       labelBoxes.push(r);
     }
@@ -61,16 +73,16 @@ try {
   assert(document.documentElement.lang==='en','Diagram language is not English');
   const serviceGroups=[...document.querySelectorAll('[data-service]')];
   for(const group of serviceGroups){
-    const id=group.dataset.item,toggle=group.querySelector('[data-toggle]');
+    const id=group.dataset.item,toggle=card(group).querySelector('[data-toggle]');
     assert(toggle.getAttribute('aria-expanded')==='false','Service group is initially expanded');
     if(group.dataset.service.startsWith('aws:')&&group.querySelector('.service-icon'))assert(group.querySelector('.service-icon').getAttribute('aria-hidden')==='true','Icon is not decorative');
     await dispatch(toggle,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
     const expanded=[...document.querySelectorAll('[data-item]')].find(g=>g.dataset.item===id);
-    assert(expanded.querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
+    assert(card(expanded).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
     assert(view()===initial,'Service expansion changed camera');checkRoutes();
-    await dispatch(expanded.querySelector('[data-toggle]'),new MouseEvent('click',{bubbles:true}));
+    await dispatch(card(expanded).querySelector('[data-toggle]'),new MouseEvent('click',{bubbles:true}));
   }
-  const icons=[...new Set([...document.querySelectorAll('.service-icon')].map(e=>e.getAttribute('href')))];
+  const icons=[...new Set([...document.querySelectorAll('.service-icon')].map(e=>e.getAttribute('src')))];
   for(const uri of icons){
     assert(uri.startsWith('data:image/svg+xml;base64,'),'Icon is not embedded');
     await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>image.naturalWidth?resolve():reject(Error('Empty AWS icon'));image.onerror=()=>reject(Error('AWS icon did not load offline'));image.src=uri;});
@@ -192,7 +204,7 @@ try {
       const {target,x,y}=hitCenter(button);
       assert(target?.closest('[data-toggle]')===button,'Group −/+ is covered');
       target.dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse',clientX:x,clientY:y}));
-      button.closest('[data-item]').dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse',clientX:x,clientY:y}));
+      card(button).querySelector('[data-item]').dispatchEvent(new PointerEvent('pointerenter',{pointerType:'mouse',clientX:x,clientY:y}));
       await wait(180);
       const hit=document.elementFromPoint(x,y);
       assert(hit?.closest('[data-toggle]')===button,'Hover blocked the group −/+');
@@ -220,20 +232,20 @@ try {
         assert(body.scrollTop>0&&close().getBoundingClientRect().top===closeTop,'Scrolling moved the close button');
       }
       await click(close());
-      assert(!inspector()&&document.activeElement===firstEdge,'Close button did not restore edge focus');
+      assert(!inspector()&&document.activeElement.dataset.edge===firstEdge.dataset.edge,'Close button did not restore edge focus');
     }
     const beforeMode=view(),beforeCount=document.querySelectorAll('[data-item]').length;await click($('infra-view'));assert(view()===beforeMode,'View switch changed camera');
     assert(document.querySelectorAll('[data-item]').length===beforeCount,'Infrastructure expanded every resource');checkRoutes();
-    await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('#edges .depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
+    await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');await click($('fit'));
     await wait(150);
-    const rendered=[...document.querySelectorAll('[data-edge]')],matrix=$('diagram').getScreenCTM();
+    const rendered=[...document.querySelectorAll('[data-edge]')];
     const kindLabels={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Pulumi dependencies'};
     const kindLabel=edge=>kindLabels[[...edge.classList].find(kind=>kindLabels[kind])];
     if(location.search.includes('parallel')){
       assert(rendered.length===3,'Missing parallel arrows');
       for(const edge of rendered){
-        const path=edge.querySelector('.wire'),screen=path.getPointAtLength(path.getTotalLength()-6).matrixTransform(matrix);
+        const path=edge.querySelector('.wire'),screen=path.getPointAtLength(path.getTotalLength()-6).matrixTransform(path.getScreenCTM());
         const target=document.elementFromPoint(screen.x,screen.y);
         assert(target?.closest('[data-edge]')===edge,'Parallel tip cannot be clicked independently');
         await clickAt(target,screen.x,screen.y);
@@ -244,10 +256,10 @@ try {
     shared: for(const edge of rendered){
       const path=edge.querySelector('.wire');
       for(const fraction of [.25,.5,.75]){
-        const p=path.getPointAtLength(path.getTotalLength()*fraction),screen=p.matrixTransform(matrix);
+        const p=path.getPointAtLength(path.getTotalLength()*fraction),screen=p.matrixTransform(path.getScreenCTM());
         const target=document.elementFromPoint(screen.x,screen.y);
         if(!target?.closest('[data-edge]'))continue;
-        const matches=rendered.filter(g=>g.querySelector('.hit').isPointInStroke(p));
+        const matches=rendered.filter(g=>g.querySelector('.react-flow__edge-interaction').isPointInStroke(p));
         const expected=new Set(matches.map(kindLabel));
         if(expected.size<2)continue;
         const expectedCount=matches.reduce((count,g)=>count+(+g.dataset.count),0);
@@ -276,21 +288,23 @@ try {
       assert(document.activeElement===close(),'Search did not focus modal');
       await click(close());
       assert(document.activeElement.hasAttribute('data-item'),'Search resource did not receive focus after modal closed');
-      const body=document.activeElement.querySelector('.body');
+      const body=document.activeElement.matches('.body')&&document.activeElement;
       if(body&&['create','delete','unchanged'].includes(target.change)){
-        const [r,g,b]=getComputedStyle(body).fill.match(/[\d.]+/g).map(Number);
+        const [r,g,b]=getComputedStyle(body).backgroundColor.match(/[\d.]+/g).map(Number);
         if(target.change==='create')assert(g>r*1.5&&g>b,'Created resource is not green');
         if(target.change==='delete')assert(r>g*1.5&&r>b,'Deleted resource is not red');
         if(target.change==='unchanged')assert(Math.max(r,g,b)-Math.min(r,g,b)<35,'Unchanged resource is not neutral');
       }
     }
     checkRoutes();
-    const beforePan=view(),originalCapture=$('stage').setPointerCapture;
-    $('stage').setPointerCapture=()=>{};
-    const pointer=(type,x,y)=>$('diagram').dispatchEvent(new PointerEvent(type,{bubbles:true,button:0,pointerId:99,clientX:x,clientY:y}));
-    pointer('pointerdown',300,400);pointer('pointermove',330,430);pointer('pointerup',330,430);
+    const beforePan=view(),pane=$('diagram').querySelector('.react-flow__pane');
+    const mouse=(target,type,x,y,buttons)=>target.dispatchEvent(new MouseEvent(type,{bubbles:true,view:window,button:0,buttons,clientX:x,clientY:y}));
+    mouse(pane,'mousedown',300,400,1);mouse(window,'mousemove',330,430,1);mouse(window,'mouseup',330,430,0);
+    await wait(30);
     assert(!inspector()&&view()!==beforePan,'Pan failed to track');
-    $('stage').setPointerCapture=originalCapture;
+    const beforeWheel=view();
+    await dispatch(pane,new WheelEvent('wheel',{bubbles:true,cancelable:true,deltaY:-100,clientX:200,clientY:400}));
+    assert(view()!==beforeWheel,'Wheel zoom failed');
     await click($('filter-button'));assert(!$('filters').hidden,'Filter popover failed');
     if(graph.edges.some(edge=>edge.state)){
       const select=$('topology'),cameraBeforeSwitch=view();
@@ -302,14 +316,14 @@ try {
       }
     }
     await dispatch(document,new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert($('filters').hidden,'Filter dismissal failed');
-    const cameraBeforeResize=view().split(' ').map(Number),width=$('stage').clientWidth;
+    const cameraBeforeResize=view(),width=$('stage').clientWidth;
     $('stage').style.width=(width-20)+'px';await wait(50);
-    const cameraAfterResize=view().split(' ').map(Number);
-    assert(cameraBeforeResize.slice(0,3).every((v,i)=>v===cameraAfterResize[i]),'Resize moved camera or changed zoom');
+    const cameraAfterResize=view();
+    assert(cameraBeforeResize===cameraAfterResize,'Resize moved camera or changed zoom');
     $('stage').style.width='';await wait(50);
   }else assert(!$('empty').hidden,'Empty graph message missing');
   assert(document.documentElement.scrollWidth<=innerWidth+1,'Horizontal page overflow');
-  for(const text of document.querySelectorAll('.node-name,.node-meta'))assert(text.getComputedTextLength()<=215,'Card label overflow');
+  for(const text of document.querySelectorAll('.node-name,.node-meta'))assert(text.offsetWidth<=215&&getComputedStyle(text).textOverflow==='ellipsis','Card label overflow');
   if(location.search.includes('reduced')){
     const item=document.querySelector('[data-item]');
     await dispatch(item,new KeyboardEvent('keydown',{key:' ',bubbles:true}));
@@ -373,7 +387,7 @@ def main():
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)
             path.write_text(document.replace('<script id="infralens-data"', instrument + '<script id="infralens-data"', 1).replace('</body>', CHECK + '</body>', 1))
             screenshot = Path(tempfile.gettempdir()) / f'infralens-{name}.png'
-            command = [sys.argv[2], '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--user-data-dir=' + str(Path(folder) / f'profile-{name}'), f'--window-size={width},{height}', '--virtual-time-budget=5000', '--dump-dom']
+            command = [sys.argv[2], '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--user-data-dir=' + str(Path(folder) / f'profile-{name}'), f'--window-size={width},{height}', '--virtual-time-budget=12000', '--dump-dom']
             if reduced:
                 command.append('--force-prefers-reduced-motion')
             result = subprocess.run(command + [path.as_uri() + '?' + name], capture_output=True, text=True, timeout=45)

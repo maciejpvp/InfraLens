@@ -1,7 +1,7 @@
 # Architektura v0.1
 
-Status: **backend i interaktywny renderer SVG zaimplementowane**. Istnieją `cli`, `adapters/pulumi`, `graph` i `render`. Widok wykorzystuje React, shadcn/ui i Tailwind oraz własny layout warstwowy z SCC. Pakiet JS i CSS jest osadzany przez `go:embed`. Gotowy HTML działa bez serwera.
-Viewer buduje prezentacyjne grupy stos → komponent z aktywnych relacji `contains`. Stan rozwinięcia, agregacja krawędzi z oryginalnymi dowodami i layout grup nie zmieniają publicznego grafu. Layout mierzy grupy od środka, układa cykle przez SCC, a rozłączne zasoby w siatkach. Router ortogonalny wyszukuje trasę A* po wolnych korytarzach między przeszkodami, z kosztem zakrętów. Chroni karty, nagłówki i całe obce grupy; wnętrza grup zawierających końce relacji pozostają przejezdne. Brak drogi nie powoduje rysowania skrótu przez zasoby; licznik niepoprowadzonych relacji pozostaje widoczny. Kliknięcie wspólnego odcinka rozwiązuje wszystkie trafione ścieżki SVG; inspektor grupuje ich oryginalne relacje według typu, a wybór klawiaturą zachowuje konkretną relację. Etykiety są mierzone przez SVG i rozmieszczane z uwzględnieniem kart, nagłówków oraz innych etykiet. Ciemny canvas wypełnia okno; szczegóły otwierają się w modalu z sekcjami rozwijanymi według typu relacji.
+Status: **backend i interaktywny renderer offline zaimplementowane**. Widok wykorzystuje React Flow, shadcn/ui i Tailwind. Pakiet JS i CSS jest osadzany przez `go:embed`. Gotowy HTML działa bez serwera.
+Viewer buduje grupy stos → komponent z aktywnych relacji `contains`. Zwinięcie grupy agreguje widoczne krawędzie z zachowaniem oryginalnych dowodów. ELK.js wyznacza pozycje grup i kart, ortogonalne ścieżki oraz miejsca etykiet. React Flow używa tych współrzędnych do rysowania diagramu i obsługuje kamerę. Kliknięcie wspólnego odcinka pokazuje wszystkie trafione relacje, a wybór klawiaturą otwiera relację z fokusem. Gdy algorytm nie zwróci trasy, raport pokazuje liczbę niepoprowadzonych połączeń.
 
 
 Preview jest pojedynczym wejściem: adapter odczytuje planowane operacje i przekazuje je w grafie. Nie ma osobnego pakietu `diff` ani porównywania dwóch plików. `Node.change` jest opcjonalnym statusem (`unchanged`, `create`, `update`, `delete`, `replace`); `Edge.state` rozróżnia relacje `before`/`after`. Pełne wartości starego i nowego zasobu nie opuszczają adaptera.
@@ -89,8 +89,8 @@ cmd/infralens/              punkt wejścia
 internal/cli/               komendy i składanie przepływu
 internal/adapters/pulumi/   parser eksportu/preview i mapowanie
 internal/graph/             model publiczny, relacje, walidacja
-internal/render/            template HTML i osadzone assety
-internal/render/*.mjs      widok i layout SVG
+internal/render/              składanie raportu HTML i osadzone ikony
+internal/render/frontend/src/ widok React, układ i trasowanie połączeń SVG
 scripts/check_html.py      test offline desktop/mobile
 testdata/pulumi/            syntetyczne / zanonimizowane fixture’y
 ```

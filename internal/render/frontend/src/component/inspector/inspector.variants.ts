@@ -1,0 +1,26 @@
+export const inspectorStyles = {
+  dialog:
+    'flex max-h-[min(50rem,calc(100dvh-max(1.5rem,env(safe-area-inset-top)+env(safe-area-inset-bottom))))] min-h-0 flex-col gap-0 overflow-hidden rounded-2xl bg-card p-0 sm:max-w-[44rem]',
+  header: 'flex shrink-0 items-center gap-3 border-b bg-muted px-3 py-1.5 sm:px-5',
+  label: 'flex-1 text-sm font-semibold',
+  body: 'min-h-0 overflow-auto overscroll-contain p-4 wrap-anywhere sm:p-6',
+  title: 'mb-4 text-xl leading-tight sm:text-2xl',
+  metadata: 'mb-4 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm',
+  metadataLabel: 'text-muted-foreground',
+  sections: 'space-y-2',
+  section: 'rounded-lg border bg-muted last:border-b',
+  sectionTitle: 'min-h-11 px-3 py-2.5 hover:bg-accent hover:no-underline data-[state=open]:rounded-b-none',
+  sectionBody: 'border-t px-3 py-3',
+  rows: 'space-y-1.5',
+  row: 'connection-item block h-auto min-h-11 w-full border-border bg-card px-3 py-2 text-left whitespace-normal wrap-anywhere',
+  rowCaption: 'mt-0.5 block text-xs text-muted-foreground',
+  note: 'mb-2 text-muted-foreground',
+  connections: 'divide-y',
+  connection: 'py-3 first:pt-0 last:pb-0',
+  connectionTitle: 'mb-2 text-base font-semibold',
+  evidenceTitle: 'mt-3 mb-1 font-semibold',
+  evidenceDetails: 'mb-2 whitespace-pre-wrap',
+  evidenceList: 'mb-2 list-disc space-y-2 pl-5 text-xs text-muted-foreground',
+  evidenceProperty:
+    'mt-1 block rounded bg-background px-2 py-1.5 font-mono whitespace-pre-wrap text-foreground',
+}

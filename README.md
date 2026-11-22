@@ -138,9 +138,11 @@ Sprawdzone na LyricsPipeline: 76 zasobów, 13 rozpoznanych połączeń konfigura
 
 ### Rozwój renderera i sprawdzenie HTML
 
-Kod interfejsu jest w `internal/render/frontend/src`. Komponenty shadcn/ui są w `components/ui`, a interfejs używa klas Tailwinda. Algorytmy układu i trasowania SVG są w `internal/render`.
+Kod interfejsu jest w `internal/render/frontend/src` i używa TypeScriptu. Hooki i moduły mają rozszerzenie `.ts`, a komponenty JSX `.tsx`. Prymitywy shadcn/ui są w `src/ui`, a komponenty raportu w `src/component`. Każdy plik zawiera najwyżej jeden komponent. Stan, zdarzenia i przygotowanie danych do renderowania są w `src/hooks`. Stałe konfiguracyjne są w plikach `*.config.ts`, a klasy Tailwinda w `*.variants.ts`. Kod używa funkcji strzałkowych i nazwanych eksportów `export const`. Komponenty importują prymitywy bezpośrednio z `ui`.
 
-Po zmianie kodu renderera odśwież artefakty Vite w `internal/render/frontend/dist`. Go osadza je w binarce. Artefakty są częścią repozytorium, więc kompilacja Go z gotowego checkoutu i uruchomienie zainstalowanej komendy działają samodzielnie. Do odświeżenia frontendu użyj Node.js 22.12+ lub nowszej obsługiwanej wersji.
+React Flow rysuje karty HTML i połączenia oraz obsługuje przesuwanie i zoom. ELK.js wylicza pozycje elementów, przebieg strzałek i miejsca etykiet. Vite osadza ELK.js razem z resztą frontendu, więc obliczenia działają także bez połączenia z siecią. Go składa samodzielny raport HTML w `internal/render/html.go`.
+
+Build najpierw sprawdza typy w trybie `strict`. Po zmianie kodu renderera odśwież artefakty Vite w `internal/render/frontend/dist`. Go osadza je w binarce. Artefakty są częścią repozytorium, więc kompilacja Go z gotowego checkoutu i uruchomienie zainstalowanej komendy działają samodzielnie. Do odświeżenia frontendu użyj Node.js 22.12+ lub nowszej obsługiwanej wersji.
 
 ```bash
 npm ci --prefix internal/render/frontend
@@ -152,8 +154,8 @@ Jeśli używasz globalnej komendy `InfraLens`, po buildzie frontendu ponownie zb
 ```bash
 go test ./...
 go test -tags=integration ./internal/adapters/pulumi/simulate
-node --test internal/render/*.test.mjs
-node internal/render/routing.bench.mjs
+npm test --prefix internal/render/frontend
+npm run bench:routing --prefix internal/render/frontend
 go run ./cmd/infralens render --input testdata/pulumi/flow-details.json --output /tmp/infralens.html
 python3 scripts/check_html.py /tmp/infralens.html /sciezka/do/chrome-headless-shell
 ```
