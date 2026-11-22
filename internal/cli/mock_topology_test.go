@@ -32,8 +32,8 @@ printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::bas
 	t.Setenv("PATH", tools)
 	output := filepath.Join(dir, "result.html")
 	var logs bytes.Buffer
-	cli := New(&logs, &logs)
-	if cli.Run([]string{"mock-topology", "--project", "org/base/dev=" + module, "--output", output}) != 0 {
+	cli := newPulumiCLI(&logs, &logs)
+	if cli.Run([]string{"mock-topology", "--provider=pulumi", "--project", "org/base/dev=" + module, "--output", output}) != 0 {
 		t.Fatal(logs.String())
 	}
 	if !strings.Contains(logs.String(), "mock-topology command is deprecated") {
@@ -46,7 +46,7 @@ printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::bas
 	if !strings.Contains(string(data), "SIMULATION") || !strings.Contains(string(data), "+ create") {
 		t.Fatal("simulation not labeled")
 	}
-	for _, args := range [][]string{{"mock-topology", "--input", "x", "--output", output}, {"render", "--project", "org/base/dev=" + module, "--output", output}, {"mock-topology", "--project", "invalid", "--output", output}} {
+	for _, args := range [][]string{{"mock-topology", "--provider=pulumi", "--input", "x", "--output", output}, {"render", "--provider=pulumi", "--project", "org/base/dev=" + module, "--output", output}, {"mock-topology", "--provider=pulumi", "--project", "invalid", "--output", output}} {
 		if cli.Run(args) == 0 {
 			t.Fatal("accepted incompatible flags")
 		}

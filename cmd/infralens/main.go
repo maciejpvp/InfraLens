@@ -4,6 +4,15 @@ import (
 	"os"
 
 	"infralens/internal/cli"
+	"infralens/internal/graph/pulumi"
+	"infralens/internal/graph/pulumi/simulate"
 )
 
-func main() { os.Exit(cli.New(os.Stdout, os.Stderr).Run(os.Args[1:])) }
+func main() {
+	providers := map[string]cli.Provider{
+		"pulumi":    {ReadInputs: pulumi.ReadInputs, Preview: pulumi.Preview, MockTopology: simulate.RunInputs},
+		"terraform": {},
+		"aws-cdk":   {},
+	}
+	os.Exit(cli.New(os.Stdout, os.Stderr, providers).Run(os.Args[1:]))
+}

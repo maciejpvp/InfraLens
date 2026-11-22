@@ -8,7 +8,7 @@ Preview jest pojedynczym wejściem: adapter odczytuje planowane operacje i przek
 
 CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/stack=]FILE`. Adapter Pulumi buduje jeden graf przed rozwiązywaniem referencji. W trybie wielu wejść zachowuje korzenie stosów i tworzy `depends_on` z węzła StackReference do dopasowanego korzenia (evidence: `stackReference`, `inputs.name`). Pełne tożsamości wejść muszą być podane jawnie do rozwiązywania tych połączeń; nie wnioskujemy organizacji z URN. `Node.stack` przechowuje projekt/stos. `graph` i `render` nie interpretują formatu Pulumi.
 
-`mock-topology --project org/project/stack=DIRECTORY` korzysta z `adapters/pulumi/simulate`: uruchamia `deploy` z `infraMocks` i `withStackConfig` na tymczasowej kopii modułu i przechwytuje aktualne rejestracje/odczyty. Następnie używa zwykłego adaptera eksportu, oznacza graf `simulated: true`, a węzły `create`. Renderer pokazuje etykietę symulacji; silnik grafu nie importuje SDK ani runnera. Konfiguracja i odpowiedzi providera są mockowane przez projekt. Runner przechwytuje outputs i podaje je kolejnym projektom przez StackReference; kolejność wejść musi odpowiadać zależnościom. Szczegóły kontraktu i ograniczenia są w README.
+`mock-topology --project org/project/stack=DIRECTORY` korzysta z `graph/pulumi/simulate`: uruchamia `deploy` z `infraMocks` i `withStackConfig` na tymczasowej kopii modułu i przechwytuje aktualne rejestracje/odczyty. Następnie używa zwykłego adaptera eksportu, oznacza graf `simulated: true`, a węzły `create`. Renderer pokazuje etykietę symulacji; silnik grafu nie importuje SDK ani runnera. Konfiguracja i odpowiedzi providera są mockowane przez projekt. Runner przechwytuje outputs i podaje je kolejnym projektom przez StackReference; kolejność wejść musi odpowiadać zależnościom. Szczegóły kontraktu i ograniczenia są w README.
 
 ## Baza techniczna
 
@@ -18,7 +18,9 @@ CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/sta
 - Vite buduje frontend w `internal/render/frontend/dist`. Go łączy wynik ze zweryfikowanymi danymi grafu i ikonami w samodzielny plik HTML.
 - Bez całego Pulumi SDK, backendu i dostępu do sieci podczas renderowania.
 
-Nie dodajemy Dagre jako fallbacku ani interfejsu pluginów przed wykazaniem potrzeby. Rozdzielenie adaptera i grafu wystarcza jako przygotowanie do kolejnych źródeł.
+Nie dodajemy Dagre jako fallbacku ani interfejsu pluginów przed wykazaniem potrzeby.
+
+Punkt wejścia rejestruje operacje providerów IaC. CLI wybiera providera przez wymagane `--provider`. `app` przekazuje wybranemu providerowi całą listę argumentów i udostępnia funkcję, która sprawdza oraz otwiera pliki. Provider interpretuje argumenty, rozwiązuje relacje i zwraca zweryfikowany graf do zapisu. Wycofywana komenda `mock-topology` wywołuje operację symulacji wybranego providera i korzysta z tego samego zapisu HTML.
 
 ## Przepływ danych
 
@@ -41,7 +43,7 @@ Surowe dane pozostają wewnątrz parsera/adaptera. Granicą bezpieczeństwa jest
 | Element | Pola / zasada |
 |---|---|
 | Graph | `schemaVersion`, `nodes`, `edges`; metadane tylko jeśli potrzebuje ich widok. |
-| Node | `id`, `name`, `type`, `provider`; bez ogólnego worka `attributes` w v0.1. |
+| Node | `id`, `name`, `type`, `provider`. Adapter może podać `service` dla ikony i grupowania oraz `stackRoot` dla węzła reprezentującego stos. |
 | Edge | `from`, `to`, `kind`, opcjonalny `state`, `evidence[]`; tożsamość przez końce, typ i stan. |
 | Evidence | Źródło (`parent`, `dependencies`, `propertyDependencies`, `aws_rule`), opcjonalna ścieżka właściwości, ID zasobu konfigurującego relację oraz tekstowe `label` i `details` z jawnie dopuszczonych pól konfiguracji. |
 
@@ -63,9 +65,9 @@ Dowody przepływu mają opcjonalne `label`/`details` bez zmiany `schemaVersion: 
 ## CLI
 
 ```bash
-InfraLens preview [--output infralens.html] [--no-open]
-infralens render --input stack.json --output result.html
-infralens graph --input stack.json --output graph.json
+InfraLens preview --provider=pulumi [--output infralens.html] [--no-open]
+infralens render --provider=pulumi --input stack.json --output result.html
+infralens graph --provider=pulumi --input stack.json --output graph.json
 ```
 
 `preview` działa w katalogu projektu Pulumi: wykonuje `pulumi preview --json --show-sames --non-interactive`, wymusza niestreamingowy JSON, odczytuje wynik z prywatnego pliku tymczasowego i zapisuje HTML wspólnym rendererem React. Następnie otwiera plik systemowym launcherem, a plik tymczasowy usuwa po zakończeniu komendy. Preview wykonuje kod projektu, korzysta z aktywnego stosu i credentials; nie wykonuje wdrożenia. Błąd otwarcia przeglądarki nie cofa udanego zapisu. W `graph`/`render` obie ścieżki są jawnie wymagane. CLI obsługuje pomoc. Sukces: kod `0`; błąd: kod niezerowy i krótka diagnostyka na stderr, bez fragmentów dokumentu wejściowego. Istniejący wynik jest zastępowany dopiero po poprawnym przygotowaniu nowego; wejście nie może być wyjściem.
@@ -89,8 +91,8 @@ cmd/infralens/              punkt wejścia
 internal/cli/               routing, flagi, komunikaty i przeglądarka
 internal/app/               przepływy generowania raportów
 internal/fileio/            operacje plikowe i atomowy zapis
-internal/adapters/pulumi/   parser eksportu/preview i mapowanie
-internal/adapters/pulumi/simulate/ zbieranie zasobów przez mocki projektów Go
+internal/graph/pulumi/     parser eksportu/preview i mapowanie
+internal/graph/pulumi/simulate/ zbieranie zasobów przez mocki projektów Go
 internal/graph/             model publiczny, relacje, walidacja
 internal/render/              składanie raportu HTML i osadzone ikony
 internal/render/frontend/src/ widok React, układ i trasowanie połączeń SVG

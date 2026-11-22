@@ -7,22 +7,22 @@ type Report struct {
 	OmittedRelations int
 }
 
-// Graph writes a JSON graph for the supplied Pulumi inputs.
-func Graph(inputs []string, output string) (Report, error) {
-	return reportFromInputs(inputs, output, outputJSON)
+// Graph writes a JSON graph built by read.
+func Graph(inputs []string, output string, read ReadInputsFunc) (Report, error) {
+	return reportFromInputs(inputs, output, read, outputJSON)
 }
 
-// Render writes an HTML report for the supplied Pulumi inputs.
-func Render(inputs []string, output string) (Report, error) {
-	return reportFromInputs(inputs, output, outputHTML)
+// Render writes an HTML report from the graph built by read.
+func Render(inputs []string, output string, read ReadInputsFunc) (Report, error) {
+	return reportFromInputs(inputs, output, read, outputHTML)
 }
 
-func reportFromInputs(inputs []string, output string, format outputFormat) (Report, error) {
+func reportFromInputs(inputs []string, output string, read ReadInputsFunc, format outputFormat) (Report, error) {
 	info, err := inspectOutput(output)
 	if err != nil {
 		return Report{}, err
 	}
-	g, err := readInputs(inputs, info)
+	g, err := readInputs(inputs, info, read)
 	if err != nil {
 		return Report{}, err
 	}

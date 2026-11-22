@@ -1,7 +1,7 @@
 export const relationNames = {
   triggers: 'Events / invocations',
   connects_to: 'Configuration references',
-  depends_on: 'Pulumi dependencies',
+  depends_on: 'Deployment dependencies',
   contains: 'Component hierarchy',
 }
 

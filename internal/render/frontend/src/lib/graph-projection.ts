@@ -20,9 +20,7 @@ const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'connects_t
 const activeEdges = (graph: Graph, state: Topology) =>
   graph.edges.filter((e) => !e.state || e.state === state)
 
-export const serviceFor = (type = ''): Service => {
-  const [provider, module = ''] = type.split(':'),
-    namespace = module.split('/')[0]
+export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provider' | 'service'> = {}): Service => {
   if (provider !== 'aws')
     return {
       id: provider || 'unknown',
@@ -30,15 +28,10 @@ export const serviceFor = (type = ''): Service => {
       icon: null,
       color: '#91a5bd',
     }
-  let id = namespace
-  if (namespace === 'apigateway' || namespace === 'apigatewayv2') id = 'api-gateway'
-  if (namespace === 'sfn') id = 'step-functions'
-  if (namespace === 'cloudwatch' && /^event(Rule|Target)(:|$)/.test(module.split('/')[1] || ''))
-    id = 'eventbridge'
   const service = services[id]
   return {
     id: 'aws:' + id,
-    name: service?.[0] || namespace || 'AWS',
+    name: service?.[0] || id || 'AWS',
     icon: service ? id : null,
     color: service?.[1] || '#91a5bd',
   }
@@ -118,7 +111,7 @@ export const buildHierarchy = (graph: Graph, state: Topology = defaultTopology):
       items.set(g.id, g)
     }
     const root = stacks.get(stack)!
-    if (n.type === 'pulumi:pulumi:Stack') {
+    if (n.stackRoot) {
       root.node = n
       root.members.add(n.id)
       resourceItems.set(n.id, root)
@@ -163,7 +156,7 @@ export const buildHierarchy = (graph: Graph, state: Topology = defaultTopology):
       parent.children = parent.children.filter((c) => !isSupport(c))
       const groups = new Map<string, Group>()
       for (const item of support) {
-        const service = serviceFor(item.node.type)
+        const service = serviceFor(item.node)
         let group = groups.get(service.id)
         if (!group) {
           group = makeGroup('support:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)

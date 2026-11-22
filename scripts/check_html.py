@@ -173,7 +173,7 @@ try {
       const resources=new Set(graph.nodes.filter(node=>(node.stack||'No stack')===stack).map(node=>node.id));
       const within=graph.edges.find(edge=>edge.kind!=='contains'&&(!edge.state||edge.state==='after')&&resources.has(edge.from)&&resources.has(edge.to));
       if(within){
-        const relationNames={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Pulumi dependencies'};
+        const relationNames={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Deployment dependencies'};
         const section=accordionItems().find(item=>trigger(item).textContent.startsWith(relationNames[within.kind]));
         assert(section,'Missing internal relationship section');
         await click(trigger(section));
@@ -181,7 +181,7 @@ try {
         await click(trigger(section));
       }
     }
-    const member=[...members.querySelectorAll('.connection-item')].find(button=>graph.nodes.some(node=>node.type!=='pulumi:pulumi:Stack'&&node.name===button.textContent));
+    const member=[...members.querySelectorAll('.connection-item')].find(button=>graph.nodes.some(node=>!node.stackRoot&&node.name===button.textContent));
     if(member){
       const memberName=member.textContent;
       await click(member);
@@ -296,7 +296,7 @@ try {
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');await click($('fit'));
     await wait(150);
     const rendered=[...document.querySelectorAll('[data-edge]')];
-    const kindLabels={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Pulumi dependencies'};
+    const kindLabels={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Deployment dependencies'};
     const kindLabel=edge=>kindLabels[[...edge.classList].find(kind=>kindLabels[kind])];
     if(location.search.includes('parallel')){
       assert(rendered.length===3,'Missing parallel arrows');

@@ -13,6 +13,22 @@ import (
 
 const unknownValue = "04da6b54-80e4-46f7-96ec-b56ff0331ba9"
 
+func awsService(typePath string) string {
+	typePath, _, _ = strings.Cut(typePath, ":")
+	module, resource, _ := strings.Cut(typePath, "/")
+	switch module {
+	case "apigateway", "apigatewayv2":
+		return "api-gateway"
+	case "sfn":
+		return "step-functions"
+	case "cloudwatch":
+		if resource == "eventRule" || resource == "eventTarget" {
+			return "eventbridge"
+		}
+	}
+	return module
+}
+
 func unavailable(raw json.RawMessage) bool {
 	return len(raw) == 0 || string(raw) == "null" || bytes.Contains(raw, []byte(`"`+unknownValue+`"`))
 }

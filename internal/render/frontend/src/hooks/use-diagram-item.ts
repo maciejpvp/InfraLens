@@ -18,7 +18,7 @@ export const useDiagramItem = ({
   onItem,
   toggle,
 }: DiagramItemData) => {
-  const service = item.service || (item.node && serviceFor(item.node.type))
+  const service = item.service || (item.node && serviceFor(item.node))
   const icon = service?.icon && Object.hasOwn(icons, service.icon) ? icons[service.icon] : undefined
   const change = item.node?.change
   const count = countLabel(item.members.size, 'resource')

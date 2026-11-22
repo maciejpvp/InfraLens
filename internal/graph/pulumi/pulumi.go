@@ -175,7 +175,8 @@ func (b *graphBuilder) addNode(res resource, change graph.Change, expectedStack 
 		return errors.New("input stack identity does not match resource URN")
 	}
 	b.nodeIDs[res.URN] = ""
-	if res.Type == "pulumi:pulumi:Stack" {
+	isStackRoot := res.Type == "pulumi:pulumi:Stack"
+	if isStackRoot {
 		if *root != "" {
 			return errors.New("multiple stack roots in one input")
 		}
@@ -189,9 +190,14 @@ func (b *graphBuilder) addNode(res resource, change graph.Change, expectedStack 
 	}
 	nodeID := id(res.URN)
 	b.nodeIDs[res.URN] = nodeID
-	provider, _, _ := strings.Cut(res.Type, ":")
+	provider, path, _ := strings.Cut(res.Type, ":")
+	service := ""
+	if provider == "aws" {
+		service = awsService(path)
+	}
 	b.graph.Nodes = append(b.graph.Nodes, graph.Node{
-		ID: nodeID, Name: parts[3], Type: res.Type, Provider: provider, Change: change, Stack: stack,
+		ID: nodeID, Name: parts[3], Type: res.Type, Provider: provider, Service: service,
+		Change: change, Stack: stack, StackRoot: isStackRoot,
 	})
 	return nil
 }

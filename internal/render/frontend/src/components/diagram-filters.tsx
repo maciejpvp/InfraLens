@@ -37,7 +37,7 @@ export const DiagramFilters = ({
         disabled={dependenciesDisabled}
         onCheckedChange={setDependencies}
       />
-      <Label htmlFor="dependencies">Pulumi deployment dependencies</Label>
+      <Label htmlFor="dependencies">Deployment dependencies</Label>
     </Box>
     <Box id="topology-label" hidden={!showTopology} className={styles.topology}>
       <Label htmlFor="topology">Connections</Label>

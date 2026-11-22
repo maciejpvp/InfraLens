@@ -13,6 +13,7 @@ const node = (id: string, type = 'test', stack = 'stack'): Resource => ({
   id,
   name: id,
   type,
+  provider: 'test',
   stack,
   change: 'create',
 })
@@ -32,7 +33,7 @@ const edges = [
   edge('d', 'a', 'connects_to'),
 ]
 const nested = {
-  nodes: [node('root', 'pulumi:pulumi:Stack'), node('component'), node('nested'), ...nodes, node('orphan')],
+  nodes: [{ ...node('root'), stackRoot: true }, node('component'), node('nested'), ...nodes, node('orphan')],
   edges: [
     edge('root', 'component'),
     edge('component', 'nested'),
@@ -144,45 +145,27 @@ test('flow captions preserve distinct routes and filters while deduplicating pre
   assert.deepEqual(flowDescriptions([a]), flowDescriptions([{ evidence: [...a.evidence].reverse() }]))
 })
 
-test('service classification uses Pulumi types and never guesses from resource names', () => {
-  for (const [type, name, icon] of [
-    ['aws:s3/bucket:Bucket', 'S3', 's3'],
-    ['aws:lambda/function:Function', 'Lambda', 'lambda'],
-    ['aws:iam/role:Role', 'IAM', 'iam'],
-    ['aws:ecs/service:Service', 'ECS', 'ecs'],
-    ['aws:apigatewayv2/route:Route', 'API Gateway', 'api-gateway'],
-    ['aws:apigateway/restApi:RestApi', 'API Gateway', 'api-gateway'],
-    ['aws:ec2/instance:Instance', 'EC2', 'ec2'],
-    ['aws:cloudwatch/logGroup:LogGroup', 'CloudWatch', 'cloudwatch'],
-    ['aws:cloudwatch/eventRule:EventRule', 'EventBridge', 'eventbridge'],
-    ['aws:cloudwatch/eventTarget:EventTarget', 'EventBridge', 'eventbridge'],
-    ['aws:sqs/queue:Queue', 'SQS', 'sqs'],
-    ['aws:sns/topic:Topic', 'SNS', 'sns'],
-    ['aws:dynamodb/table:Table', 'DynamoDB', 'dynamodb'],
-    ['aws:sfn/stateMachine:StateMachine', 'Step Functions', 'step-functions'],
-    ['aws:opensearch/domain:Domain', 'OpenSearch', 'opensearch'],
-    ['random:index/randomId:RandomId', 'Random', null],
-    ['aws:unknown/resource:Resource', 'unknown', null],
-  ] as const) {
-    const service = serviceFor(type)
-    assert.equal(service.name, name)
-    assert.equal(service.icon, icon)
-  }
+test('service classification uses explicit provider and service metadata', () => {
+  const api = serviceFor({ provider: 'aws', service: 'api-gateway' })
+  assert.equal(api.name, 'API Gateway')
+  assert.equal(api.icon, 'api-gateway')
+  assert.equal(serviceFor({ provider: 'aws', service: 'other' }).name, 'other')
+  assert.equal(serviceFor({ provider: 'random' }).name, 'Random')
   assert.equal(serviceFor().name, 'Unknown')
 })
 
 test('service groups stay inside owners and stacks, collapse by default and retain each resource once', () => {
   const graph = {
     nodes: [
-      node('root', 'pulumi:pulumi:Stack'),
+      { ...node('root'), stackRoot: true },
       node('component', 'pkg:index:Component'),
-      node('role', 'aws:iam/role:Role'),
-      node('policy', 'aws:iam/policy:Policy'),
-      node('bucket', 'aws:s3/bucket:Bucket'),
-      node('opensearch-on-ec2', 'aws:ec2/instance:Instance'),
-      node('other-role', 'aws:iam/role:Role', 'other'),
-      node('component-role', 'aws:iam/role:Role'),
-      node('lambda', 'aws:lambda/function:Function'),
+      { ...node('role'), provider: 'aws', service: 'iam' },
+      { ...node('policy'), provider: 'aws', service: 'iam' },
+      { ...node('bucket'), provider: 'aws', service: 's3' },
+      { ...node('opensearch-on-ec2'), provider: 'aws', service: 'ec2' },
+      { ...node('other-role', 'Resource', 'other'), provider: 'aws', service: 'iam' },
+      { ...node('component-role'), provider: 'aws', service: 'iam' },
+      { ...node('lambda'), provider: 'aws', service: 'lambda' },
     ],
     edges: [
       edge('root', 'component'),

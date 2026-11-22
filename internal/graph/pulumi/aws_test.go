@@ -8,6 +8,21 @@ import (
 	"infralens/internal/graph"
 )
 
+func TestAWSServiceAliases(t *testing.T) {
+	for resourceType, want := range map[string]string{
+		"apigateway/restApi:RestApi":     "api-gateway",
+		"apigatewayv2/route:Route":       "api-gateway",
+		"sfn/stateMachine:StateMachine":  "step-functions",
+		"cloudwatch/eventRule:EventRule": "eventbridge",
+		"cloudwatch/eventTarget:Target":  "eventbridge",
+		"cloudwatch/logGroup:LogGroup":   "cloudwatch",
+	} {
+		if got := awsService(resourceType); got != want {
+			t.Errorf("%s: got %q, want %q", resourceType, got, want)
+		}
+	}
+}
+
 func TestAWSRelations(t *testing.T) {
 	document := `{"version":3,"deployment":{"resources":[
       {"urn":"urn:pulumi:dev::app::aws:s3/bucket:Bucket::media","type":"aws:s3/bucket:Bucket","id":"private-bucket","outputs":{"bucket":"private-bucket","password":"CANARY_SECRET"}},

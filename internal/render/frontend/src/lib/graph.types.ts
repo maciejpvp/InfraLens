@@ -8,8 +8,10 @@ export type Resource = {
   name: string
   type: string
   provider?: string
+  service?: string
   change?: Change
   stack?: string
+  stackRoot?: boolean
 }
 
 export type Evidence = {

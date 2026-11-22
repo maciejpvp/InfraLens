@@ -4,6 +4,8 @@ Lokalny CLI do zamiany eksportu infrastruktury Pulumi w jeden interaktywny plik 
 
 **Status: działający CLI i interaktywny diagram offline.** Adapter Pulumi buduje neutralny graf, a renderer generuje jeden HTML z węzłami, strzałkami, zoomem, wyszukiwaniem i inspektorem dowodów.
 
+Każda komenda przetwarzająca infrastrukturę wymaga jawnego `--provider`. Dostępny jest `pulumi`. Wartości `terraform` i `aws-cdk` są widoczne w pomocy jako planowane.
+
 ## Uruchomienie w projekcie Pulumi
 
 Zbuduj binarkę w katalogu InfraLens i umieść ją w katalogu z `PATH` (jednorazowo, Linux):
@@ -20,7 +22,7 @@ Następnie w katalogu docelowego projektu zawierającym `Pulumi.yaml` lub `Pulum
 
 ```bash
 cd /sciezka/do/projektu/infra
-InfraLens preview
+InfraLens preview --provider=pulumi
 ```
 
 Komenda uruchamia `pulumi preview --json --show-sames --non-interactive` dla aktywnego stosu, zapisuje `infralens.html` w bieżącym katalogu i otwiera go w domyślnej przeglądarce. Używa tego samego renderera React co `InfraLens render`. Bez zmian zasoby pozostają szare, dodawane są zielone, usuwane czerwone, a aktualizowane lub zastępowane bursztynowe. To plan zmian względem zapisanego stanu stosu, bez wykonywania `pulumi up` ani odświeżania rzeczywistego stanu chmury.
@@ -28,8 +30,8 @@ Komenda uruchamia `pulumi preview --json --show-sames --non-interactive` dla akt
 Wymagane są Pulumi CLI, wybrany stos (`pulumi stack select`), dostęp do backendu i zależności/credentials potrzebne projektowi podczas preview. Preview wykonuje kod projektu i może odczytywać dane providerów. Obsługa dotyczy jednego projektu w bieżącym katalogu; przy repo z kilkoma projektami uruchom komendę w odpowiednim podkatalogu. Surowy JSON trafia tylko do prywatnego pliku tymczasowego usuwanego po zakończeniu. Istniejący HTML jest zastępowany dopiero po poprawnym wygenerowaniu nowego.
 
 ```bash
-InfraLens preview --no-open                         # sam zapis, np. bez środowiska graficznego
-InfraLens preview --output moj-diagram.html         # inna nazwa wyniku
+InfraLens preview --provider=pulumi --no-open                         # sam zapis, np. bez środowiska graficznego
+InfraLens preview --provider=pulumi --output moj-diagram.html         # inna nazwa wyniku
 InfraLens preview --help
 ```
 
@@ -38,8 +40,8 @@ Nieudane otwarcie przeglądarki daje komunikat z zachowaniem wygenerowanego plik
 Dotychczasowe komendy do gotowych plików nadal działają:
 
 ```bash
-InfraLens graph --input stack.json --output graph.json
-InfraLens render --input preview.json --output result.html
+InfraLens graph --provider=pulumi --input stack.json --output graph.json
+InfraLens render --provider=pulumi --input preview.json --output result.html
 ```
 
 Adapter obsługuje eksport v3 i pojedynczy dokument preview z `steps` oraz operacjami `same`, `create`, `update`, `delete`, `replace`. Inne operacje, wersje eksportu i streaming JSON są jawnie odrzucane. Preview pokazuje wyłącznie zasoby obecne w `steps`; nie odtwarza pominiętych zasobów. Fixture’y są syntetyczne, kompatybilność z rzeczywistymi eksportami pozostaje do sprawdzenia.
@@ -53,7 +55,7 @@ HTML zawiera interaktywny diagram SVG, osadzony pakiet React, CSS, ikony i dane.
 Dla LyricsPipeline, z katalogu InfraLens:
 
 ```bash
-go run ./cmd/infralens mock-topology \
+go run ./cmd/infralens mock-topology --provider=pulumi \
   --project org/LyricsPipeline/dev=/home/maciek/Documents/GitHub/LyricsPipeline/infra/base \
   --project org/LyricsPipeline-Separation/dev=/home/maciek/Documents/GitHub/LyricsPipeline/infra/separation \
   --project org/LyricsPipeline-Transcription/dev=/home/maciek/Documents/GitHub/LyricsPipeline/infra/transcription \
@@ -84,7 +86,7 @@ Format adaptera oparto na typach [eksportu Pulumi](https://github.com/pulumi/pul
 `--input` można powtarzać. Zasoby są łączone przed rozwiązywaniem relacji; węzły pokazują projekt/stos. Przy wielu wejściach zachowujemy również korzenie stosów, do których mogą prowadzić `StackReference`.
 
 ```bash
-go run ./cmd/infralens render \
+go run ./cmd/infralens render --provider=pulumi \
   --input example/base/dev=testdata/pulumi/multi/base.json \
   --input example/separation/dev=testdata/pulumi/multi/separation.json \
   --input example/transcription/dev=testdata/pulumi/multi/transcription.json \
@@ -106,7 +108,7 @@ pulumi -C infra/transcription stack export --stack dev --file /tmp/transcription
 Następnie w InfraLens, po zastąpieniu `ORG` właściwą organizacją/backendową tożsamością używaną w StackReference:
 
 ```bash
-go run ./cmd/infralens render \
+go run ./cmd/infralens render --provider=pulumi \
   --input ORG/LyricsPipeline/dev=/tmp/base.json \
   --input ORG/LyricsPipeline-Separation/dev=/tmp/separation.json \
   --input ORG/LyricsPipeline-Transcription/dev=/tmp/transcription.json \
@@ -153,14 +155,14 @@ Jeśli używasz globalnej komendy `InfraLens`, po buildzie frontendu ponownie zb
 
 ```bash
 go test ./...
-go test -tags=integration ./internal/adapters/pulumi/simulate
+go test -tags=integration ./internal/graph/pulumi/simulate
 npm test --prefix internal/render/frontend
 npm run bench:routing --prefix internal/render/frontend
-go run ./cmd/infralens render --input testdata/pulumi/flow-details.json --output /tmp/infralens.html
+go run ./cmd/infralens render --provider=pulumi --input testdata/pulumi/flow-details.json --output /tmp/infralens.html
 python3 scripts/check_html.py /tmp/infralens.html /sciezka/do/chrome-headless-shell
 ```
 
-Test z tagiem `integration` uruchamia dwa projekty z mockami i sprawdza przekazanie outputs przez StackReference. Działa offline, po wcześniejszym pobraniu zależności przez `go -C internal/adapters/pulumi/simulate/testdata/stack-reference mod download`.
+Test z tagiem `integration` uruchamia dwa projekty z mockami i sprawdza przekazanie outputs przez StackReference. Działa offline, po wcześniejszym pobraniu zależności przez `go -C internal/graph/pulumi/simulate/testdata/stack-reference mod download`.
 
 Test przeglądarkowy wymaga już zainstalowanego Chromium. Otwiera faktyczny plik przez `file://`, sprawdza rozwijanie grup, dostępność przycisków pod wskaźnikiem, akordeony, przeciąganie inspektora, jego zamykanie i przywracanie fokusu, wyszukanie każdego zasobu, zachowanie kamery, pan/zoom, układ desktop/mobile i brak zasobów HTTP/HTTPS. Osobne przypadki obejmują pusty graf, długie nazwy, ograniczenie ruchu i wspólne odcinki różnych typów relacji. Test sprawdza też rzeczywisty element pod wskaźnikiem oraz obszary etykiet. Zrzuty QA zapisuje w `/tmp/infralens-desktop.png` i `/tmp/infralens-mobile.png`.
 

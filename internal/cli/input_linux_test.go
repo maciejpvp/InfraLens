@@ -20,7 +20,7 @@ func TestRejectsFIFOWithoutWaitingForWriter(t *testing.T) {
 			result := make(chan bool, 1)
 			go func() {
 				var logs bytes.Buffer
-				code := New(&logs, &logs).Run([]string{command, "--input", input, "--output", filepath.Join(dir, "output")})
+				code := newPulumiCLI(&logs, &logs).Run([]string{command, "--provider=pulumi", "--input", input, "--output", filepath.Join(dir, "output")})
 				result <- code != 0 && strings.Contains(logs.String(), "input must be a regular file")
 			}()
 			select {

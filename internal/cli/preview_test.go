@@ -62,8 +62,8 @@ exec /bin/cat "$TEST_PREVIEW"
 	t.Setenv("TEST_OPENED", opened)
 	t.Chdir(project)
 	var logs bytes.Buffer
-	cli := New(&logs, &logs)
-	if cli.Run([]string{"preview"}) != 0 {
+	cli := newPulumiCLI(&logs, &logs)
+	if cli.Run([]string{"preview", "--provider=pulumi"}) != 0 {
 		t.Fatal(logs.String())
 	}
 	output := filepath.Join(project, "infralens.html")
@@ -75,7 +75,7 @@ exec /bin/cat "$TEST_PREVIEW"
 		t.Fatal("preview did not embed the React viewer")
 	}
 	rendered := filepath.Join(dir, "rendered.html")
-	if cli.Run([]string{"render", "--input", filepath.Join(dir, "preview.json"), "--output", rendered}) != 0 {
+	if cli.Run([]string{"render", "--provider=pulumi", "--input", filepath.Join(dir, "preview.json"), "--output", rendered}) != 0 {
 		t.Fatal(logs.String())
 	}
 	same, err := os.ReadFile(rendered)
@@ -89,20 +89,20 @@ exec /bin/cat "$TEST_PREVIEW"
 	if err := os.Remove(opened); err != nil {
 		t.Fatal(err)
 	}
-	if cli.Run([]string{"preview", "--no-open", "--output", "custom.html"}) != 0 {
+	if cli.Run([]string{"preview", "--provider=pulumi", "--no-open", "--output", "custom.html"}) != 0 {
 		t.Fatal(logs.String())
 	}
 	if _, err := os.Stat(opened); !os.IsNotExist(err) {
 		t.Fatal("--no-open opened browser")
 	}
 	write(filepath.Join(tools, "xdg-open"), "#!/bin/sh\nexit 1\n")
-	if cli.Run([]string{"preview"}) != 0 || !strings.Contains(logs.String(), "open the saved HTML manually") {
+	if cli.Run([]string{"preview", "--provider=pulumi"}) != 0 || !strings.Contains(logs.String(), "open the saved HTML manually") {
 		t.Fatal("browser failure must preserve successful generation")
 	}
 	for _, failure := range []string{"#!/bin/sh\necho CANARY_SECRET >&2\nexit 1\n", "#!/bin/sh\nprintf CANARY_SECRET\n"} {
 		write(filepath.Join(tools, "pulumi"), failure)
 		logs.Reset()
-		if cli.Run([]string{"preview"}) == 0 || strings.Contains(logs.String(), "CANARY_SECRET") {
+		if cli.Run([]string{"preview", "--provider=pulumi"}) == 0 || strings.Contains(logs.String(), "CANARY_SECRET") {
 			t.Fatal("missing or unsafe preview error")
 		}
 		unchanged, _ := os.ReadFile(output)
@@ -110,14 +110,14 @@ exec /bin/cat "$TEST_PREVIEW"
 			t.Fatal("failed preview overwrote existing HTML")
 		}
 	}
-	for _, args := range [][]string{{"preview", "--unknown=CANARY_SECRET"}, {"preview", "positional"}, {"preview", "--output", "Pulumi.yaml"}} {
+	for _, args := range [][]string{{"preview", "--provider=pulumi", "--unknown=CANARY_SECRET"}, {"preview", "positional"}, {"preview", "--provider=pulumi", "--output", "Pulumi.yaml"}} {
 		logs.Reset()
 		if cli.Run(args) == 0 || strings.Contains(logs.String(), "CANARY_SECRET") {
 			t.Fatal("accepted invalid flags or leaked arguments")
 		}
 	}
 	t.Chdir(dir)
-	if cli.Run([]string{"preview"}) == 0 {
+	if cli.Run([]string{"preview", "--provider=pulumi"}) == 0 {
 		t.Fatal("accepted directory without a Pulumi project")
 	}
 }

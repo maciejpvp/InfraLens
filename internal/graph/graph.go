@@ -34,12 +34,14 @@ type Graph struct {
 }
 
 type Node struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Provider string `json:"provider"`
-	Change   Change `json:"change,omitempty"`
-	Stack    string `json:"stack,omitempty"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Type      string `json:"type"`
+	Provider  string `json:"provider"`
+	Service   string `json:"service,omitempty"`
+	Change    Change `json:"change,omitempty"`
+	Stack     string `json:"stack,omitempty"`
+	StackRoot bool   `json:"stackRoot,omitempty"`
 }
 
 type Evidence struct {

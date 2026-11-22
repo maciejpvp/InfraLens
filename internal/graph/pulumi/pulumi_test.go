@@ -23,6 +23,11 @@ func TestFixtures(t *testing.T) {
 			if len(g.Nodes) != 2 || len(g.Edges) != 1 {
 				t.Fatalf("unexpected graph: %+v", g)
 			}
+			for _, node := range g.Nodes {
+				if node.Name == "worker" && node.Service != "lambda" {
+					t.Fatalf("worker service = %q, want lambda", node.Service)
+				}
+			}
 			if name == "export" && len(g.Edges[0].Evidence) != 2 {
 				t.Fatal("lost property evidence")
 			}
@@ -138,7 +143,10 @@ func TestMultipleStacks(t *testing.T) {
 		if n.Stack == "" {
 			t.Fatal("missing source stack")
 		}
-		if n.Type == "pulumi:pulumi:Stack" {
+		if n.StackRoot != (n.Type == "pulumi:pulumi:Stack") {
+			t.Fatalf("incorrect stack root marker for %s", n.Type)
+		}
+		if n.StackRoot {
 			roots++
 		}
 	}

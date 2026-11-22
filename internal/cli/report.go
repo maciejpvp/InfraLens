@@ -8,12 +8,13 @@ import (
 	"infralens/internal/app"
 )
 
-const graphUsage = " --input [org/project/stack=]FILE [--input ...] --output FILE"
+const graphUsage = " --provider NAME --input [NAME=]FILE [--input ...] --output FILE"
 
-func (c *CLI) graphOrRender(command string, args []string, run func([]string, string) (app.Report, error)) error {
+func (c *CLI) graphOrRender(command string, args []string, run func([]string, string, app.ReadInputsFunc) (app.Report, error)) error {
 	flags := newFlagSet(command)
+	providerName := flags.String("provider", "", "IaC provider")
 	var inputs []string
-	flags.Func("input", "Pulumi JSON file, optionally org/project/stack=FILE; repeat for multiple stacks", func(value string) error {
+	flags.Func("input", "infrastructure input file; repeat for multiple inputs", func(value string) error {
 		if value == "" {
 			return errors.New("empty input")
 		}
@@ -23,7 +24,7 @@ func (c *CLI) graphOrRender(command string, args []string, run func([]string, st
 	output := flags.String("output", "", "destination file")
 	err := flags.Parse(args)
 	if errors.Is(err, flag.ErrHelp) {
-		fmt.Fprintln(c.stdout, "Usage: infralens "+command+graphUsage)
+		fmt.Fprintln(c.stdout, "Usage: infralens "+command+graphUsage+"\n"+c.providerHelp())
 		return nil
 	}
 	if err != nil {
@@ -35,7 +36,14 @@ func (c *CLI) graphOrRender(command string, args []string, run func([]string, st
 	if len(inputs) == 0 {
 		return errors.New("graph/render require --input and do not accept --project")
 	}
-	report, err := run(inputs, *output)
+	provider, err := c.provider(*providerName)
+	if err != nil {
+		return err
+	}
+	if provider.ReadInputs == nil {
+		return fmt.Errorf("provider %q does not support file inputs", *providerName)
+	}
+	report, err := run(inputs, *output, provider.ReadInputs)
 	if err != nil {
 		return err
 	}

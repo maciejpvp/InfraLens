@@ -5,30 +5,27 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"strings"
 
 	"infralens/internal/app"
+	"infralens/internal/graph"
 )
 
-const mockTopologyUsage = "infralens mock-topology --project org/project/stack=DIRECTORY [--project ...] --output FILE"
+const mockTopologyUsage = "infralens mock-topology --provider NAME --project NAME=DIRECTORY [--project ...] --output FILE"
 
 const mockTopologyDeprecated = "The mock-topology command is deprecated."
 
 func (c *CLI) mockTopology(args []string) error {
 	flags := newFlagSet("mock-topology")
-	var projects []app.SimulationProject
-	flags.Func("project", "Go Pulumi project with deploy/infraMocks/withStackConfig test helpers: org/project/stack=DIRECTORY", func(value string) error {
-		stack, directory, ok := strings.Cut(value, "=")
-		if !ok || stack == "" || directory == "" {
-			return errors.New("invalid project")
-		}
-		projects = append(projects, app.SimulationProject{Stack: stack, Directory: directory})
+	providerName := flags.String("provider", "", "IaC provider")
+	var projects []string
+	flags.Func("project", "project to simulate; repeat for multiple projects", func(value string) error {
+		projects = append(projects, value)
 		return nil
 	})
 	output := flags.String("output", "", "destination file")
 	err := flags.Parse(args)
 	if errors.Is(err, flag.ErrHelp) {
-		fmt.Fprintln(c.stdout, "Usage: "+mockTopologyUsage+"\n"+mockTopologyDeprecated)
+		fmt.Fprintln(c.stdout, "Usage: "+mockTopologyUsage+"\n"+mockTopologyDeprecated+"\n"+c.providerHelp())
 		return nil
 	}
 	if err != nil {
@@ -40,9 +37,17 @@ func (c *CLI) mockTopology(args []string) error {
 	if len(projects) == 0 {
 		return errors.New("mock-topology requires --project and does not accept --input")
 	}
+	provider, err := c.provider(*providerName)
+	if err != nil {
+		return err
+	}
+	if provider.MockTopology == nil {
+		return fmt.Errorf("provider %q does not support mock-topology", *providerName)
+	}
 	fmt.Fprintln(c.stderr, mockTopologyDeprecated)
-	report, err := app.MockTopology(context.Background(), projects, *output, func() {
+	report, err := app.RenderGenerated(*output, func() (graph.Graph, error) {
 		fmt.Fprintln(c.stderr, "Simulating trusted Go project code with test mocks; first build may take several minutes.")
+		return provider.MockTopology(context.Background(), projects, *output)
 	})
 	if err != nil {
 		return err

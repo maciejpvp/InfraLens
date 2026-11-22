@@ -2,22 +2,65 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
+	"strings"
 
 	"infralens/internal/app"
+	"infralens/internal/graph"
 )
+
+// Provider contains the operations available for an IaC source.
+type Provider struct {
+	ReadInputs   app.ReadInputsFunc
+	Preview      app.PreviewFunc
+	MockTopology func(context.Context, []string, string) (graph.Graph, error)
+}
 
 // CLI runs InfraLens commands using the configured output streams.
 type CLI struct {
 	stdout, stderr io.Writer
+	providers      map[string]Provider
 }
 
-// New constructs a CLI with separate output and diagnostic streams.
-func New(stdout, stderr io.Writer) *CLI {
-	return &CLI{stdout: stdout, stderr: stderr}
+// New constructs a CLI with its IaC providers and output streams.
+func New(stdout, stderr io.Writer, providers map[string]Provider) *CLI {
+	return &CLI{stdout: stdout, stderr: stderr, providers: providers}
+}
+
+func (p Provider) available() bool {
+	return p.ReadInputs != nil || p.Preview != nil || p.MockTopology != nil
+}
+
+func (c *CLI) provider(name string) (Provider, error) {
+	if name == "" {
+		return Provider{}, errors.New("--provider is required; use --help for choices")
+	}
+	provider, ok := c.providers[name]
+	if !ok {
+		return Provider{}, errors.New("unknown --provider; use --help for choices")
+	}
+	if !provider.available() {
+		return Provider{}, fmt.Errorf("provider %q is not implemented yet", name)
+	}
+	return provider, nil
+}
+
+func (c *CLI) providerHelp() string {
+	var choices []string
+	for _, name := range slices.Sorted(maps.Keys(c.providers)) {
+		if c.providers[name].available() {
+			choices = append(choices, name)
+		} else {
+			choices = append(choices, name+" (planned)")
+		}
+	}
+	return "Provider choices: " + strings.Join(choices, ", ") + "."
 }
 
 // Run executes a command and returns its process exit code.
@@ -53,7 +96,7 @@ func (c *CLI) dispatch(args []string) error {
 
 func (c *CLI) help() {
 	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       infralens <graph|render>"+graphUsage+
-		"\nReads Pulumi export v3 or non-streaming preview JSON.\n       "+mockTopologyUsage+" (deprecated)")
+		"\n       "+mockTopologyUsage+" (deprecated)\n"+c.providerHelp())
 }
 
 func newFlagSet(command string) *flag.FlagSet {

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"infralens/internal/adapters/pulumi"
 	"infralens/internal/fileio"
 	"infralens/internal/graph"
+	"infralens/internal/graph/pulumi"
 )
 
 //go:embed runner_test.go.txt
@@ -31,6 +31,19 @@ type simulation struct {
 	tmp, output string
 	modules     map[string]string
 	references  map[string]json.RawMessage
+}
+
+// RunInputs simulates projects specified as org/project/stack=DIRECTORY.
+func RunInputs(ctx context.Context, inputs []string, output string) (graph.Graph, error) {
+	projects := make([]Project, 0, len(inputs))
+	for _, input := range inputs {
+		stack, directory, ok := strings.Cut(input, "=")
+		if !ok || stack == "" || directory == "" {
+			return graph.Graph{}, errors.New("--project requires org/project/stack=DIRECTORY")
+		}
+		projects = append(projects, Project{Stack: stack, Directory: directory})
+	}
+	return Run(ctx, projects, output)
 }
 
 // Run executes trusted project code. Pulumi operations use the project's mocks;
