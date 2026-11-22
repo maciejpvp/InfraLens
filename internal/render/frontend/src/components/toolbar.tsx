@@ -49,7 +49,7 @@ export const Toolbar = (props: Parameters<typeof useToolbar>[0]) => {
             className={styles.controlButton}
             variant="ghost"
             size="icon-lg"
-            aria-label="Filters and legend"
+            aria-label="Diagram filters"
             aria-expanded={filtersOpen}
             aria-controls="filters"
             onClick={toggleFilters}

@@ -33,8 +33,20 @@
   --color-destructive: #eea5a5;
 }
 
+@theme inline {
+  --animate-pipe-current: pipe-current var(--pipe-duration) linear infinite;
+}
+
+@keyframes pipe-current {
+  to { stroke-dashoffset: var(--pipe-period); }
+}
+
 @layer base {
   *, ::before, ::after {
     @apply border-border;
   }
+}
+
+[data-pipe-motion="off"] .pipe-current {
+  animation-play-state: paused;
 }

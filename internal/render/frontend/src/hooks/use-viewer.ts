@@ -1,3 +1,4 @@
+import { useConnectionLegend } from './use-connection-legend'
 import type {
   Graph,
   GraphEdge,
@@ -36,7 +37,8 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     [tree, mode, dependencies, expanded],
   )
   const { scene, layoutPending, layoutFailed } = useDiagramLayout(tree, current)
-  const camera = useCamera(stage, search, zoomLabel, scene)
+  const legendProps = useConnectionLegend()
+  const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef)
   const inspector = useInspector((origin) => {
     if (typeof origin === 'string') return diagramElement(stage.current, 'item', origin) || search.current
     if (origin?.edge !== undefined)
@@ -108,7 +110,12 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const navigateEdges: OpenRelation = (edges, trigger) => inspector.navigate(edgePage(edges), trigger)
 
   return {
-    stageProps: { ref: stage, 'aria-busy': layoutPending },
+    stageProps: {
+      ref: stage,
+      'aria-busy': layoutPending,
+      'data-pipe-motion': legendProps.playing ? 'on' : 'off',
+    },
+    legendProps,
     layoutFailed,
     isEmpty: graph.nodes.length === 0,
     diagramProps: scene && {

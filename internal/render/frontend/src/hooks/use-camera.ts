@@ -11,6 +11,7 @@ export const useCamera = (
   search: RefObject<HTMLInputElement | null>,
   zoomLabel: RefObject<HTMLOutputElement | null>,
   scene: Scene | undefined,
+  legend: RefObject<HTMLElement | null>,
 ) => {
   const flow = useRef<ReactFlowInstance<DiagramNode, DiagramRelation> | null>(null)
   const fitZoom = useRef(1)
@@ -25,7 +26,9 @@ export const useCamera = (
     const { clientWidth: width, clientHeight: height } = stage.current
     const { layout } = scene
     const top = search.current.getBoundingClientRect().bottom + cameraConfig.initialTopPadding
-    const usableHeight = height - top - cameraConfig.bottomPadding
+    const legendTop = legend.current?.getBoundingClientRect().top ?? height
+    const bottom = Math.max(cameraConfig.bottomPadding, height - legendTop + cameraConfig.legendGap)
+    const usableHeight = height - top - bottom
     const zoom = Math.min(
       Math.max(1, width - 40) / (layout.width + 60),
       Math.max(1, usableHeight) / (layout.height + 60),

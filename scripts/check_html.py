@@ -71,6 +71,31 @@ try {
     assert(!$('summary').textContent.includes('unrouted'),'Missing connection route');
   }
   assert(document.documentElement.lang==='en','Diagram language is not English');
+  const legend=$('connection-legend'),legendButton=document.querySelector('[aria-controls="connection-legend"]');
+  if(graph.nodes.length){
+    assert(legend&&legendButton,'Diagram has no connection legend');
+    assert(legend.hidden===(innerWidth<=620),'Legend starts in the wrong state for this viewport');
+    if(legend.hidden)await click(legendButton);
+    const swatches=[...legend.querySelectorAll('li')];
+    assert(swatches.length===3&&new Set(swatches.map(row=>row.querySelector('svg>path:last-child')?.getAttribute('fill'))).size===3,'Legend does not distinguish its three connection types');
+    const pipe=document.querySelector('[data-edge] .pipe-current')||legend.querySelector('.pipe-current');
+    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    assert(getComputedStyle(pipe).animationName===(reduced?'none':'pipe-current'),'Flow animation did not respect the motion preference');
+    if(!reduced){
+      await click(document.querySelector('[aria-label="Pause flow animation"]'));
+      assert(getComputedStyle(pipe).animationPlayState==='paused','Legend did not pause flow motion');
+      await click(document.querySelector('[aria-label="Resume flow animation"]'));
+      assert(getComputedStyle(pipe).animationPlayState==='running','Legend did not resume flow motion');
+    }
+    if(innerWidth<=620)await click(legendButton);
+    else {
+      const overlay=legend.closest('section').getBoundingClientRect();
+      for(const item of document.querySelectorAll('[data-item]')){
+        const card=item.getBoundingClientRect();
+        assert(card.right<=overlay.left||card.left>=overlay.right||card.bottom<=overlay.top||card.top>=overlay.bottom,'Legend covers a resource in the initial view');
+      }
+    }
+  }
   const serviceGroups=[...document.querySelectorAll('[data-service]')];
   for(const group of serviceGroups){
     const id=group.dataset.item,toggle=card(group).querySelector('[data-toggle]');
@@ -275,6 +300,26 @@ try {
     const kindLabel=edge=>kindLabels[[...edge.classList].find(kind=>kindLabels[kind])];
     if(location.search.includes('parallel')){
       assert(rendered.length===3,'Missing parallel arrows');
+      const appearance=new Set(rendered.map(edge=>{
+        const wire=getComputedStyle(edge.querySelector('.wire'));
+        return [wire.stroke,wire.strokeDasharray,wire.strokeWidth].join('/');
+      }));
+      assert(appearance.size===3,'Parallel routes lack distinct appearances');
+      for(const edge of rendered.filter(edge=>!edge.classList.contains('depends_on'))){
+        const wire=edge.querySelector('.wire');
+        const stream=edge.querySelector('.pipe-current');
+        const shell=edge.querySelector('.pipe-wall');
+        const channel=edge.querySelector('.pipe-channel');
+        const rim=edge.querySelector('.pipe-rim');
+        const shadow=edge.querySelector('.pipe-shadow');
+        const width=path=>parseFloat(getComputedStyle(path).strokeWidth);
+        assert(shell&&channel&&rim&&shadow,'Pipe is missing its dimensional layers');
+        assert([shell,channel,wire,stream].every(path=>path.getAttribute('d')===wire.getAttribute('d')),'Data or wall detached from the connection');
+        assert([shell,channel,wire].every(path=>getComputedStyle(path).strokeDasharray==='none'),'Pipe body is broken into segments');
+        assert(width(shell)>width(channel)&&width(channel)>width(wire)&&width(wire)>width(stream),'Animated data does not sit inside the channel');
+        assert([shell,channel,rim,shadow,stream].every(path=>getComputedStyle(path).pointerEvents==='none'),'Decorative layers intercept pointer input');
+      }
+      assert(!document.querySelector('[data-edge].depends_on .pipe-current'),'Deployment dependency incorrectly shows flowing data');
       for(const edge of rendered){
         const path=edge.querySelector('.wire'),screen=path.getPointAtLength(path.getTotalLength()-6).matrixTransform(path.getScreenCTM());
         const target=document.elementFromPoint(screen.x,screen.y);

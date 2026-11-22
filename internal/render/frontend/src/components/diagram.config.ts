@@ -1,16 +1,8 @@
 import type { EdgeMarker } from '@xyflow/react'
-import type { ProjectedEdge } from '../lib/graph.types'
 
 import { MarkerType } from '@xyflow/react'
 import { DiagramEdge } from './diagram-edge'
 import { DiagramItem } from './diagram-item'
-
-export const edgeAppearance: Record<ProjectedEdge['kind'], { color: string; width: number; dash?: string }> =
-  {
-    triggers: { color: '#51cfc1', width: 1.8 },
-    connects_to: { color: '#ad98e6', width: 1.8, dash: '5 5' },
-    depends_on: { color: '#7f91a8', width: 1.1, dash: '4 6' },
-  }
 
 export const edgeMarker: EdgeMarker = {
   type: MarkerType.ArrowClosed,

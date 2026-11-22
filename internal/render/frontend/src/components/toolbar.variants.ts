@@ -24,13 +24,6 @@ export const toolbarStyles = {
   filterTitle: 'mb-4 font-semibold',
   dependencies: 'flex items-center gap-2',
   topology: 'mt-4 space-y-2',
-  legend: 'my-4 space-y-2',
-  legendItem: 'flex items-center gap-2',
-  legendLine: {
-    triggers: 'w-6 border-t-2 border-primary',
-    connects_to: 'w-6 border-t-2 border-dashed border-violet-300',
-    depends_on: 'w-6 border-t border-dashed border-slate-400',
-  },
   note: 'text-muted-foreground',
   simulationNote: 'mt-3 text-muted-foreground',
   zoom: 'bottom-[max(.75rem,env(safe-area-inset-bottom))] left-2.5 flex items-center p-1 sm:left-4',

@@ -1,7 +1,5 @@
 import { Box } from '../ui/box'
 import { Label } from '../ui/label'
-import { List } from '../ui/list'
-import { ListItem } from '../ui/list-item'
 import { Text } from '../ui/text'
 import type { useToolbar } from '../hooks/use-toolbar'
 
@@ -9,7 +7,7 @@ import { cn } from '../lib/utils'
 import { Checkbox } from '../ui/checkbox'
 import { NativeSelect } from '../ui/native-select'
 import { NativeSelectOption } from '../ui/native-select-option'
-import { relationLegend, topologyOptions } from './toolbar.config'
+import { topologyOptions } from './toolbar.config'
 import { toolbarStyles as styles } from './toolbar.variants'
 
 export const DiagramFilters = ({
@@ -25,7 +23,7 @@ export const DiagramFilters = ({
   <Box
     as="section"
     id="filters"
-    aria-label="Filters and legend"
+    aria-label="Diagram filters"
     hidden={!filtersOpen}
     className={cn(styles.panel, styles.filters)}
   >
@@ -51,17 +49,8 @@ export const DiagramFilters = ({
         ))}
       </NativeSelect>
     </Box>
-    <List className={styles.legend}>
-      {relationLegend.map(({ kind, label }) => (
-        <ListItem key={kind} className={styles.legendItem}>
-          <Text className={styles.legendLine[kind]} />
-          {label}
-        </ListItem>
-      ))}
-    </List>
     <Text as="p" className={styles.note}>
-      Arrows describe configuration, not observed traffic. A Pulumi dependency does not determine data
-      direction.
+      Deployment dependencies show ordering without implying a direction for data flow.
     </Text>
     <Text as="p" id="simulation-note" hidden={!simulated} className={styles.simulationNote}>
       Simulation uses mocked provider responses. “+ create” means comparison with an empty state.

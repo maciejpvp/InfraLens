@@ -6,6 +6,7 @@ export const cameraConfig = {
   maxZoom: 40,
   initialTopPadding: 30,
   bottomPadding: 85,
+  legendGap: 12,
   mobileTopPadding: 36,
   mobileLeftPadding: 24,
 }

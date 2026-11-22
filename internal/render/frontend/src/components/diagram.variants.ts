@@ -3,8 +3,8 @@ export const diagramStyles = {
   edge: 'group cursor-pointer outline-none motion-safe:transition-opacity',
   selected: 'selected',
   mutedEdge: 'muted opacity-40',
-  wire: 'wire group-hover:[stroke-width:3px] group-focus-visible:[stroke-width:3px]',
-  selectedWire: '[stroke-width:3px]!',
+  wire: 'wire group-hover:brightness-115 group-focus-visible:brightness-115',
+  selectedWire: 'brightness-125 drop-shadow-[0_0_2px_currentColor]',
   edgeLabel:
     'edge-label pointer-events-none absolute w-max whitespace-nowrap bg-background text-xs text-foreground',
   item: 'relative pointer-events-none',

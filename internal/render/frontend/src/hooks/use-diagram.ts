@@ -5,12 +5,9 @@ import type { Point, Route } from '../lib/graph.types'
 
 import { clsx } from 'clsx'
 import { Position } from '@xyflow/react'
-import {
-  diagramLayers,
-  edgeAppearance,
-  edgeInteractionWidth,
-  edgeMarker,
-} from '../components/diagram.config'
+import { diagramLayers, edgeInteractionWidth, edgeMarker } from '../components/diagram.config'
+import { pipeAppearance } from '../components/connection-pipes.config'
+import { pipePaint } from '../components/connection-pipes.variants'
 import { diagramStyles as styles } from '../components/diagram.variants'
 import { activationProps } from '../lib/activation-props'
 import { countLabel } from '../lib/graph-view'
@@ -106,7 +103,7 @@ export const useDiagram = ({
     const description = flowDescriptions([edge])
       .map(({ label }) => label)
       .join(', ')
-    const appearance = edgeAppearance[kind]
+    const paint = pipePaint[kind]
 
     return [
       {
@@ -118,15 +115,9 @@ export const useDiagram = ({
         ariaRole: 'button',
         ariaLabel: `${title}, ${relationNames[kind]}, ${description}, ${countLabel(originals.length, 'connection')}`,
         className: clsx(styles.edge, kind, selected && styles.selected, muted && styles.mutedEdge),
-        markerEnd: { ...edgeMarker, color: appearance.color },
+        markerEnd: { ...edgeMarker, color: pipeAppearance[kind].color },
         interactionWidth: edgeInteractionWidth,
-        style: {
-          stroke: appearance.color,
-          strokeWidth: appearance.width,
-          strokeDasharray: appearance.dash,
-          strokeLinecap: 'round',
-          strokeLinejoin: 'round',
-        },
+        style: paint.wire,
         domAttributes: {
           'data-edge': index,
           'data-from': from,
@@ -138,6 +129,8 @@ export const useDiagram = ({
         data: {
           index,
           path: route.d,
+          underlay: paint.underlay,
+          stream: paint.stream,
           wireClassName: clsx(styles.wire, selected && styles.selectedWire),
           label: route.label,
           labelClassName: clsx(styles.edgeLabel, muted && styles.mutedEdge),

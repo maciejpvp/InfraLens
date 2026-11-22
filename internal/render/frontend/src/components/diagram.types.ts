@@ -1,3 +1,4 @@
+import type { FlowPaintLayer } from '../ui/flow-path'
 import type { Edge, Node } from '@xyflow/react'
 import type {
   GraphEdge,
@@ -29,6 +30,8 @@ type RelationData = {
   index: number
   path: string
   wireClassName: string
+  underlay?: readonly FlowPaintLayer[]
+  stream?: FlowPaintLayer
   label?: RouteLabel
   labelClassName: string
 }

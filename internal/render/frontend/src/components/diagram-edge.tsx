@@ -13,6 +13,8 @@ export const DiagramEdge = ({ id, data, style, markerEnd, interactionWidth }: Ed
       interactionWidth={interactionWidth}
       style={style}
       className={data.wireClassName}
+      underlay={data.underlay}
+      stream={data.stream}
       overlay={
         data.label && (
           <Text className={data.labelClassName} data-edge-label={data.index} style={data.label.style}>
