@@ -10,8 +10,10 @@ export const Button = ({
   variant = 'default',
   size = 'default',
   asChild = false,
+  unstyled = false,
   ...props
-}: React.ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) => {
+}: React.ComponentProps<'button'> &
+  VariantProps<typeof buttonVariants> & { asChild?: boolean; unstyled?: boolean }) => {
   const Element = asChild ? Slot.Root : 'button'
 
   return (
@@ -19,7 +21,7 @@ export const Button = ({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={unstyled ? className : cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   )

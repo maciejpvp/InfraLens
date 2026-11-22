@@ -1,7 +1,7 @@
 import type { Graph, GraphView, Route } from '../lib/graph.types'
 
 import { countLabel } from '../lib/graph-view'
-import { mapZoom } from '../component/toolbar/toolbar.config'
+import { mapZoom } from '../components/toolbar.config'
 
 type MapControlsOptions = {
   graph: Graph

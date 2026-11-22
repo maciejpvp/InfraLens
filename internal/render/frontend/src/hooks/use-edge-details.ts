@@ -1,7 +1,7 @@
 import type { Evidence, GraphEdge, ResourcesById } from '../lib/graph.types'
 import type { EvidenceGroup, MetadataRow } from '../lib/inspector.types'
 
-import { relationNotes } from '../component/inspector/inspector.config'
+import { relationNotes } from '../components/inspector.config'
 import { connectionTitle, countLabel, groupRelations } from '../lib/graph-view'
 import { changeLabels, topologyNames } from '../lib/graph-view.config'
 

@@ -1,6 +1,6 @@
 import type { RefObject } from 'react'
 import type { OnMove, ReactFlowInstance } from '@xyflow/react'
-import type { DiagramNode, DiagramRelation } from '../component/diagram/diagram.types'
+import type { DiagramNode, DiagramRelation } from '../components/diagram.types'
 import type { Position, Scene } from '../lib/graph.types'
 
 import { useRef } from 'react'

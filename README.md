@@ -138,7 +138,7 @@ Sprawdzone na LyricsPipeline: 76 zasobów, 13 rozpoznanych połączeń konfigura
 
 ### Rozwój renderera i sprawdzenie HTML
 
-Kod interfejsu jest w `internal/render/frontend/src` i używa TypeScriptu. Hooki i moduły mają rozszerzenie `.ts`, a komponenty JSX `.tsx`. Prymitywy shadcn/ui są w `src/ui`, a komponenty raportu w `src/component`. Każdy plik zawiera najwyżej jeden komponent. Stan, zdarzenia i przygotowanie danych do renderowania są w `src/hooks`. Stałe konfiguracyjne są w plikach `*.config.ts`, a klasy Tailwinda w `*.variants.ts`. Kod używa funkcji strzałkowych i nazwanych eksportów `export const`. Komponenty importują prymitywy bezpośrednio z `ui`.
+Kod interfejsu jest w `internal/render/frontend/src` i używa TypeScriptu. Hooki i moduły mają rozszerzenie `.ts`, a komponenty JSX `.tsx`. Prymitywy shadcn/ui są w `src/ui`, a komponenty raportu w płaskim katalogu `src/components`. Gotowy widok raportu składa te komponenty w `src/views`, a `main.tsx` montuje go w dokumencie HTML. Każdy plik zawiera najwyżej jeden komponent. Stan, zdarzenia i przygotowanie danych do renderowania są w `src/hooks`. Stałe konfiguracyjne są w plikach `*.config.ts`, a klasy Tailwinda w `*.variants.ts`. Kod używa funkcji strzałkowych i nazwanych eksportów `export const`. Komponenty importują prymitywy bezpośrednio z `ui`. Tam też są prymitywy dla semantycznego HTML, ikon i React Flow.
 
 React Flow rysuje karty HTML i połączenia oraz obsługuje przesuwanie i zoom. ELK.js wylicza pozycje elementów, przebieg strzałek i miejsca etykiet. Vite osadza ELK.js razem z resztą frontendu, więc obliczenia działają także bez połączenia z siecią. Go składa samodzielny raport HTML w `internal/render/html.go`.
 

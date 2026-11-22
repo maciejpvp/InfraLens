@@ -1,6 +1,6 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import type { EdgeMouseHandler } from '@xyflow/react'
-import type { DiagramNode, DiagramProps, DiagramRelation } from '../component/diagram/diagram.types'
+import type { DiagramNode, DiagramProps, DiagramRelation } from '../components/diagram.types'
 import type { Point, Route } from '../lib/graph.types'
 
 import { clsx } from 'clsx'
@@ -10,8 +10,8 @@ import {
   edgeAppearance,
   edgeInteractionWidth,
   edgeMarker,
-} from '../component/diagram/diagram.config'
-import { diagramStyles as styles } from '../component/diagram/diagram.variants'
+} from '../components/diagram.config'
+import { diagramStyles as styles } from '../components/diagram.variants'
 import { activationProps } from '../lib/activation-props'
 import { countLabel } from '../lib/graph-view'
 import { relationNames } from '../lib/graph-view.config'

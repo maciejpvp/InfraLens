@@ -3,7 +3,7 @@ import type { Graph, Topology, ViewMode } from '../lib/graph.types'
 import type { OpenResource } from '../lib/inspector.types'
 
 import { useEffect, useRef, useState } from 'react'
-import { viewModes } from '../component/toolbar/toolbar.config'
+import { viewModes } from '../components/toolbar.config'
 
 type ToolbarOptions = {
   graph: Graph

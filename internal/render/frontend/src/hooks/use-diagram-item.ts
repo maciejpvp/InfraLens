@@ -1,6 +1,6 @@
-import type { DiagramItemData } from '../component/diagram/diagram.types'
+import type { DiagramItemData } from '../components/diagram.types'
 
-import { diagramStyles as styles } from '../component/diagram/diagram.variants'
+import { diagramStyles as styles } from '../components/diagram.variants'
 import { activationProps } from '../lib/activation-props'
 import { changeSummary, countLabel } from '../lib/graph-view'
 import { changeLabels } from '../lib/graph-view.config'
