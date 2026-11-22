@@ -46,6 +46,7 @@ export const Toolbar = (props: Parameters<typeof useToolbar>[0]) => {
           </Box>
           <Button
             id="filter-button"
+            className={styles.controlButton}
             variant="ghost"
             size="icon-lg"
             aria-label="Filters and legend"

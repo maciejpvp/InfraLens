@@ -127,8 +127,9 @@ try {
     assert(inspector(),'Keyboard inspection failed');
     assert(document.activeElement===close(),'Modal did not receive focus');
     $('zoom-in').focus();
-    assert(document.activeElement===close(),'Background received focus during modal inspection');
+    assert(document.activeElement===$('zoom-in'),'Inspector trapped focus on the diagram');
     assert(view()===initial,'Inspection changed camera');
+    close().focus();
     await dispatch(close(),new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
     assert(!inspector()&&document.activeElement===item,'Escape path did not restore focus');
     assert(!document.querySelector('#diagram .selected, #diagram .muted'),'Closing left diagram items highlighted');
@@ -184,15 +185,45 @@ try {
       await click(member);
       assert(back(),'Back did not become available after reopening a member');
     }
-    const backdrop=document.elementFromPoint(1,1);
-    assert(backdrop?.matches('[data-slot="dialog-overlay"]'),'Backdrop did not intercept clicks outside the modal');
-    backdrop.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:1,clientY:1}));
-    close().dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
-    assert(inspector(),'Dragging from the backdrop into the dialog closed it');
-    backdrop.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,clientX:1,clientY:1}));
-    backdrop.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,clientX:1,clientY:1}));
-    await clickAt(backdrop,1,1);
-    assert(!inspector()&&document.activeElement.hasAttribute('data-item'),'Backdrop did not close the dialog and restore graph focus');
+    assert(!document.querySelector('[data-slot="dialog-overlay"]'),'Inspector creates a backdrop');
+    assert(document.body.style.pointerEvents!=='none','Inspector blocks diagram interaction');
+    const beforeWindowZoom=view();
+    await click($('zoom-in'));
+    assert(inspector()&&view()!==beforeWindowZoom,'Zoom did not work while the inspector was open');
+
+    const grip=dialog().querySelector('[data-window-grip]');
+    const header=grip.closest('header');
+    const beforeDrag=dialog().getBoundingClientRect();
+    const handle=grip.getBoundingClientRect();
+    const startX=handle.x+handle.width/2,startY=handle.y+handle.height/2;
+    const dx=innerWidth>620?-110:0,dy=innerWidth>620?40:-76;
+    // A synthetic pointer cannot register capture with Chromium. Record the request for this gesture.
+    let captured=false;
+    header.setPointerCapture=()=>{captured=true;};
+    header.hasPointerCapture=()=>captured;
+    header.releasePointerCapture=()=>{captured=false;};
+    const dragEvent=(target,type,x,y)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,isPrimary:true,button:0,pointerId:21,clientX:x,clientY:y}));
+    dragEvent(grip,'pointerdown',startX,startY);
+    assert(captured,'Window did not capture its drag pointer');
+    dragEvent(header,'pointermove',startX+dx,startY+dy);
+    const during=dialog().getBoundingClientRect();
+    assert(Math.abs(during.x-beforeDrag.x-dx)<1&&Math.abs(during.y-beforeDrag.y-dy)<1,'Inspector did not track the drag directly');
+    dragEvent(header,'pointerup',startX+dx,startY+dy);
+    assert(!captured&&inspector(),'Drag release lost the inspector or left pointer capture');
+    await wait(650);
+    const settled=dialog().getBoundingClientRect();
+    assert(settled.left>=0&&settled.top>=0&&settled.right<=innerWidth&&settled.bottom<=innerHeight,'Inspector settled outside the viewport');
+
+    const keyboardStart=settled.y;
+    grip.focus();
+    await dispatch(grip,new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));
+    assert(dialog().getBoundingClientRect().y<keyboardStart,'Keyboard could not move the inspector');
+    await dispatch(grip,new KeyboardEvent('keydown',{key:'Home',bubbles:true,cancelable:true}));
+    const reset=dialog().getBoundingClientRect();
+    assert(Math.abs(reset.x-beforeDrag.x)<1&&Math.abs(reset.y-beforeDrag.y)<1,'Home did not reset inspector position');
+
+    await click(close());
+    assert(!inspector()&&document.activeElement.hasAttribute('data-item'),'Close did not restore graph focus');
 
     await click($('fit'));
     const toggleAtPoint=[...document.querySelectorAll('[data-toggle]')].find(button=>hitCenter(button).target?.closest('[data-toggle]')===button);
@@ -283,7 +314,7 @@ try {
       $('search').value=target.name;await dispatch($('search'),new Event('input',{bubbles:true}));
       const result=[...$('results').querySelectorAll('button')].find(b=>b.dataset.resource===target.id);
       assert(result,'Resource not searchable: '+target.name);await click(result);
-      assert(inspector()&&$('details').textContent.includes(target.name),'Search reveal failed: '+target.name);
+      assert(inspector()&&title()===target.name,'Search reveal failed: '+target.name);
       assert(!back(),'History leaked into a new modal');
       assert(document.activeElement===close(),'Search did not focus modal');
       await click(close());
@@ -387,7 +418,7 @@ def main():
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)
             path.write_text(document.replace('<script id="infralens-data"', instrument + '<script id="infralens-data"', 1).replace('</body>', CHECK + '</body>', 1))
             screenshot = Path(tempfile.gettempdir()) / f'infralens-{name}.png'
-            command = [sys.argv[2], '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--user-data-dir=' + str(Path(folder) / f'profile-{name}'), f'--window-size={width},{height}', '--virtual-time-budget=12000', '--dump-dom']
+            command = [sys.argv[2], '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--user-data-dir=' + str(Path(folder) / f'profile-{name}'), f'--window-size={width},{height}', '--virtual-time-budget=15000', '--dump-dom']
             if reduced:
                 command.append('--force-prefers-reduced-motion')
             result = subprocess.run(command + [path.as_uri() + '?' + name], capture_output=True, text=True, timeout=45)

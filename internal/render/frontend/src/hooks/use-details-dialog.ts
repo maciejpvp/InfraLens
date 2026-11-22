@@ -2,10 +2,13 @@ import type { ResourcesById } from '../lib/graph.types'
 import type { useInspector } from './use-inspector'
 
 import { connectionTitle } from '../lib/graph-view'
+import { useFloatingWindow } from './use-floating-window'
 
 export const useDetailsDialog = (inspector: ReturnType<typeof useInspector>, byId: ResourcesById) => {
   const { pages, body, closeButton, back, close, restoreGraphFocus } = inspector
   const page = pages.at(-1)
+  const open = Boolean(page)
+  const floatingWindow = useFloatingWindow(open)
   const title =
     page?.item?.name ??
     (page?.edges?.length === 1
@@ -16,7 +19,7 @@ export const useDetailsDialog = (inspector: ReturnType<typeof useInspector>, byI
     event.preventDefault()
     closeButton.current?.focus()
   }
-  const preventPointerDismiss = (event: Event) => event.preventDefault()
+  const keepWindowOpen = (event: Event) => event.preventDefault()
   const changeOpen = (open: boolean) => {
     if (!open) close()
   }
@@ -30,11 +33,11 @@ export const useDetailsDialog = (inspector: ReturnType<typeof useInspector>, byI
     restoreGraphFocus,
     title,
     canGoBack: pages.length > 1,
-    open: Boolean(page),
+    open,
     label: page?.item ? (page.item.group ? 'Resource group' : 'Resource') : 'Connection details',
     changeOpen,
     focusCloseButton,
-    preventPointerDismiss,
-    overlayProps: { onClick: close },
+    keepWindowOpen,
+    ...floatingWindow,
   }
 }

@@ -4,12 +4,11 @@ import { ListItem } from '../ui/list-item'
 import { Text } from '../ui/text'
 import type { EvidenceGroup } from '../lib/inspector.types'
 
-import { Fragment } from 'react'
 import { inspectorStyles as styles } from './inspector.variants'
 
 export const Evidence = ({ groups }: { groups: EvidenceGroup[] }) =>
   groups.map(({ key, label, details, entries }) => (
-    <Fragment key={key}>
+    <Box key={key} className={styles.evidenceGroup}>
       {label && (
         <Text as="h4" className={styles.evidenceTitle}>
           {label}
@@ -22,7 +21,7 @@ export const Evidence = ({ groups }: { groups: EvidenceGroup[] }) =>
       )}
       <List className={styles.evidenceList}>
         {entries.map(({ source, resource, property }, index) => (
-          <ListItem key={index}>
+          <ListItem key={index} className={styles.evidenceEntry}>
             {source}
             {resource && <Box>Configured by: {resource}</Box>}
             <Text as="code" className={styles.evidenceProperty}>
@@ -31,5 +30,5 @@ export const Evidence = ({ groups }: { groups: EvidenceGroup[] }) =>
           </ListItem>
         ))}
       </List>
-    </Fragment>
+    </Box>
   ))

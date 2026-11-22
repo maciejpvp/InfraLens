@@ -2,25 +2,25 @@ export const diagramStyles = {
   root: 'size-full bg-transparent select-none',
   edge: 'group cursor-pointer outline-none motion-safe:transition-opacity',
   selected: 'selected',
-  mutedEdge: 'muted opacity-15',
+  mutedEdge: 'muted opacity-40',
   wire: 'wire group-hover:[stroke-width:3px] group-focus-visible:[stroke-width:3px]',
   selectedWire: '[stroke-width:3px]!',
   edgeLabel:
     'edge-label pointer-events-none absolute w-max whitespace-nowrap bg-background text-xs text-foreground',
   item: 'relative pointer-events-none',
-  groupBounds: 'absolute inset-0 rounded-xl border border-input bg-card/65',
+  groupBounds: 'absolute inset-0 rounded-[24px] border border-input bg-card/65',
   nestedGroupBounds: 'border-dashed',
   button:
     'nopan pointer-events-auto absolute inset-x-0 top-0 w-full cursor-pointer overflow-hidden text-left outline-none motion-safe:transition-opacity',
   groupHeader: 'group-header',
-  header: 'header-bg flex items-center gap-2 rounded-xl px-4 hover:bg-accent/70 focus-visible:bg-accent',
+  header: 'header-bg flex items-center gap-2 rounded-[20px] px-4 hover:bg-accent/70 focus-visible:bg-accent',
   headerWithIcon: 'pl-2.5',
   selectedHeader: 'bg-accent',
   headerName: 'min-w-0 flex-1 truncate text-sm font-semibold',
   groupCount: 'shrink-0 pr-9 text-xs text-muted-foreground',
   node: 'node',
-  mutedItem: 'muted opacity-40',
-  card: 'body flex h-full flex-col justify-center gap-1 rounded-xl border border-input bg-card px-3.5 hover:border-ring focus-visible:border-ring',
+  mutedItem: 'muted opacity-65',
+  card: 'body flex h-full flex-col justify-center gap-1 rounded-[17px] border border-input bg-card px-3.5 shadow-node hover:border-ring focus-visible:border-ring',
   supportCard: 'border-dashed',
   selectedCard: 'border-2 border-ring',
   changedCard: {
@@ -46,5 +46,5 @@ export const diagramStyles = {
   fallbackIcon: 'grid size-6 shrink-0 place-items-center text-[11px] font-semibold text-foreground',
   handle: 'opacity-0',
   toggle:
-    'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-lg border border-input bg-accent p-0 text-lg font-medium text-foreground hover:bg-[#456070] focus-visible:ring-ring',
+    'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-full border border-input bg-accent p-0 text-lg font-medium text-foreground hover:bg-[#456070] focus-visible:ring-ring motion-safe:active:scale-95',
 }

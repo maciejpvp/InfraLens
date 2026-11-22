@@ -13,7 +13,7 @@ CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/sta
 ## Baza techniczna
 
 - Go: CLI, parser JSON, budowa grafu i składanie HTML.
-- React + SVG: komponenty widoku, hooki kamery i historii modalu, shadcn/ui i Tailwind.
+- React + SVG: komponenty widoku, hooki kamery i historii pływającego inspektora, shadcn/ui i Tailwind.
 - Layout warstwowy z grupowaniem cykli przez SCC; pozycjonowanie na podstawie zdarzeń, osobno od referencji konfiguracji.
 - Vite buduje frontend w `internal/render/frontend/dist`. Go łączy wynik ze zweryfikowanymi danymi grafu i ikonami w samodzielny plik HTML.
 - Bez całego Pulumi SDK, backendu i dostępu do sieci podczas renderowania.

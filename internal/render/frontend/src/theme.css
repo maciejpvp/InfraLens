@@ -2,8 +2,20 @@
 @import "tailwindcss" source("./");
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant reduced-transparency (@media (prefers-reduced-transparency: reduce));
 
 @theme {
+  --shadow-panel: 0 12px 30px -10px rgb(0 0 0 / .55), 0 1px 0 rgb(255 255 255 / .05) inset;
+  --shadow-window: 0 28px 72px -16px rgb(0 0 0 / .78), 0 1px 0 rgb(255 255 255 / .08) inset;
+  --shadow-node: 0 6px 16px -10px rgb(0 0 0 / .68);
+  --animate-window-in: window-in 170ms ease-out both;
+  --animate-detail-in: window-in 140ms ease-out both;
+
+  @keyframes window-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   --color-background: #0b0f14;
   --color-foreground: #e6edf3;
   --color-card: #171e28;

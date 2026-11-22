@@ -24,13 +24,27 @@ export const MapControls = ({
   return (
     <>
       <Box role="group" aria-label="Zoom" className={cn(styles.panel, styles.zoom)}>
-        <Button id="zoom-out" size="icon-lg" variant="ghost" aria-label="Zoom out" onClick={zoomOut}>
+        <Button
+          id="zoom-out"
+          size="icon-lg"
+          variant="ghost"
+          className={styles.controlButton}
+          aria-label="Zoom out"
+          onClick={zoomOut}
+        >
           <Icon icon={Minus} />
         </Button>
         <Text as="output" id="zoom-label" ref={zoomLabel} className={styles.zoomLabel}>
           100%
         </Text>
-        <Button id="zoom-in" size="icon-lg" variant="ghost" aria-label="Zoom in" onClick={zoomIn}>
+        <Button
+          id="zoom-in"
+          size="icon-lg"
+          variant="ghost"
+          className={styles.controlButton}
+          aria-label="Zoom in"
+          onClick={zoomIn}
+        >
           <Icon icon={Plus} />
         </Button>
         <Button id="fit" size="sm" className={styles.fitButton} onClick={fit}>
