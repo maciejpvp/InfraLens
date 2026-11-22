@@ -8,7 +8,7 @@ Preview jest pojedynczym wejściem: adapter odczytuje planowane operacje i przek
 
 CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/stack=]FILE`. Adapter Pulumi buduje jeden graf przed rozwiązywaniem referencji. W trybie wielu wejść zachowuje korzenie stosów i tworzy `depends_on` z węzła StackReference do dopasowanego korzenia (evidence: `stackReference`, `inputs.name`). Pełne tożsamości wejść muszą być podane jawnie do rozwiązywania tych połączeń; nie wnioskujemy organizacji z URN. `Node.stack` przechowuje projekt/stos. `graph` i `render` nie interpretują formatu Pulumi.
 
-`simulate --project org/project/stack=DIRECTORY` korzysta z `adapters/pulumi/simulate`: uruchamia `deploy` z `infraMocks` i `withStackConfig` na tymczasowej kopii modułu i przechwytuje aktualne rejestracje/odczyty. Następnie używa zwykłego adaptera eksportu, oznacza graf `simulated: true`, a węzły `create`. Renderer pokazuje etykietę symulacji; silnik grafu nie importuje SDK ani runnera. Konfiguracja i odpowiedzi providera są mockowane przez projekt. Runner przechwytuje outputs i podaje je kolejnym projektom przez StackReference; kolejność wejść musi odpowiadać zależnościom. Szczegóły kontraktu i ograniczenia są w README.
+`mock-topology --project org/project/stack=DIRECTORY` korzysta z `adapters/pulumi/simulate`: uruchamia `deploy` z `infraMocks` i `withStackConfig` na tymczasowej kopii modułu i przechwytuje aktualne rejestracje/odczyty. Następnie używa zwykłego adaptera eksportu, oznacza graf `simulated: true`, a węzły `create`. Renderer pokazuje etykietę symulacji; silnik grafu nie importuje SDK ani runnera. Konfiguracja i odpowiedzi providera są mockowane przez projekt. Runner przechwytuje outputs i podaje je kolejnym projektom przez StackReference; kolejność wejść musi odpowiadać zależnościom. Szczegóły kontraktu i ograniczenia są w README.
 
 ## Baza techniczna
 
@@ -63,12 +63,12 @@ Dowody przepływu mają opcjonalne `label`/`details` bez zmiany `schemaVersion: 
 ## CLI
 
 ```bash
-InfraLens generate [--output infralens.html] [--no-open]
+InfraLens preview [--output infralens.html] [--no-open]
 infralens render --input stack.json --output result.html
 infralens graph --input stack.json --output graph.json
 ```
 
-`generate` działa w katalogu projektu Pulumi: wykonuje `pulumi preview --json --show-sames --non-interactive`, wymusza niestreamingowy JSON, odczytuje wynik z prywatnego pliku tymczasowego i zapisuje HTML wspólnym rendererem React. Następnie otwiera plik systemowym launcherem, a plik tymczasowy usuwa po zakończeniu komendy. Preview wykonuje kod projektu, korzysta z aktywnego stosu i credentials; nie wykonuje wdrożenia. Błąd otwarcia przeglądarki nie cofa udanego zapisu. W `graph`/`render` obie ścieżki są jawnie wymagane. CLI obsługuje pomoc i wersję. Sukces: kod `0`; błąd: kod niezerowy i krótka diagnostyka na stderr, bez fragmentów dokumentu wejściowego. Istniejący wynik jest zastępowany dopiero po poprawnym przygotowaniu nowego; wejście nie może być wyjściem.
+`preview` działa w katalogu projektu Pulumi: wykonuje `pulumi preview --json --show-sames --non-interactive`, wymusza niestreamingowy JSON, odczytuje wynik z prywatnego pliku tymczasowego i zapisuje HTML wspólnym rendererem React. Następnie otwiera plik systemowym launcherem, a plik tymczasowy usuwa po zakończeniu komendy. Preview wykonuje kod projektu, korzysta z aktywnego stosu i credentials; nie wykonuje wdrożenia. Błąd otwarcia przeglądarki nie cofa udanego zapisu. W `graph`/`render` obie ścieżki są jawnie wymagane. CLI obsługuje pomoc. Sukces: kod `0`; błąd: kod niezerowy i krótka diagnostyka na stderr, bez fragmentów dokumentu wejściowego. Istniejący wynik jest zastępowany dopiero po poprawnym przygotowaniu nowego; wejście nie może być wyjściem.
 
 Bez autodetekcji wielu adapterów, `--stack`, `--open`, wyboru theme/layoutu i profili sanitacji. Obsługiwana wersja eksportu jest walidowana; nieznane pola wewnątrz wspieranej wersji są ignorowane.
 
@@ -82,12 +82,15 @@ Bez autodetekcji wielu adapterów, `--stack`, `--open`, wyboru theme/layoutu i p
 - Brak automatycznego otwierania URL-i pochodzących z eksportu.
 - Canary tests sprawdzają HTML, graph JSON, stdout i stderr. Nie dowodzą, że dowolny eksport jest anonimowy.
 
-## Początkowy podział kodu
+## Podział kodu
 
 ```text
 cmd/infralens/              punkt wejścia
-internal/cli/               komendy i składanie przepływu
+internal/cli/               routing, flagi, komunikaty i przeglądarka
+internal/app/               przepływy generowania raportów
+internal/fileio/            operacje plikowe i atomowy zapis
 internal/adapters/pulumi/   parser eksportu/preview i mapowanie
+internal/adapters/pulumi/simulate/ zbieranie zasobów przez mocki projektów Go
 internal/graph/             model publiczny, relacje, walidacja
 internal/render/              składanie raportu HTML i osadzone ikony
 internal/render/frontend/src/ widok React, układ i trasowanie połączeń SVG

@@ -4,7 +4,7 @@ Status początkowy: **2026-11-21**. „Założenie robocze” oznacza propozycj�
 
 ## CLI w docelowym projekcie — 2026-11-21
 
-Przyjęte na prośbę użytkownika: `InfraLens generate` wykonuje preview aktywnego stosu z `--show-sames`, zapisuje `infralens.html` w bieżącym katalogu projektu i otwiera przeglądarkę. Niezmienione zasoby są szare, tworzone zielone, usuwane czerwone; update/replace zachowują bursztynowe oznaczenie. Nie uruchamia `pulumi up`. To rozszerza wcześniejsze D04 dla tej komendy; `graph`/`render` nadal czytają tylko pliki. Dystrybucja: lokalny build binarki instalowanej w `PATH`, bez nowego menedżera pakietów.
+Przyjęte na prośbę użytkownika: `InfraLens preview` wykonuje preview aktywnego stosu z `--show-sames`, zapisuje `infralens.html` w bieżącym katalogu projektu i otwiera przeglądarkę. Niezmienione zasoby są szare, tworzone zielone, usuwane czerwone; update/replace zachowują bursztynowe oznaczenie. Nie uruchamia `pulumi up`. To rozszerza wcześniejsze D04 dla tej komendy; `graph`/`render` nadal czytają tylko pliki. Dystrybucja: lokalny build binarki instalowanej w `PATH`, bez nowego menedżera pakietów.
 
 ## Opisy przepływu — 2026-11-21
 
@@ -19,7 +19,7 @@ Aktualizacja 2026-11-21 po ustaleniu podziału kodu: adapter Pulumi obsługuje r
 
 Aktualizacja po wymaganiu wspólnego widoku LyricsPipeline: powtarzane `--input` łączy wiele stosów. Nazwane wejścia `org/project/stack=FILE` pozwalają dopasować StackReference do korzeni innych stosów. Zachowujemy korzenie przy wielu wejściach i pokazujemy projekt/stos każdego zasobu. Nie rekonstruujemy przepływu konkretnych wartości outputs ani nie wykonujemy Pulumi. To rozszerzenie podstawowego backendu; pełny interaktywny MVP nadal pozostaje do realizacji.
 
-Aktualizacja po zamówieniu opcji `simulate`: dopuszczamy osobną komendę wykonującą zaufany kod Go z istniejącym helperem testowym `runDeployment(t, nil)`. Zwykłe `graph`/`render` nadal tylko odczytują pliki. Symulacja działa w kopii modułu, bez Pulumi CLI i tworzenia stosów; nie jest prawdziwym preview ani sandboxem kodu. Wynik jest jawnie oznaczony jako symulowany, a zasoby jako `create` względem pustego stanu. Pierwszy wspierany przypadek to trzy projekty LyricsPipeline; brak automatycznych, uniwersalnych mocków providerów.
+Aktualizacja po zamówieniu opcji `mock-topology`: dopuszczamy osobną komendę wykonującą zaufany kod Go z istniejącym helperem testowym `runDeployment(t, nil)`. Zwykłe `graph`/`render` nadal tylko odczytują pliki. Symulacja działa w kopii modułu, bez Pulumi CLI i tworzenia stosów; nie jest prawdziwym preview ani sandboxem kodu. Wynik jest jawnie oznaczony jako symulowany, a zasoby jako `create` względem pustego stanu. Pierwszy wspierany przypadek to trzy projekty LyricsPipeline; brak automatycznych, uniwersalnych mocków providerów.
 
 | ID | Założenie | Powód / konsekwencja |
 |---|---|---|

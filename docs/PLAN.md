@@ -8,8 +8,8 @@ Aktualizacja po zamówieniu wyglądu flow: działają renderer SVG/JS offline, p
 
 ## CLI uruchamiane w docelowym projekcie
 
-- [x] Dodać `InfraLens generate`: preview z niezmienionymi zasobami, zapis `infralens.html`, automatyczne otwarcie oraz `--no-open`.
-- [x] Opisać build binarki i instalację w `PATH`; zachować `graph`, `render` i `simulate`.
+- [x] Dodać `InfraLens preview`: preview z niezmienionymi zasobami, zapis `infralens.html`, automatyczne otwarcie oraz `--no-open`.
+- [x] Opisać build binarki i instalację w `PATH`; zachować `graph`, `render` i `mock-topology`.
 - [ ] Potwierdzić integrację z prawdziwym backendem Pulumi i otwarcie systemowej przeglądarki.
 
 ## Opisy przepływu

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"infralens/internal/adapters/pulumi"
+	"infralens/internal/fileio"
 	"infralens/internal/graph"
 )
 
@@ -166,7 +167,7 @@ func within(root, path string) bool {
 
 func moduleRoot(directory string) (string, error) {
 	for current := directory; ; current = filepath.Dir(current) {
-		if info, err := os.Stat(filepath.Join(current, "go.mod")); err == nil && info.Mode().IsRegular() {
+		if _, err := fileio.StatRegular(filepath.Join(current, "go.mod")); err == nil {
 			return current, nil
 		}
 		if filepath.Dir(current) == current {

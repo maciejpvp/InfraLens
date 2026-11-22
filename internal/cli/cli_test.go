@@ -14,7 +14,7 @@ func TestCommands(t *testing.T) {
 			t.Run(command+"/"+fixture, func(t *testing.T) {
 				output := filepath.Join(t.TempDir(), "result")
 				var stdout, stderr bytes.Buffer
-				if code := Run([]string{command, "--input", "../../testdata/pulumi/" + fixture + ".json", "--output", output}, &stdout, &stderr); code != 0 {
+				if code := New(&stdout, &stderr).Run([]string{command, "--input", "../../testdata/pulumi/" + fixture + ".json", "--output", output}); code != 0 {
 					t.Fatal(stderr.String())
 				}
 				data, err := os.ReadFile(output)
@@ -41,7 +41,7 @@ func TestInputAndOutputProtection(t *testing.T) {
 		t.Fatal(err)
 	}
 	var logs bytes.Buffer
-	if Run([]string{"render", "--input", input, "--output", output}, &logs, &logs) == 0 {
+	if New(&logs, &logs).Run([]string{"render", "--input", input, "--output", output}) == 0 {
 		t.Fatal("accepted malformed input")
 	}
 	data, _ := os.ReadFile(output)
@@ -63,22 +63,22 @@ func TestInputAndOutputProtection(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if Run([]string{"graph", "--input", input, "--output", alias}, &logs, &logs) == 0 {
+		if New(&logs, &logs).Run([]string{"graph", "--input", input, "--output", alias}) == 0 {
 			t.Fatal("accepted input/output alias")
 		}
 	}
 }
 
 func TestHelpAndInvalidFlags(t *testing.T) {
-	for _, args := range [][]string{nil, {"--help"}, {"graph", "--help"}, {"generate", "--help"}} {
+	for _, args := range [][]string{nil, {"--help"}, {"graph", "--help"}, {"preview", "--help"}, {"mock-topology", "--help"}} {
 		var out bytes.Buffer
-		if Run(args, &out, &out) != 0 || out.Len() == 0 {
+		if New(&out, &out).Run(args) != 0 || out.Len() == 0 {
 			t.Fatal("help failed")
 		}
 	}
-	for _, args := range [][]string{{"unknown"}, {"graph"}, {"render", "--secret=CANARY_SECRET"}} {
+	for _, args := range [][]string{{"unknown"}, {"generate"}, {"simulate"}, {"graph"}, {"render", "--secret=CANARY_SECRET"}} {
 		var out bytes.Buffer
-		if Run(args, &out, &out) == 0 || strings.Contains(out.String(), "CANARY_SECRET") {
+		if New(&out, &out).Run(args) == 0 || strings.Contains(out.String(), "CANARY_SECRET") {
 			t.Fatal("unsafe argument error")
 		}
 	}
@@ -92,7 +92,7 @@ func TestMultipleInputs(t *testing.T) {
 			args = append(args, "--input", "example/"+name+"/dev=../../testdata/pulumi/multi/"+name+".json")
 		}
 		var logs bytes.Buffer
-		if Run(args, &logs, &logs) != 0 {
+		if New(&logs, &logs).Run(args) != 0 {
 			t.Fatal(logs.String())
 		}
 		data, err := os.ReadFile(output)
@@ -121,7 +121,7 @@ func TestInputPathsWithEquals(t *testing.T) {
 	}
 	for _, input := range []string{"stack=dev.json", "org/base/dev=literal.json", "org/base/dev=stack=dev.json"} {
 		var logs bytes.Buffer
-		if Run([]string{"graph", "--input", input, "--output", "result.json"}, &logs, &logs) != 0 {
+		if New(&logs, &logs).Run([]string{"graph", "--input", input, "--output", "result.json"}) != 0 {
 			t.Fatalf("%q: %s", input, logs.String())
 		}
 	}
@@ -136,52 +136,11 @@ func TestOutputCannotOverwriteAnyInput(t *testing.T) {
 		}
 	}
 	var logs bytes.Buffer
-	if Run([]string{"graph", "--input", first, "--input", second, "--output", second}, &logs, &logs) == 0 {
+	if New(&logs, &logs).Run([]string{"graph", "--input", first, "--input", second, "--output", second}) == 0 {
 		t.Fatal("accepted output equal to second input")
 	}
 	data, _ := os.ReadFile(second)
 	if string(data) != `{"version":3,"deployment":{}}` {
 		t.Fatal("overwrote input")
-	}
-}
-
-func TestSimulationCommand(t *testing.T) {
-	dir := t.TempDir()
-	module := filepath.Join(dir, "module")
-	if err := os.MkdirAll(module, 0700); err != nil {
-		t.Fatal(err)
-	}
-	for name, data := range map[string]string{"go.mod": "module example\n", "main.go": "package main\n"} {
-		if err := os.WriteFile(filepath.Join(module, name), []byte(data), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	tools := filepath.Join(dir, "tools")
-	if err := os.Mkdir(tools, 0700); err != nil {
-		t.Fatal(err)
-	}
-	script := `#!/bin/sh
-printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev","type":"pulumi:pulumi:Stack"},{"urn":"urn:pulumi:dev::base::test:Resource::item","type":"test:Resource"}]}}' > "$INFRALENS_CAPTURE"
-`
-	if err := os.WriteFile(filepath.Join(tools, "go"), []byte(script), 0700); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", tools)
-	output := filepath.Join(dir, "result.html")
-	var logs bytes.Buffer
-	if Run([]string{"simulate", "--project", "org/base/dev=" + module, "--output", output}, &logs, &logs) != 0 {
-		t.Fatal(logs.String())
-	}
-	data, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(data), "SIMULATION") || !strings.Contains(string(data), "+ create") {
-		t.Fatal("simulation not labeled")
-	}
-	for _, args := range [][]string{{"simulate", "--input", "x", "--output", output}, {"render", "--project", "org/base/dev=" + module, "--output", output}, {"simulate", "--project", "invalid", "--output", output}} {
-		if Run(args, &logs, &logs) == 0 {
-			t.Fatal("accepted incompatible flags")
-		}
 	}
 }

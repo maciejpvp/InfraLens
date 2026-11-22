@@ -20,7 +20,7 @@ Następnie w katalogu docelowego projektu zawierającym `Pulumi.yaml` lub `Pulum
 
 ```bash
 cd /sciezka/do/projektu/infra
-InfraLens generate
+InfraLens preview
 ```
 
 Komenda uruchamia `pulumi preview --json --show-sames --non-interactive` dla aktywnego stosu, zapisuje `infralens.html` w bieżącym katalogu i otwiera go w domyślnej przeglądarce. Używa tego samego renderera React co `InfraLens render`. Bez zmian zasoby pozostają szare, dodawane są zielone, usuwane czerwone, a aktualizowane lub zastępowane bursztynowe. To plan zmian względem zapisanego stanu stosu, bez wykonywania `pulumi up` ani odświeżania rzeczywistego stanu chmury.
@@ -28,9 +28,9 @@ Komenda uruchamia `pulumi preview --json --show-sames --non-interactive` dla akt
 Wymagane są Pulumi CLI, wybrany stos (`pulumi stack select`), dostęp do backendu i zależności/credentials potrzebne projektowi podczas preview. Preview wykonuje kod projektu i może odczytywać dane providerów. Obsługa dotyczy jednego projektu w bieżącym katalogu; przy repo z kilkoma projektami uruchom komendę w odpowiednim podkatalogu. Surowy JSON trafia tylko do prywatnego pliku tymczasowego usuwanego po zakończeniu. Istniejący HTML jest zastępowany dopiero po poprawnym wygenerowaniu nowego.
 
 ```bash
-InfraLens generate --no-open                         # sam zapis, np. bez środowiska graficznego
-InfraLens generate --output moj-diagram.html         # inna nazwa wyniku
-InfraLens generate --help
+InfraLens preview --no-open                         # sam zapis, np. bez środowiska graficznego
+InfraLens preview --output moj-diagram.html         # inna nazwa wyniku
+InfraLens preview --help
 ```
 
 Nieudane otwarcie przeglądarki daje komunikat z zachowaniem wygenerowanego pliku i kodu sukcesu. Błąd preview zachowuje poprzedni wynik; szczegóły diagnozuj przez `pulumi preview` w tym samym katalogu, ponieważ InfraLens nie wypisuje potencjalnie poufnych logów Pulumi.
@@ -48,12 +48,12 @@ HTML zawiera interaktywny diagram SVG, osadzony pakiet React, CSS, ikony i dane.
 
 ## Symulacja bez stosów i wdrożenia AWS
 
-`simulate` uruchamia kod Go z istniejącymi mockami projektu i pokazuje zasoby jako `+ create` względem pustego stanu. Nie wywołuje Pulumi CLI, nie zakłada stosów i nie korzysta z backendu Pulumi. HTML ma widoczne oznaczenie `SIMULATION`.
+`mock-topology` jest przestarzałą komendą. Nadal działa, a docelowo zastąpi ją wspólny sposób pobierania danych IaC. Komenda uruchamia kod Go z istniejącymi mockami projektu i pokazuje zasoby jako `+ create` względem pustego stanu. Nie wywołuje Pulumi CLI, nie zakłada stosów i nie korzysta z backendu Pulumi. HTML ma widoczne oznaczenie `SIMULATION`.
 
 Dla LyricsPipeline, z katalogu InfraLens:
 
 ```bash
-go run ./cmd/infralens simulate \
+go run ./cmd/infralens mock-topology \
   --project org/LyricsPipeline/dev=/home/maciek/Documents/GitHub/LyricsPipeline/infra/base \
   --project org/LyricsPipeline-Separation/dev=/home/maciek/Documents/GitHub/LyricsPipeline/infra/separation \
   --project org/LyricsPipeline-Transcription/dev=/home/maciek/Documents/GitHub/LyricsPipeline/infra/transcription \

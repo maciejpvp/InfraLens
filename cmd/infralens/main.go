@@ -1,8 +1,9 @@
 package main
 
 import (
-	"infralens/internal/cli"
 	"os"
+
+	"infralens/internal/cli"
 )
 
-func main() { os.Exit(cli.Run(os.Args[1:], os.Stdout, os.Stderr)) }
+func main() { os.Exit(cli.New(os.Stdout, os.Stderr).Run(os.Args[1:])) }

@@ -4,7 +4,7 @@ Status: **zakres rozszerzony kolejnymi wymaganiami użytkownika**. Początkowe M
 
 ## Problem i odbiorca
 
-Aktualizacja 2026-11-21: podstawowe użycie to globalna binarka `InfraLens generate` uruchamiana w katalogu projektu Pulumi. Wykonuje preview aktywnego stosu, zapisuje lokalny HTML i otwiera przeglądarkę. Starsze ograniczenia dotyczące niewykonywania Pulumi odnoszą się do `graph`/`render`.
+Aktualizacja 2026-11-21: podstawowe użycie to globalna binarka `InfraLens preview` uruchamiana w katalogu projektu Pulumi. Wykonuje preview aktywnego stosu, zapisuje lokalny HTML i otwiera przeglądarkę. Starsze ograniczenia dotyczące niewykonywania Pulumi odnoszą się do `graph`/`render`.
 
 Developer używający Pulumi chce zobaczyć zasoby stosu i ich zależności bez stawiania serwera ani łączenia się z dodatkową usługą. Ma już lokalny eksport stosu; InfraLens nie pobiera go z chmury.
 
@@ -15,7 +15,7 @@ Podstawowy scenariusz: użytkownik przekazuje `stack.json`, otrzymuje `result.ht
 | Obszar | Zakres v0.1 |
 |---|---|
 | Wejście | Plik JSON z `pulumi stack export`; dokładnie obsługiwane wersje ustalamy na fixture’ach. |
-| CLI | `generate` uruchamiający preview aktywnego stosu i otwierający lokalny HTML; `render` generujący HTML oraz `graph` generujący ten sam bezpieczny model w JSON do diagnostyki. |
+| CLI | `preview` uruchamiający preview aktywnego stosu i otwierający lokalny HTML; `render` generujący HTML oraz `graph` generujący ten sam bezpieczny model w JSON do diagnostyki. |
 | Graf | Szczegóły tras/zdarzeń i filtrów rozpoznanych integracji AWS, referencje DynamoDB i DynamoDB Streams → Lambda. Zasoby, `contains`, `depends_on`, rozpoznane regułami AWS `triggers`/`connects_to` i dowody z ID konfigurującego zasobu. |
 | Widok | Automatyczny układ, zoom, przesuwanie, wyszukiwanie, wybór zasobu i panel szczegółów. |
 | Czytelność | Rozróżnienie relacji rodzica i zależności; przełącznik widoczności zależności. |
