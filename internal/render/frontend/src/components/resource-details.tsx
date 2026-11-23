@@ -1,13 +1,17 @@
+import type { ServiceIcons } from '../lib/graph.types'
+
 import { Box } from '../ui/box'
 import { useResourceDetails } from '../hooks/use-resource-details'
 import { Accordion } from '../ui/accordion'
 import { DetailRow } from './detail-row'
 import { DetailSection } from './detail-section'
+import { DependencyGroups } from './dependency-groups'
+import { RelationRows } from './relation-rows'
 import { Metadata } from './metadata'
 import { inspectorStyles as styles } from './inspector.variants'
 
-export const ResourceDetails = (props: Parameters<typeof useResourceDetails>[0]) => {
-  const { rows, resourceGroup, relations } = useResourceDetails(props)
+export const ResourceDetails = ({ icons, ...props }: Parameters<typeof useResourceDetails>[0] & { icons: ServiceIcons }) => {
+  const { rows, resourceGroup, relations, toRow } = useResourceDetails(props)
   return (
     <>
       <Metadata rows={rows} />
@@ -21,13 +25,13 @@ export const ResourceDetails = (props: Parameters<typeof useResourceDetails>[0])
             </Box>
           </DetailSection>
         )}
-        {relations.map(({ kind, title, entries }) => (
+        {relations.map(({ kind, title, edges }) => (
           <DetailSection key={kind} value={kind} title={title}>
-            <Box className={styles.rows}>
-              {entries.map(({ id, ...entry }) => (
-                <DetailRow key={id} {...entry} />
-              ))}
-            </Box>
+            {kind === 'depends_on' ? (
+              <DependencyGroups edges={edges} byId={props.byId} icons={icons}>
+                {(group) => <RelationRows edges={group} toRow={toRow} />}
+              </DependencyGroups>
+            ) : <RelationRows edges={edges} toRow={toRow} />}
           </DetailSection>
         ))}
       </Accordion>

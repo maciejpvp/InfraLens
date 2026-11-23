@@ -2,7 +2,7 @@ import type { DiagramItemData } from '../components/diagram.types'
 
 import { diagramStyles as styles } from '../components/diagram.variants'
 import { activationProps } from '../lib/activation-props'
-import { changeSummary, countLabel } from '../lib/graph-view'
+import { changeSummary, countLabel, serviceIconSrc } from '../lib/graph-view'
 import { changeLabels } from '../lib/graph-view.config'
 import { GROUP_HEADER_HEIGHT } from '../lib/layout.config'
 import { serviceFor } from '../lib/graph-projection.ts'
@@ -21,7 +21,7 @@ export const useDiagramItem = ({
   toggle,
 }: DiagramItemData) => {
   const service = item.service || (item.node && serviceFor(item.node))
-  const icon = service?.icon && Object.hasOwn(icons, service.icon) ? icons[service.icon] : undefined
+  const icon = serviceIconSrc(service, icons)
   const change = item.group
     ? changePriority.find((status) => {
         for (const id of item.members) if (byId.get(id)?.change === status) return true

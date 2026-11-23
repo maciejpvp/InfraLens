@@ -8,7 +8,7 @@ import type {
 } from '../src/lib/graph.types.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildHierarchy, projectGraph, revealResource, serviceFor } from '../src/lib/graph-projection.ts'
+import { buildHierarchy, groupDependenciesByService, projectGraph, revealResource, serviceFor } from '../src/lib/graph-projection.ts'
 const node = (id: string, type = 'test', stack = 'stack'): Resource => ({
   id,
   name: id,
@@ -58,7 +58,7 @@ test('stack and component hierarchy retains every resource, missing parents and 
   for (const n of nested.nodes) {
     const id = revealResource(infra, n.id, expanded)
     assert.ok(id)
-    assert.ok(projectGraph(infra, 'infra', true, expanded).items.has(id))
+    assert.ok(projectGraph(infra, 'infra', true, expanded, n.id).items.has(id))
   }
 })
 test('collapsed connections aggregate by kind and retain each original edge and evidence', () => {
@@ -124,8 +124,69 @@ test('cyclic ownership, cross-stack and unknown parents cannot hide a resource',
     const open = new Set(tree.initialExpanded)
     const id = revealResource(tree, n.id, open)
     assert.ok(id)
-    assert.ok(projectGraph(tree, 'infra', true, open).items.has(id))
+    assert.ok(projectGraph(tree, 'infra', true, open, n.id).items.has(id))
   }
+})
+
+test('reveals one Lambda while keeping sibling edges aggregated and isolates direct connections', () => {
+  const aws = (id: string, service: string) => ({ ...node(id), provider: 'aws', service })
+  const graph = {
+    nodes: [aws('picked', 'lambda'), aws('sibling', 'lambda'), aws('lonely', 'lambda'), aws('table', 'dynamodb'),
+      aws('queue', 'sqs'), aws('unrelated', 's3')],
+    edges: [
+      edge('picked', 'table', 'depends_on'),
+      edge('sibling', 'table', 'depends_on'),
+      edge('queue', 'picked', 'triggers'),
+      edge('unrelated', 'table', 'depends_on'),
+    ],
+  }
+  const tree = buildHierarchy(graph)
+  const service = tree.resourceItems.get('picked')!.parent!
+  const expanded = new Set(tree.initialExpanded)
+  revealResource(tree, 'picked', expanded)
+  assert.ok(!expanded.has(service.id))
+  const context = projectGraph(tree, 'infra', true, expanded, 'picked')
+  assert.equal(context.items.get('picked')?.parent?.id, service.parent?.id)
+  assert.equal(context.items.get(service.id)?.expanded, false)
+  assert.deepEqual([...context.items.get(service.id)!.members].sort(), ['lonely', 'sibling'])
+  assert.equal(context.representatives.get('picked'), 'picked')
+  assert.equal(context.representatives.get('sibling'), service.id)
+  assert.deepEqual(context.edges.find((e) => e.from === service.id)?.originals, [graph.edges[1]])
+
+  const isolated = projectGraph(tree, 'infra', true, expanded, 'picked', true)
+  assert.equal(isolated.items.size, 4)
+  assert.ok(!isolated.items.has(service.id))
+  assert.deepEqual(isolated.edges.flatMap(({ originals }) => originals).map(({ from, to }) => [from, to]).sort(),
+    [['picked', 'table'], ['queue', 'picked']])
+  assert.equal(projectGraph(tree, 'infra', false, expanded, 'picked', true).edges.length, 1)
+  const alone = projectGraph(tree, 'infra', true, expanded, 'lonely', true)
+  assert.equal(alone.items.size, 2)
+  assert.equal(alone.edges.length, 0)
+  assert.ok(alone.items.has('lonely'))
+
+  assert.ok(!projectGraph(tree, 'infra', true, expanded).items.has('picked'))
+  expanded.add(service.id)
+  const full = projectGraph(tree, 'infra', true, expanded, 'picked')
+  assert.equal(full.items.get('picked')?.parent?.id, service.id)
+  assert.equal(full.items.get(service.id)?.children.length, 3)
+})
+
+test('groups deployment dependencies by directional service pair', () => {
+  const byId = new Map([
+    { ...node('first'), provider: 'aws', service: 'lambda' },
+    { ...node('second'), provider: 'aws', service: 'lambda' },
+    { ...node('table'), provider: 'aws', service: 'dynamodb' },
+  ].map((resource) => [resource.id, resource]))
+  const edges = [
+    edge('first', 'table', 'depends_on'),
+    edge('second', 'table', 'depends_on'),
+    edge('table', 'first', 'depends_on'),
+  ]
+  const groups = groupDependenciesByService(edges, byId)
+  assert.deepEqual(groups.map(({ from, to, edges }) => [from.icon, to.icon, edges.length]), [
+    ['dynamodb', 'lambda', 1], ['lambda', 'dynamodb', 2],
+  ])
+  assert.deepEqual(groups[1].edges, edges.slice(0, 2))
 })
 test('flow captions preserve distinct routes and filters while deduplicating presentation', async () => {
   const { flowDescriptions, edgeCaption } = await import('../src/lib/graph-projection.ts')

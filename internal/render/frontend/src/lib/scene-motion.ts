@@ -1,4 +1,4 @@
-import type { Layout, Point, Position, ProjectedEdge, Route, Scene } from './graph.types.ts'
+import type { GraphView, Layout, Point, Position, ProjectedEdge, Route, Scene } from './graph.types.ts'
 import { edgeCaption } from './graph-projection.ts'
 import { CARD, GROUP_HEADER_HEIGHT } from './layout.config.ts'
 import { edgeCaptionHeight, edgeCaptionPadding } from './elk.config.ts'
@@ -8,6 +8,10 @@ export const edgeKey = (edge: ProjectedEdge) => JSON.stringify([edge.from, edge.
 const mix = (a: number, b: number, t: number) => a + (b - a) * t
 const path = (points: Point[]) =>
   points.map((p, i) => !i ? `M${p.x} ${p.y}` : p.x === points[i - 1].x ? `V${p.y}` : `H${p.x}`).join(' ')
+type Bounds = Pick<Position, 'x' | 'y' | 'width' | 'height'>
+const overlaps = (a: Bounds, b: Bounds, gap = 0) =>
+  a.x < b.x + b.width + gap && a.x + a.width + gap > b.x &&
+  a.y < b.y + b.height + gap && a.y + a.height + gap > b.y
 
 export const layoutBounds = (positions: Layout['positions']): Layout => {
   if (!positions.size) return { positions, width: 0, height: 0 }
@@ -48,9 +52,9 @@ export const canPlace = (scene: Scene, id: string, point: Point, positions = sce
     point.x < parent.x || point.y < parent.y + GROUP_HEADER_HEIGHT ||
     point.x + CARD.width > parent.x + parent.width || point.y + CARD.height > parent.y + parent.height
   ) return false
-  for (const sibling of item.parent!.children) {
-    if (sibling.id === id) continue
-    const box = positions.get(sibling.id)
+  for (const sibling of scene.current.items.get(item.parent!.id)!.children) {
+    if (sibling === id) continue
+    const box = positions.get(sibling)
     if (box && point.x < box.x + box.width && point.x + CARD.width > box.x &&
         point.y < box.y + box.height && point.y + CARD.height > box.y) return false
   }
@@ -79,20 +83,73 @@ export const positionScene = (scene: Scene, saved: ReadonlyMap<string, Point>, m
   const layout = layoutBounds(positions)
   const routes = routeEdges(scene.current, layout)
   if (routes.some((route, index) => !route && scene.routes[index])) return scene
-  const obstacles = [...positions].map(([id, box]) =>
-    scene.current.items.get(id)?.expanded ? { ...box, height: GROUP_HEADER_HEIGHT } : box,
+  return { ...scene, layout, routes: labelRoutes(scene.current, layout, routes, measure) }
+}
+
+const labelRoutes = (view: GraphView, layout: Layout, routes: (Route | null)[], measure: (text: string) => number) => {
+  const obstacles = [...layout.positions].map(([id, box]) =>
+    view.items.get(id)?.expanded ? { ...box, height: GROUP_HEADER_HEIGHT } : box,
   )
-  for (const [index, route] of routes.entries()) {
-    if (!route) continue
-    const text = edgeCaption(scene.current.edges[index])
-    if (!text) continue
+  return routes.map((route, index) => {
+    if (!route) return null
+    const text = edgeCaption(view.edges[index])
     const width = measure(text) + 2 * edgeCaptionPadding
-    const box = placeEdgeLabel(route.points, width, edgeCaptionHeight + 2 * edgeCaptionPadding, obstacles)
-    if (!box) continue
+    const height = edgeCaptionHeight + 2 * edgeCaptionPadding
+    const old = route.label?.text === text ? {
+      x: route.label.style.left - edgeCaptionPadding, y: route.label.style.top - edgeCaptionPadding,
+      width, height, depth: 0,
+    } : undefined
+    const box = old && !obstacles.some((obstacle) => overlaps(old, obstacle)) ? old
+      : text && placeEdgeLabel(route.points, width, height, obstacles)
+    if (!box) return { ...route, label: undefined }
     obstacles.push(box)
-    route.label = { text, style: { left: box.x + edgeCaptionPadding, top: box.y + edgeCaptionPadding } }
+    return { ...route, label: { text, style: { left: box.x + edgeCaptionPadding, top: box.y + edgeCaptionPadding } } }
+  })
+}
+
+export const revealInPlace = (base: Scene, view: GraphView, id: string, measure: (text: string) => number): Scene | undefined => {
+  const group = base.tree.resourceItems.get(id)?.parent
+  const anchor = group && base.layout.positions.get(group.id)
+  const item = view.items.get(id)
+  if (!anchor || !group || !item || base.current.items.has(id)) return
+  const positions = new Map([...base.layout.positions].filter(([id]) => view.items.has(id)))
+  if (positions.size + 1 !== view.items.size) return
+  let point: Point = anchor
+  if (positions.has(group.id)) {
+    const ancestors = new Set<string>()
+    for (let parent = item.parent; parent; parent = parent.parent) ancestors.add(parent.id)
+    const obstacles = [...positions].map(([id, box]) =>
+      ancestors.has(id) ? { ...box, height: GROUP_HEADER_HEIGHT } : box)
+    const gap = 24
+    const nearby = [
+      { x: anchor.x, y: anchor.y + anchor.height + gap },
+      { x: anchor.x, y: anchor.y - CARD.height - gap },
+      { x: anchor.x + anchor.width + gap, y: anchor.y },
+      { x: anchor.x - CARD.width - gap, y: anchor.y },
+    ]
+    // shortcut: try the four adjacent slots, then use a clear slot at the edge of the diagram.
+    point = nearby.find((point) => obstacles.every((box) => !overlaps({ ...CARD, ...point }, box, gap))) ?? {
+      x: anchor.x,
+      y: [...positions.values()].reduce((bottom, box) => Math.max(bottom, box.y + box.height), 0) + gap,
+    }
   }
-  return { ...scene, layout, routes }
+  const card = { ...CARD, ...point, depth: anchor.depth }
+  positions.set(id, card)
+  const layout = layoutBounds(positions)
+  const previousRoutes = new Map(base.current.edges.map((edge, index) => [edgeKey(edge), base.routes[index]]))
+  const retained = view.edges.map((edge) => {
+    const previous = previousRoutes.get(edgeKey(edge))
+    if (!previous) return null
+    for (let i = 1; i < previous.points.length; i++) {
+      const [a, b] = [previous.points[i - 1], previous.points[i]]
+      if (overlaps(card, { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y),
+        width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) }, 8)) return null
+    }
+    return previous
+  })
+  let routes = routeEdges(view, layout, retained)
+  if (routes.some((route) => !route)) routes = routeEdges(view, layout)
+  return { ...base, current: view, layout, routes: labelRoutes(view, layout, routes, measure) }
 }
 
 // Keep the existing route's bends. Only its leads need extra elbows when a port moves.
@@ -180,7 +237,9 @@ export const motionFrame = (start: Scene, target: Scene, t: number): Scene => {
     const before = start.layout.positions.get(id), after = target.layout.positions.get(id)
     const item = (after ? target : start).current.items.get(id)!
     const parent = item.parent?.id
-    const origin = before ?? (parent ? start.layout.positions.get(parent) : undefined) ?? after!
+    const previousParent = !before && after && !item.group ? target.tree.resourceItems.get(id)?.parent : undefined
+    const previousGroup = previousParent?.service ? start.layout.positions.get(previousParent.id) : undefined
+    const origin = before ?? previousGroup ?? (parent ? start.layout.positions.get(parent) : undefined) ?? after!
     const end = after ?? (parent ? target.layout.positions.get(parent) : undefined) ?? origin
     const sizeBefore = before ?? after!, sizeAfter = after ?? before!
     const position = {

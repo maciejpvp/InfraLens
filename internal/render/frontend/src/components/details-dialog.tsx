@@ -2,6 +2,7 @@ import { Box } from '../ui/box'
 import { Icon } from '../ui/icon'
 import { Text } from '../ui/text'
 import type { OpenRelation, OpenResource } from '../lib/inspector.types'
+import type { ServiceIcons } from '../lib/graph.types'
 
 import { ArrowLeft, GripHorizontal, X } from 'lucide-react'
 import { useDetailsDialog } from '../hooks/use-details-dialog'
@@ -17,11 +18,13 @@ import { inspectorStyles as styles } from './inspector.variants'
 export const DetailsDialog = ({
   inspector,
   byId,
+  icons,
   onResource,
   onEdges,
 }: {
   inspector: Parameters<typeof useDetailsDialog>[0]
   byId: Parameters<typeof useDetailsDialog>[1]
+  icons: ServiceIcons
   onResource: OpenResource
   onEdges: OpenRelation
 }) => {
@@ -106,11 +109,12 @@ export const DetailsDialog = ({
                   item={entry.item}
                   links={entry.links}
                   byId={byId}
+                  icons={icons}
                   onResource={onResource}
                   onEdges={onEdges}
                 />
               ) : (
-                <EdgeDetails edges={entry.edges} byId={byId} />
+                <EdgeDetails edges={entry.edges} byId={byId} icons={icons} />
               )}
             </Box>
           ))}

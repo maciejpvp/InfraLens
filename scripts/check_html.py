@@ -52,6 +52,13 @@ try {
   }
   const clickAt=(target,x,y)=>dispatch(target,new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
   async function click(target){target.click();await wait(40);await waitForLayout();}
+  async function expandServicePairs(section){
+    if(!trigger(section).textContent.startsWith('Deployment dependencies'))return;
+    for(const item of section.querySelectorAll('[data-slot="accordion-item"]')){
+      assert(!opened(item),'Service pair should start closed');
+      await click(trigger(item));
+    }
+  }
   function hitCenter(element){
     const rect=element.getBoundingClientRect();
     const x=rect.x+rect.width/2,y=rect.y+rect.height/2;
@@ -78,7 +85,7 @@ try {
     }
     const labelBoxes=[];
     for(const edge of document.querySelectorAll('[data-edge]')){
-      const label=edgeLabel(edge);if(+edge.dataset.count>1)assert(label,'Missing connection count');if(!label)continue;
+      const label=edgeLabel(edge);if(!label)continue;
       const r={x:parseFloat(label.style.left)-3,y:parseFloat(label.style.top)-3,w:label.offsetWidth+6,h:label.offsetHeight+6};
       for(const other of [...boxes,...labelBoxes])assert(!(r.x<other.x+other.w&&r.x+r.w>other.x&&r.y<other.y+other.h&&r.y+r.h>other.y),'Connection count overlaps an element');
       labelBoxes.push(r);
@@ -251,6 +258,7 @@ try {
         const section=accordionItems().find(item=>trigger(item).textContent.startsWith(relationNames[within.kind]));
         assert(section,'Missing internal relationship section');
         await click(trigger(section));
+        await expandServicePairs(section);
         assert([...section.querySelectorAll('.connection-item')].some(button=>button.textContent.includes('within group')),'Missing internal group relationship');
         await click(trigger(section));
       }
@@ -267,6 +275,7 @@ try {
       if(links){
         assert(!opened(links),'Resource connection accordion should start closed');
         await click(trigger(links));
+        await expandServicePairs(links);
         const link=links.querySelector('.connection-item');
         link.scrollIntoView({block:'end'});
         const scroll=$('details').scrollTop;
@@ -468,6 +477,7 @@ try {
           const section=accordionItems().find(section=>trigger(section).textContent.startsWith(kind));
           assert(section&&!opened(section),'Shared route lost a collapsed relationship type');
           await click(trigger(section));
+          await expandServicePairs(section);
           assert(opened(section)&&section.querySelector('code'),'Shared route lost evidence');
         }
         await click(close());

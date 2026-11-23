@@ -37,6 +37,20 @@ export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provi
   }
 }
 
+export const groupDependenciesByService = (edges: GraphEdge[], byId: ReadonlyMap<string, Resource>) => {
+  const groups = new Map<string, { key: string; from: Service; to: Service; edges: GraphEdge[] }>()
+  for (const edge of edges) {
+    const from = serviceFor(byId.get(edge.from))
+    const to = serviceFor(byId.get(edge.to))
+    const key = JSON.stringify([from.id, to.id])
+    const group = groups.get(key)
+    if (group) group.edges.push(edge)
+    else groups.set(key, { key, from, to, edges: [edge] })
+  }
+  return [...groups.values()].sort((a, b) => a.from.name.localeCompare(b.from.name) ||
+    a.to.name.localeCompare(b.to.name) || a.key.localeCompare(b.key))
+}
+
 // Descriptions belong to evidence; grouping must not discard individual routes or filters.
 type DescribedEdge = { evidence?: GraphEdge['evidence']; originals?: { evidence?: GraphEdge['evidence'] }[] }
 
@@ -198,7 +212,8 @@ export const buildHierarchy = (
 export const revealResource = (tree: Hierarchy, id: string, expanded: Set<string>) => {
   const item = tree.resourceItems.get(id)
   if (!item) return null
-  for (let parent = item.parent; parent; parent = parent.parent) expanded.add(parent.id)
+  const first = !item.group && item.parent?.service ? item.parent.parent : item.parent
+  for (let parent = first; parent; parent = parent.parent) expanded.add(parent.id)
   return item.id
 }
 
@@ -207,22 +222,42 @@ export const projectGraph = (
   mode: ViewMode,
   dependencies: boolean,
   expanded: ReadonlySet<string>,
+  resourceId?: string,
+  onlyConnections = false,
 ): GraphView => {
   const items = new Map<string, ProjectedItem>(),
     representatives = new Map<string, string>()
-  const visit = (item: HierarchyItem) => {
+  const focus = resourceId ? tree.resourceItems.get(resourceId) : undefined
+  const restrict = onlyConnections && Boolean(focus)
+  const collapsedService = !focus?.group && focus?.parent?.service && !expanded.has(focus.parent.id)
+    ? focus.parent
+    : undefined
+  const visit = (item: HierarchyItem, parent = item.parent) => {
     const open = item.group && expanded.has(item.id)
+    const members = item === collapsedService
+      ? new Set([...item.members].filter((id) => id !== resourceId))
+      : item.members
+    if (!members.size) return
     const projected = {
       ...item,
+      parent,
+      members,
       expanded: open,
-      children: open && item.group ? item.children.map((c) => c.id) : [],
+      children: [] as string[],
     }
     items.set(item.id, projected)
     if (!open) {
-      for (const id of item.members) representatives.set(id, item.id)
+      for (const id of members) representatives.set(id, item.id)
     } else {
       if (item.node) representatives.set(item.node.id, item.id)
-      if (item.group) for (const child of item.children) visit(child)
+      for (const child of item.children) {
+        visit(child)
+        if (items.has(child.id)) projected.children.push(child.id)
+        if (child === collapsedService && focus) {
+          visit(focus, item)
+          projected.children.push(focus.id)
+        }
+      }
     }
   }
   for (const root of tree.roots) visit(root)
@@ -231,6 +266,7 @@ export const projectGraph = (
   for (const original of tree.edges) {
     if (
       original.kind === 'contains' ||
+      (restrict && original.from !== resourceId && original.to !== resourceId) ||
       (mode === 'flow' ? !isFlow(original) : original.kind === 'depends_on' && !dependencies)
     )
       continue
@@ -250,5 +286,23 @@ export const projectGraph = (
       JSON.stringify([b.from, b.to, b.kind, b.state]),
     ),
   )
-  return { items, roots: tree.roots.map((g) => g.id), edges, representatives }
+  if (restrict && resourceId) {
+    const keep = new Set<string>()
+    const retain = (id?: string) => {
+      for (let item = id ? items.get(id) : undefined; item && !keep.has(item.id); item = item.parent ? items.get(item.parent.id) : undefined)
+        keep.add(item.id)
+    }
+    retain(representatives.get(resourceId))
+    for (const edge of edges) {
+      retain(edge.from)
+      retain(edge.to)
+    }
+    for (const [id, item] of items) {
+      if (keep.has(id)) item.children = item.children.filter((child) => keep.has(child))
+      else items.delete(id)
+    }
+    for (const [id, representative] of representatives)
+      if (!keep.has(representative)) representatives.delete(id)
+  }
+  return { items, roots: tree.roots.map((g) => g.id).filter((id) => items.has(id)), edges, representatives }
 }

@@ -1,5 +1,5 @@
 import { Text } from '../ui/text'
-import type { MouseEventHandler } from 'react'
+import type { MouseEventHandler, ReactNode } from 'react'
 
 import { Button } from '../ui/button'
 import { inspectorStyles as styles } from './inspector.variants'
@@ -10,7 +10,7 @@ export const DetailRow = ({
   summary,
   onClick,
 }: {
-  title: string
+  title: ReactNode
   descriptions?: string
   summary?: string
   onClick: MouseEventHandler<HTMLButtonElement>

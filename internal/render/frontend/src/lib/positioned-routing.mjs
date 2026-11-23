@@ -195,7 +195,7 @@ function routeEdge(obstacles, starts, goals) {
     return svgRoute(simplify([start.point, ...reverse.reverse(), best.goal.point]));
 }
 // Reserve both ends so arrowheads never share a landing point with another wire.
-export function routeEdges(view, layout) {
+export function routeEdges(view, layout, retained = []) {
     if (!view.edges.length)
         return [];
     const geometry = obstacleGeometry(view, layout), endpoints = new Map();
@@ -205,9 +205,18 @@ export function routeEdges(view, layout) {
                 endpoints.set(id, { degree: 0, occupied: new Set(), groups: routingGroups(view, id) });
             endpoints.get(id).degree++;
         }
+    for (const [index, route] of retained.entries()) {
+        if (!route)
+            continue;
+        const { from, to } = view.edges[index];
+        endpoints.get(from).occupied.add(portKey(route.points[0]));
+        endpoints.get(to).occupied.add(portKey(route.points.at(-1)));
+    }
     // Reuse the last geometry without retaining a cache for every pair of groups.
     let obstacles, previousGroupKey;
-    return view.edges.map(edge => {
+    return view.edges.map((edge, index) => {
+        if (retained[index])
+            return retained[index];
         const from = endpoints.get(edge.from), to = endpoints.get(edge.to);
         const groups = [...new Set([...from.groups, ...to.groups])].sort();
         const groupKey = JSON.stringify(groups);

@@ -14,6 +14,7 @@ export const DiagramFilters = ({
   filtersOpen,
   dependencies,
   dependenciesDisabled,
+  connectionScope,
   setDependencies,
   showTopology,
   topology,
@@ -39,6 +40,16 @@ export const DiagramFilters = ({
       />
       <Label htmlFor="dependencies">Deployment dependencies</Label>
     </Box>
+    {connectionScope && (
+      <Box className={styles.dependencies}>
+        <Checkbox
+          id="resource-connections"
+          checked={connectionScope.checked}
+          onCheckedChange={(checked) => connectionScope.change(checked === true)}
+        />
+        <Label htmlFor="resource-connections">Show only this resource’s connections</Label>
+      </Box>
+    )}
     <Box id="topology-label" hidden={!showTopology} className={styles.topology}>
       <Label htmlFor="topology">Connections</Label>
       <NativeSelect id="topology" value={topology} onChange={changeTopology}>

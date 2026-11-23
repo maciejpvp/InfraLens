@@ -16,6 +16,7 @@ type ToolbarOptions = {
   setTopology: (topology: Topology) => void
   onResource: OpenResource
   inspecting: boolean
+  connectionScope?: { checked: boolean; change: (checked: boolean) => void }
 }
 
 export const useToolbar = ({
@@ -29,6 +30,7 @@ export const useToolbar = ({
   setTopology,
   onResource,
   inspecting,
+  connectionScope,
 }: ToolbarOptions) => {
   const [query, setQuery] = useState('')
   const [showResults, setShowResults] = useState(false)
@@ -85,6 +87,7 @@ export const useToolbar = ({
       topology,
       dependencies,
       dependenciesDisabled: mode === 'flow',
+      connectionScope,
       setDependencies: (checked: boolean | 'indeterminate') => setDependencies(checked === true),
       changeTopology: (event: ChangeEvent<HTMLSelectElement>) => {
         const value = event.currentTarget.value
