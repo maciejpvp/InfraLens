@@ -1,10 +1,10 @@
 # InfraLens
 
-Lokalny CLI do zamiany eksportu infrastruktury Pulumi w jeden interaktywny plik HTML działający offline.
+Lokalny CLI do zamiany danych infrastruktury Pulumi i AWS CDK w jeden interaktywny plik HTML działający offline.
 
-**Status: działający CLI i interaktywny diagram offline.** Adapter Pulumi buduje neutralny graf, a renderer generuje jeden HTML z węzłami, strzałkami, zoomem, wyszukiwaniem i inspektorem dowodów.
+**Status: działający CLI i interaktywny diagram offline.** Adaptery budują neutralny graf, a renderer generuje jeden HTML z węzłami, strzałkami, zoomem, wyszukiwaniem i inspektorem dowodów.
 
-Każda komenda przetwarzająca infrastrukturę wymaga jawnego `--provider`. Dostępny jest `pulumi`. Wartości `terraform` i `aws-cdk` są widoczne w pomocy jako planowane.
+Każda komenda przetwarzająca infrastrukturę wymaga jawnego `--provider`. Dostępne są `pulumi` i `aws-cdk`. Provider `terraform` jest planowany.
 
 ## Uruchomienie w projekcie Pulumi
 
@@ -47,6 +47,29 @@ InfraLens render --provider=pulumi --input preview.json --output result.html
 Adapter obsługuje eksport v3 i pojedynczy dokument preview z `steps` oraz operacjami `same`, `create`, `update`, `delete`, `replace`. Inne operacje, wersje eksportu i streaming JSON są jawnie odrzucane. Preview pokazuje wyłącznie zasoby obecne w `steps`; nie odtwarza pominiętych zasobów. Fixture’y są syntetyczne, kompatybilność z rzeczywistymi eksportami pozostaje do sprawdzenia.
 
 HTML zawiera interaktywny diagram SVG, osadzony pakiet React, CSS, ikony i dane. Otwiera się z dysku bez serwera i połączeń sieciowych. Zmiany pochodzą z preview, nie z porównania dwóch plików. Zachowujemy relacje sprzed i po zmianie; nie eksportujemy inputs/outputs. Nazwy i ścieżki właściwości pozostają widoczne i mogą być poufne.
+
+## AWS CDK
+
+W katalogu projektu CDK zawierającym `cdk.json` uruchom:
+
+```bash
+InfraLens preview --provider=aws-cdk
+```
+
+InfraLens używa projektowego `node_modules/.bin/cdk` lub `cdk` z `PATH`. Uruchamia `cdk synth` z wyłączonymi lookupami kontekstu, czyta szablony ze stosów wskazanych w tymczasowym manifeście i otwiera `infralens.html`. Użyj `--no-open` do samego zapisu lub `--output raport.html` do zmiany nazwy. Synteza wykonuje kod projektu i może wymagać narzędzi do bundlowania jego assetów. [Dokumentacja syntezy CDK](https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd-synth.html)
+
+Gotowe szablony ze wcześniejszej syntezy można też odczytać bez uruchamiania CDK:
+
+```bash
+InfraLens graph --provider=aws-cdk --input cdk.out/MyStack.template.json --output graph.json
+InfraLens render --provider=aws-cdk --input cdk.out/MyStack.template.json --output report.html
+```
+
+InfraLens odczytuje gotowe szablony JSON, więc generowanie raportu działa offline. Możesz podać kilka szablonów przez powtarzane `--input`. Nazwa stosu pochodzi z nazwy pliku. Aby nadać inną nazwę lub rozróżnić identyczne nazwy plików, użyj `--input STACK=FILE`.
+
+Graf pokazuje topologię z szablonu. `DependsOn`, `Ref`, `Fn::GetAtt` i `Fn::Sub` wyznaczają zależności wdrożeniowe w obrębie stosu. Widok przepływu pokazuje jawnie powiązane SQS i DynamoDB Streams → Lambda, powiadomienia S3 → Lambda oraz źródła danych AppSync powiązane z Lambda lub DynamoDB. W raporcie pozostają identyfikatory logiczne, typy zasobów i dowody relacji.
+
+Preview CDK pokazuje stan wynikający z syntezy. Porównanie z wdrożonym stosem, interpretacja warunków CloudFormation i powiązania między stosami przez `Fn::ImportValue` pozostają poza zakresem.
 
 ## Symulacja bez stosów i wdrożenia AWS
 
