@@ -1,0 +1,131 @@
+{
+  "steps": [
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:s3/bucket:Bucket::Uploads",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:s3/bucket:Bucket::Uploads",
+        "type": "aws:s3/bucket:Bucket",
+        "id": "demo-image-uploads"
+      }
+    },
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:sqs/queue:Queue::ImageJobs",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:sqs/queue:Queue::ImageJobs",
+        "type": "aws:sqs/queue:Queue",
+        "outputs": {
+          "arn": "arn:aws:sqs:us-east-1:000000000000:image-jobs"
+        }
+      }
+    },
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:dynamodb/table:Table::ImageCatalog",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:dynamodb/table:Table::ImageCatalog",
+        "type": "aws:dynamodb/table:Table",
+        "id": "image-catalog"
+      }
+    },
+    {
+      "op": "same",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:iam/role:Role::ResizeRole",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:iam/role:Role::ResizeRole",
+        "type": "aws:iam/role:Role"
+      }
+    },
+    {
+      "op": "update",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:lambda/function:Function::ResizeImage",
+      "oldState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:lambda/function:Function::ResizeImage",
+        "type": "aws:lambda/function:Function",
+        "id": "resize-image",
+        "inputs": {
+          "environment": {
+            "variables": {
+              "TABLE_NAME": "image-catalog"
+            }
+          },
+          "memorySize": 256
+        },
+        "dependencies": [
+          "urn:pulumi:dev::image-pipeline::aws:iam/role:Role::ResizeRole",
+          "urn:pulumi:dev::image-pipeline::aws:dynamodb/table:Table::ImageCatalog"
+        ]
+      },
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:lambda/function:Function::ResizeImage",
+        "type": "aws:lambda/function:Function",
+        "id": "resize-image",
+        "inputs": {
+          "environment": {
+            "variables": {
+              "TABLE_NAME": "image-catalog"
+            }
+          },
+          "memorySize": 512
+        },
+        "dependencies": [
+          "urn:pulumi:dev::image-pipeline::aws:iam/role:Role::ResizeRole",
+          "urn:pulumi:dev::image-pipeline::aws:dynamodb/table:Table::ImageCatalog"
+        ]
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:s3/bucketNotification:BucketNotification::UploadEvents",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:s3/bucketNotification:BucketNotification::UploadEvents",
+        "type": "aws:s3/bucketNotification:BucketNotification",
+        "inputs": {
+          "bucket": "demo-image-uploads",
+          "queues": [
+            {
+              "queueArn": "arn:aws:sqs:us-east-1:000000000000:image-jobs",
+              "events": [
+                "s3:ObjectCreated:*"
+              ],
+              "filterPrefix": "originals/"
+            }
+          ]
+        },
+        "dependencies": [
+          "urn:pulumi:dev::image-pipeline::aws:s3/bucket:Bucket::Uploads",
+          "urn:pulumi:dev::image-pipeline::aws:sqs/queue:Queue::ImageJobs"
+        ]
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:lambda/eventSourceMapping:EventSourceMapping::ResizeTrigger",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:lambda/eventSourceMapping:EventSourceMapping::ResizeTrigger",
+        "type": "aws:lambda/eventSourceMapping:EventSourceMapping",
+        "inputs": {
+          "eventSourceArn": "arn:aws:sqs:us-east-1:000000000000:image-jobs",
+          "functionName": "resize-image",
+          "batchSize": 10
+        },
+        "dependencies": [
+          "urn:pulumi:dev::image-pipeline::aws:sqs/queue:Queue::ImageJobs",
+          "urn:pulumi:dev::image-pipeline::aws:lambda/function:Function::ResizeImage"
+        ]
+      }
+    },
+    {
+      "op": "create",
+      "urn": "urn:pulumi:dev::image-pipeline::aws:cloudwatch/logGroup:LogGroup::ResizeLogs",
+      "newState": {
+        "urn": "urn:pulumi:dev::image-pipeline::aws:cloudwatch/logGroup:LogGroup::ResizeLogs",
+        "type": "aws:cloudwatch/logGroup:LogGroup",
+        "dependencies": [
+          "urn:pulumi:dev::image-pipeline::aws:lambda/function:Function::ResizeImage"
+        ]
+      }
+    }
+  ]
+}
