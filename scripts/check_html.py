@@ -436,7 +436,33 @@ try {
     checkRoutes();
     await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');
-    if(location.search.includes('parallel'))await click(document.querySelector('[data-service]').closest('[data-diagram-card]').querySelector('[data-toggle]'));
+    if(location.search.includes('parallel')){
+      await click(document.querySelector('[data-service]').closest('[data-diagram-card]').querySelector('[data-toggle]'));
+      const legendWasHidden=legend.hidden;
+      if(legendWasHidden)await click(legendButton);
+      const entryFor=kind=>legend.querySelector('[data-connection-kind="'+kind+'"]');
+      const edgesOf=kind=>document.querySelectorAll('[data-edge].'+kind);
+      const kinds=['triggers','connects_to','depends_on'];
+      const cardCount=document.querySelectorAll('[data-item]').length;
+      assert(kinds.every(kind=>edgesOf(kind).length===1),'Test diagram is missing a connection kind');
+      for(const [index,kind] of kinds.entries()){
+        const entry=entryFor(kind);
+        await click(entry);
+        assert(entry.getAttribute('aria-pressed')==='false'&&getComputedStyle(entry).filter==='grayscale(1)','Hidden connection is not greyed out in the legend');
+        assert(edgesOf(kind).length===0,'Legend left a hidden connection visible: '+kind);
+        assert(kinds.slice(index+1).every(other=>edgesOf(other).length===1),'Legend hid another connection kind');
+        const sample=entry.querySelector('.pipe-current');
+        if(sample)assert(getComputedStyle(sample).animationPlayState==='paused','Hidden legend sample is still animated');
+      }
+      assert(document.querySelectorAll('[data-item]').length===cardCount,'Hiding all connections removed cards');
+      assert($('dependencies').getAttribute('aria-checked')==='false','Legend state did not reach the dependency filter');
+      for(const kind of kinds)await click(entryFor(kind));
+      assert(kinds.every(kind=>edgesOf(kind).length===1),'Legend did not restore every connection');
+      await click($('dependencies'));
+      assert(entryFor('depends_on').getAttribute('aria-pressed')==='false','Dependency filter state did not reach the legend');
+      await click($('dependencies'));
+      if(legendWasHidden)await click(legendButton);
+    }
     await click($('fit'));
     await wait(150);
     const rendered=[...document.querySelectorAll('[data-edge]')];

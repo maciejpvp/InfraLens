@@ -6,7 +6,8 @@ export const connectionLegendStyles = {
   motion: 'ml-auto rounded-full text-muted-foreground motion-reduce:hidden',
   content: 'px-2.5 pt-1 pb-1.5 motion-safe:animate-detail-in',
   entries: 'grid gap-1',
-  entry: 'flex items-center gap-2 text-xs leading-tight text-foreground',
+  entry:
+    'flex w-full cursor-pointer items-center gap-2 rounded-sm text-left text-xs leading-tight text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-[pressed=false]:text-muted-foreground aria-[pressed=false]:grayscale',
   sample: 'pointer-events-none h-3.5 w-12 shrink-0',
   note: 'mt-2 text-[.625rem] leading-snug text-muted-foreground',
 }

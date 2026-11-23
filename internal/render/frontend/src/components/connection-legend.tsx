@@ -16,6 +16,8 @@ export const ConnectionLegend = ({
   legendOpen,
   legendRef,
   playing,
+  hiddenKinds,
+  setKindVisible,
   motionAction,
   toggleLegend,
   toggleMotion,
@@ -51,12 +53,25 @@ export const ConnectionLegend = ({
     </Box>
     <Box id="connection-legend" hidden={!legendOpen} className={styles.content}>
       <List className={styles.entries}>
-        {connectionLegendConfig.entries.map(({ kind, label, ...paint }) => (
-          <ListItem key={kind} className={styles.entry}>
-            <FlowSwatch className={styles.sample} {...paint} />
-            <Text>{label}</Text>
-          </ListItem>
-        ))}
+        {connectionLegendConfig.entries.map(({ kind, label, ...paint }) => {
+          const visible = !hiddenKinds.has(kind)
+          return (
+            <ListItem key={kind}>
+              <Button
+                type="button"
+                unstyled
+                className={styles.entry}
+                aria-pressed={visible}
+                data-connection-kind={kind}
+                data-pipe-motion={visible ? undefined : 'off'}
+                onClick={() => setKindVisible(kind, !visible)}
+              >
+                <FlowSwatch className={styles.sample} {...paint} />
+                <Text>{label}</Text>
+              </Button>
+            </ListItem>
+          )
+        })}
       </List>
       <Text as="p" className={styles.note}>
         Configuration only. No live traffic.

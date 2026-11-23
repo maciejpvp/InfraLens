@@ -29,7 +29,8 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const expansionKey = `${topology}:${mode}`
   const expanded = expansions[expansionKey] ?? tree.initialExpanded
   const fitAfterLayout = useRef(false)
-  const [dependencies, setDependencies] = useState(true)
+  const legendProps = useConnectionLegend()
+  const { hiddenKinds, setKindVisible } = legendProps
   const stage = useRef<HTMLElement>(null)
   const search = useRef<HTMLInputElement>(null)
   const zoomLabel = useRef<HTMLOutputElement>(null)
@@ -58,17 +59,16 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     ? focusId
     : undefined
   const context = useMemo(
-    () => projectGraph(tree, mode, dependencies, expanded),
-    [tree, mode, dependencies, expanded],
+    () => projectGraph(tree, mode, hiddenKinds, expanded),
+    [tree, mode, hiddenKinds, expanded],
   )
   const current = useMemo(
-    () => projectedFocusId ? projectGraph(tree, mode, dependencies, expanded, projectedFocusId, onlyConnections) : context,
-    [tree, mode, dependencies, expanded, projectedFocusId, onlyConnections, context],
+    () => projectedFocusId ? projectGraph(tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections) : context,
+    [tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections, context],
   )
   const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(
     tree, current, context, onlyConnections ? undefined : projectedFocusId, layoutAnchor,
   )
-  const legendProps = useConnectionLegend()
   const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef)
 
   useLayoutEffect(() => {
@@ -192,8 +192,8 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
         fitAfterLayout.current = true
         setMode(value)
       },
-      dependencies,
-      setDependencies,
+      dependencies: !hiddenKinds.has('depends_on'),
+      setDependencies: (visible: boolean) => setKindVisible('depends_on', visible),
       topology,
       setTopology: (value: Topology) => {
         if (value === topology) return

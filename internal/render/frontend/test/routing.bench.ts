@@ -20,7 +20,7 @@ for (const count of [76, 150, 300, 500]) {
       })),
   )
   const tree = buildHierarchy({ nodes, edges })
-  const view = projectGraph(tree, 'flow', true, tree.initialExpanded)
+  const view = projectGraph(tree, 'flow', new Set(), tree.initialExpanded)
   const samples = []
   for (let run = 0; run < 4; run++) {
     const start = performance.now()

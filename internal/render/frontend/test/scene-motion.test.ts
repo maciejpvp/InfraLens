@@ -15,13 +15,13 @@ const graph: Graph = {
 const measure = (text: string) => text.length * 7
 const tree = buildHierarchy(graph)
 const scene = async (expanded: Set<string>, resourceId?: string): Promise<Scene> => {
-  const current = projectGraph(tree, 'infra', true, expanded, resourceId)
+  const current = projectGraph(tree, 'infra', new Set(), expanded, resourceId)
   return { ...await layoutDiagram(current, measure), current, tree }
 }
 
 test('a revealed resource slides out from its collapsed service card', async () => {
   const closed = await scene(tree.initialExpanded)
-  const view = projectGraph(tree, 'infra', true, tree.initialExpanded, 'b')
+  const view = projectGraph(tree, 'infra', new Set(), tree.initialExpanded, 'b')
   const revealed = revealInPlace(closed, view, 'b', measure)!
   const group = tree.resourceItems.get('b')!.parent!.id
   const groupBox = closed.layout.positions.get(group)!

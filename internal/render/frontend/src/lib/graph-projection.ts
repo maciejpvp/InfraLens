@@ -237,7 +237,7 @@ export const revealResource = (tree: Hierarchy, id: string, expanded: Set<string
 export const projectGraph = (
   tree: Hierarchy,
   mode: ViewMode,
-  dependencies: boolean,
+  hiddenKinds: ReadonlySet<ProjectedEdge['kind']>,
   expanded: ReadonlySet<string>,
   resourceId?: string,
   onlyConnections = false,
@@ -283,8 +283,9 @@ export const projectGraph = (
   for (const original of tree.edges) {
     if (
       original.kind === 'contains' ||
+      hiddenKinds.has(original.kind) ||
       (restrict && original.from !== resourceId && original.to !== resourceId) ||
-      (mode === 'flow' ? !isFlow(original) : original.kind === 'depends_on' && !dependencies)
+      (mode === 'flow' && !isFlow(original))
     )
       continue
     const from = representatives.get(original.from),

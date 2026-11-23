@@ -8,15 +8,13 @@ Każda komenda przetwarzająca infrastrukturę wymaga jawnego `--provider`. Dost
 
 ## Uruchomienie w projekcie Pulumi
 
-Zbuduj binarkę w katalogu InfraLens i umieść ją w katalogu z `PATH` (jednorazowo, Linux):
+Uruchom skrypt z katalogu repozytorium, aby zainstalować lub zaktualizować globalne `InfraLens` na macOS lub Linuksie. Skrypt wymaga Go i Node.js oraz buduje renderer przed kompilacją binarki.
 
 ```bash
-go build -buildvcs=false -o bin/InfraLens ./cmd/infralens
-mkdir -p "$HOME/.local/bin"
-install -m 755 bin/InfraLens "$HOME/.local/bin/InfraLens"
+./scripts/update-global.sh
 ```
 
-Jeśli `~/.local/bin` nie jest w `PATH`, dodaj `export PATH="$HOME/.local/bin:$PATH"` do konfiguracji swojej powłoki.
+Domyślny katalog instalacji to `~/.local/bin`. Możesz go zmienić za pomocą `INFRALENS_BIN_DIR`. Jeśli katalog instalacji nie jest w `PATH`, dodaj go do konfiguracji swojej powłoki.
 
 Następnie w katalogu docelowego projektu zawierającym `Pulumi.yaml` lub `Pulumi.yml`:
 
@@ -175,7 +173,7 @@ npm ci --prefix internal/render/frontend
 npm run build --prefix internal/render/frontend
 ```
 
-Jeśli używasz globalnej komendy `InfraLens`, po buildzie frontendu ponownie zbuduj i zainstaluj binarkę zgodnie z instrukcją na początku README. Wygeneruj też ponownie zapisane raporty HTML.
+Jeśli używasz globalnej komendy `InfraLens`, uruchom `./scripts/update-global.sh` i wygeneruj ponownie zapisane raporty HTML.
 
 ```bash
 go test ./...
