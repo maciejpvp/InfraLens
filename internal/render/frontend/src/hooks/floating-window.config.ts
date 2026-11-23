@@ -5,7 +5,6 @@ export const floatingWindowConfig = {
   sampleWindowMs: 85,
   projectionSeconds: 0.12,
   maxThrow: 85,
-  rubberRange: 48,
   springRate: 18,
   minimumSettleSeconds: 0.15,
   maximumSettleSeconds: 0.6,

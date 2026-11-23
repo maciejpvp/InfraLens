@@ -70,6 +70,44 @@ try {
   }
   await waitForLayout();
   await wait(50);
+  if(location.search.includes('zoomed-drag')){
+    await clickAt(document.querySelector('[data-edge]'),0,0);
+    assert(inspector(),'Connection did not open the inspector');
+    document.documentElement.style.zoom='1.5';
+    await wait(100);
+    const grip=dialog().querySelector('[data-window-grip]'),header=grip.closest('header');
+    const rect=()=>dialog().getBoundingClientRect();
+    const assertInViewport=()=>{
+      const {left,top,right,bottom}=rect(),port=window.visualViewport;
+      assert(left>=port.offsetLeft&&top>=port.offsetTop&&right<=port.offsetLeft+port.width&&bottom<=port.offsetTop+port.height,'Inspector escaped the visible viewport');
+    };
+    // Synthetic pointers cannot register capture with Chromium.
+    header.setPointerCapture=()=>{};
+    const grab=()=>{
+      const {x,y,target}=hitCenter(grip);
+      assert(target?.closest('[data-window-grip]')===grip,'Inspector grip is covered');
+      const pointer=(element,type,dx,dy)=>element.dispatchEvent(new PointerEvent(type,{
+        bubbles:true,isPrimary:true,pointerId:21,clientX:x+dx,clientY:y+dy,
+      }));
+      pointer(target,'pointerdown',0,0);
+      return (type,dx,dy)=>pointer(header,type,dx,dy);
+    };
+    assertInViewport();
+    const start=rect();
+    let send=grab();
+    send('pointermove',-100,0);
+    assert(Math.abs(rect().x-start.x+100)<1,'Inspector did not follow the pointer at 150%');
+    send('pointermove',2000,2000);
+    assertInViewport();
+    send('pointercancel',0,0);
+    const retry=rect();
+    send=grab();
+    send('pointerup',-100,0);
+    assert(Math.abs(rect().x-retry.x+100)<1,'Inspector ignored the release position after interruption');
+    assertInViewport();
+    await wait(650);
+    assertInViewport();
+  }else{
   const initial=view();
   function checkRoutes(){
     const boxes=[...document.querySelectorAll('[data-item]')].map(item=>{const node=item.closest('.react-flow__node'),matrix=new DOMMatrix(node.style.transform);return {id:item.dataset.item,x:matrix.e,y:matrix.f,w:item.offsetWidth,h:item.offsetHeight};});
@@ -573,6 +611,7 @@ try {
     assert(matchMedia('(prefers-reduced-motion: reduce)').matches&&getComputedStyle(item).transitionDuration==='0s','Reduced motion ignored');
     await click(close());
   }
+  }
   await wait(150);
   assert(!window.__qaErrors.length,'Runtime error: '+window.__qaErrors.join(';'));
   assert(!window.__qaCSP.length,'Blocked resource requests: '+window.__qaCSP.join(';'));
@@ -625,7 +664,7 @@ def main():
                 proof['details'] = (proof.get('details') or '') + '\n' + '\n'.join(['Long configuration value'] * 50)
         empty_graph = {'schemaVersion': 1, 'nodes': [], 'edges': []}
         parallel_graph = {'schemaVersion': 1, 'nodes': [{'id': key, 'name': key, 'type': 'test:resource:Resource', 'stack': 'shared/dev', 'change': 'create' if key == 'source' else 'delete'} for key in ['source', 'target']], 'edges': [{'from': 'source', 'to': 'target', 'kind': kind, 'evidence': [{'source': 'test', 'property': kind}]} for kind in ['triggers', 'connects_to', 'depends_on']]}
-        scenarios = [('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False)]
+        scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False)]
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)
