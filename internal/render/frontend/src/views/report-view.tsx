@@ -14,6 +14,7 @@ export const ReportView = ({ graph, icons }: { graph: Graph; icons: ServiceIcons
   const {
     stageProps,
     isEmpty,
+    noFlow,
     layoutFailed,
     legendProps,
     diagramProps,
@@ -40,8 +41,8 @@ export const ReportView = ({ graph, icons }: { graph: Graph; icons: ServiceIcons
             The diagram layout could not be calculated.
           </Text>
         )}
-        <Text as="p" id="empty" hidden={!isEmpty} className={reportViewStyles.empty}>
-          This file contains no resources.
+        <Text as="p" id="empty" hidden={!isEmpty && !noFlow} className={reportViewStyles.empty}>
+          {noFlow ? 'No configured connections' : 'This file contains no resources.'}
         </Text>
       </Box>
       <DetailsDialog {...detailsProps} />

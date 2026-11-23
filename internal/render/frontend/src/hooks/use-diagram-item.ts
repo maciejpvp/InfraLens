@@ -8,6 +8,8 @@ import { GROUP_HEADER_HEIGHT } from '../lib/layout.config'
 import { serviceFor } from '../lib/graph-projection.ts'
 import { cn } from '../lib/utils'
 
+const changePriority = ['delete', 'replace', 'update', 'create'] as const
+
 export const useDiagramItem = ({
   item,
   depth,
@@ -20,10 +22,15 @@ export const useDiagramItem = ({
 }: DiagramItemData) => {
   const service = item.service || (item.node && serviceFor(item.node))
   const icon = service?.icon && Object.hasOwn(icons, service.icon) ? icons[service.icon] : undefined
-  const change = item.node?.change
+  const change = item.group
+    ? changePriority.find((status) => {
+        for (const id of item.members) if (byId.get(id)?.change === status) return true
+        return false
+      })
+    : item.node.change
+  const hasChange = change && change !== 'unchanged'
   const count = countLabel(item.members.size, 'resource')
   const type = item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
-  const showChange = !item.group && change && change !== 'unchanged'
   const open = activationProps<HTMLButtonElement>(() => onItem(item.id))
 
   return {
@@ -47,7 +54,7 @@ export const useDiagramItem = ({
           : [
               styles.node,
               styles.card,
-              showChange && styles.changedCard[change],
+              hasChange ? [styles.changedCard, styles.changeColor[change]] : styles.cardShadow,
               item.support && styles.supportCard,
               selected && styles.selectedCard,
             ],
@@ -57,19 +64,20 @@ export const useDiagramItem = ({
       style: item.expanded ? { height: GROUP_HEADER_HEIGHT } : undefined,
       ...open,
     },
-    groupClassName: cn(styles.groupBounds, depth > 0 && styles.nestedGroupBounds),
+    groupClassName: cn(styles.groupBounds, depth > 0 && styles.nestedGroupBounds, muted && styles.mutedItem),
     cardTopClassName: cn(styles.cardTop, item.group && styles.reserveToggle),
     count,
     showHeaderIcon: Boolean(service),
     type: !item.group && service?.icon ? `${service.name} · ${type}` : type,
     accent: { backgroundColor: service?.color || '#8ba6be' },
     meta: item.group ? `${count} · ${changeSummary(item, byId)}` : item.stack,
-    changeBadge: showChange
-      ? { text: changeLabels[change], className: cn(styles.change, styles.changeColor[change]) }
+    changeBadge: !item.group && hasChange
+      ? { text: changeLabels[change], className: styles.change }
       : null,
     toggleProps: item.group
       ? {
           id: item.id,
+          className: cn(styles.toggle, muted && styles.mutedItem),
           expanded: item.expanded,
           ariaLabel: `${item.expanded ? 'Collapse' : 'Expand'} ${item.name}`,
           symbol: item.expanded ? '−' : '+',

@@ -40,7 +40,24 @@ export const useDiagram = ({
   toggle,
 }: DiagramProps) => {
   const { current, layout, routes } = scene
-  const visible = new Set(selection?.ids.map((id) => current.representatives.get(id) || id))
+  const related = new Set(selection?.item ? selection.links : selection?.edges)
+  const selectedNodes = new Set<string>()
+  if (selection?.item) {
+    selectedNodes.add(selection.item.id)
+    for (const id of selection.item.members) selectedNodes.add(current.representatives.get(id) ?? id)
+  }
+
+  const relatedEdges = current.edges.map((edge) => edge.originals.some((original) => related.has(original)))
+  const visible = new Set(selectedNodes)
+  for (const [index, edge] of current.edges.entries()) {
+    if (!relatedEdges[index] || !routes[index]) continue
+    visible.add(edge.from)
+    visible.add(edge.to)
+    if (!selection?.item) {
+      selectedNodes.add(edge.from)
+      selectedNodes.add(edge.to)
+    }
+  }
 
   const openEdge = (event: MouseEvent<Element> | KeyboardEvent<SVGGElement>, index: number) => {
     let matches = [current.edges[index]]
@@ -87,7 +104,7 @@ export const useDiagram = ({
         icons,
         onItem,
         toggle,
-        selected: visible.has(id),
+        selected: selectedNodes.has(id),
         muted: Boolean(selection && !visible.has(id)),
       },
     }
@@ -97,8 +114,8 @@ export const useDiagram = ({
     const route = routes[index]
     if (!route) return []
     const { from, to, kind, state, originals } = edge
-    const selected = originals.some((original) => selection?.edges.includes(original))
-    const muted = selection && (!visible.has(from) || !visible.has(to))
+    const selected = !selection?.item && relatedEdges[index]
+    const muted = selection && !relatedEdges[index]
     const title = `${current.items.get(from)!.name} → ${current.items.get(to)!.name}`
     const description = flowDescriptions([edge])
       .map(({ label }) => label)

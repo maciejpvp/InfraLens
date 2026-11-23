@@ -11,7 +11,7 @@ import { toolbarStyles as styles } from './toolbar.variants'
 
 export const MapControls = ({
   graph,
-  current,
+  flowCount,
   routes,
   zoomLabel,
   zoom,
@@ -20,7 +20,7 @@ export const MapControls = ({
   zoomLabel: RefObject<HTMLOutputElement | null>
   fit: () => void
 }) => {
-  const { summary, omitted, zoomIn, zoomOut } = useMapControls({ graph, current, routes, zoom })
+  const { summary, omitted, zoomIn, zoomOut } = useMapControls({ graph, flowCount, routes, zoom })
   return (
     <>
       <Box role="group" aria-label="Zoom" className={cn(styles.panel, styles.zoom)}>

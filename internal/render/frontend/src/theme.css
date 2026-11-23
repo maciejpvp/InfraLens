@@ -47,6 +47,7 @@
   }
 }
 
-[data-pipe-motion="off"] .pipe-current {
+[data-pipe-motion="off"] .pipe-current,
+.react-flow__edge.muted .pipe-current {
   animation-play-state: paused;
 }

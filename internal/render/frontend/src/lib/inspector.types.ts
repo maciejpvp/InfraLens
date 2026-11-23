@@ -1,7 +1,6 @@
 import type { GraphEdge, HierarchyItem } from './graph.types'
 
 type PageState = {
-  ids: string[]
   edges: GraphEdge[]
   trigger?: HTMLButtonElement
   scroll?: number

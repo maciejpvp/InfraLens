@@ -2,7 +2,6 @@ import { useConnectionLegend } from './use-connection-legend'
 import type {
   Graph,
   GraphEdge,
-  Hierarchy,
   HierarchyItem,
   ServiceIcons,
   Topology,
@@ -11,7 +10,7 @@ import type {
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../lib/inspector.types'
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { buildHierarchy, projectGraph, revealResource } from '../lib/graph-projection.ts'
+import { activeEdges, buildHierarchy, isFlow, projectGraph, revealResource } from '../lib/graph-projection.ts'
 import { useDiagramLayout } from './use-diagram-layout'
 import { useCamera } from './use-camera'
 import { useInspector } from './use-inspector'
@@ -20,12 +19,16 @@ import { defaultTopology } from '../lib/layout.config'
 
 export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const byId = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph])
-  const [{ topology, tree }, setTopology] = useState<{ topology: Topology; tree: Hierarchy }>(() => ({
-    topology: defaultTopology,
-    tree: buildHierarchy(graph),
-  }))
-  const [expanded, setExpanded] = useState(tree.initialExpanded)
-  const [mode, setMode] = useState<ViewMode>(tree.flowIDs.size ? 'flow' : 'infra')
+  const [topology, setTopology] = useState<Topology>(defaultTopology)
+  const [mode, setMode] = useState<ViewMode>(() =>
+    activeEdges(graph, defaultTopology).some(isFlow) ? 'flow' : 'infra',
+  )
+  const infra = useMemo(() => buildHierarchy(graph, topology), [graph, topology])
+  const tree = useMemo(() => mode === 'flow' ? buildHierarchy(graph, topology, 'flow') : infra, [graph, topology, mode, infra])
+  const [expansions, setExpansions] = useState<Record<string, ReadonlySet<string>>>({})
+  const expansionKey = `${topology}:${mode}`
+  const expanded = expansions[expansionKey] ?? tree.initialExpanded
+  const fitAfterLayout = useRef(false)
   const [dependencies, setDependencies] = useState(true)
   const stage = useRef<HTMLElement>(null)
   const search = useRef<HTMLInputElement>(null)
@@ -48,7 +51,11 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const selection = inspector.pages.at(-1)
 
   useLayoutEffect(() => {
-    if (!scene) return
+    if (!scene || scene.current !== current) return
+    if (fitAfterLayout.current) {
+      fitAfterLayout.current = false
+      camera.fit()
+    }
     if (reveal.current) {
       const id = reveal.current
       reveal.current = null
@@ -59,22 +66,14 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       diagramElement(stage.current, 'toggle', toggleFocus.current)?.focus({ preventScroll: true })
       toggleFocus.current = null
     }
-  }, [scene])
-
-  const changeTopology = (value: Topology) => {
-    const next = buildHierarchy(graph, value)
-    setTopology({ topology: value, tree: next })
-    setExpanded((previous) => new Set([...previous, ...next.initialExpanded]))
-  }
+  }, [scene, current])
 
   const toggle = (id: string) => {
     toggleFocus.current = id
-    setExpanded((previous) => {
-      const next = new Set(previous)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    const next = new Set(expanded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setExpansions((previous) => ({ ...previous, [expansionKey]: next }))
   }
 
   const resourcePage = (item: HierarchyItem, edges = tree.edges): InspectorPage => {
@@ -82,22 +81,24 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     return {
       item,
       links,
-      ids: [...item.members, ...links.flatMap((edge) => [edge.from, edge.to])],
       edges: [],
     }
   }
 
   const edgePage = (edges: GraphEdge[]): InspectorPage => {
-    return { edges, ids: edges.flatMap((edge) => [edge.from, edge.to]) }
+    return { edges }
   }
 
   const showResource: OpenResource = (id, trigger) => {
-    const next = new Set(expanded)
-    const itemId = revealResource(tree, id, next)
+    const target = tree.resourceItems.has(id) ? tree : infra
+    const key = target === tree ? expansionKey : `${topology}:infra`
+    const next = new Set(expansions[key] ?? target.initialExpanded)
+    const itemId = revealResource(target, id, next)
     if (!itemId) return
     reveal.current = itemId
-    setExpanded(next)
-    const page = resourcePage(tree.items.get(itemId)!)
+    if (target !== tree) setMode('infra')
+    setExpansions((previous) => ({ ...previous, [key]: next }))
+    const page = resourcePage(target.items.get(itemId)!)
     if (trigger) inspector.navigate(page, trigger)
     else inspector.open(page, itemId)
   }
@@ -113,11 +114,13 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     stageProps: {
       ref: stage,
       'aria-busy': layoutPending,
+      'data-inspecting': Boolean(selection),
       'data-pipe-motion': legendProps.playing ? 'on' : 'off',
     },
     legendProps,
     layoutFailed,
     isEmpty: graph.nodes.length === 0,
+    noFlow: graph.nodes.length > 0 && mode === 'flow' && !tree.flowIDs.size,
     diagramProps: scene && {
       camera,
       scene,
@@ -132,17 +135,21 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       graph,
       search,
       mode,
-      setMode,
+      setMode: (value: ViewMode) => {
+        if (value === mode) return
+        fitAfterLayout.current = true
+        setMode(value)
+      },
       dependencies,
       setDependencies,
       topology,
-      setTopology: changeTopology,
+      setTopology,
       onResource: showResource,
       inspecting: Boolean(selection),
     },
     mapControlsProps: scene && {
       graph,
-      current: scene.current,
+      flowCount: mode === 'flow' ? tree.flowIDs.size : undefined,
       routes: scene.routes,
       zoomLabel,
       zoom: camera.zoom,

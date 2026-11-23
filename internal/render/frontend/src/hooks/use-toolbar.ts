@@ -101,7 +101,7 @@ export const useToolbar = ({
       results: matches.map(({ id, name, stack, type }) => ({
         id,
         name,
-        description: stack || type,
+        description: stack ? `${type} · ${stack}` : type,
         onClick: () => {
           onResource(id)
           setShowResults(false)

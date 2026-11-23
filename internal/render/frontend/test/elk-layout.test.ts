@@ -25,7 +25,7 @@ const measureText = (text: string) => [...text].length * 7
 
 const createView = (
   graph: Graph,
-  expand: (tree: Hierarchy) => Set<string> = (tree) => tree.initialExpanded,
+  expand: (tree: Hierarchy) => Set<string> = (tree) => new Set(tree.items.keys()),
 ) => {
   const tree = buildHierarchy(graph)
   return projectGraph(tree, 'infra', true, expand(tree))

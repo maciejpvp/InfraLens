@@ -45,21 +45,20 @@ const nested = {
   ],
 }
 test('stack and component hierarchy retains every resource, missing parents and supporting branches', () => {
-  const tree = buildHierarchy(nested),
+  const tree = buildHierarchy(nested, 'after', 'flow'),
     root = tree.roots[0]
-  assert.equal(root.members.size, nested.nodes.length)
+  assert.equal(root.members.size, nested.nodes.length - 1)
   assert.equal(tree.resourceItems.get('a')?.parent?.id, 'group:nested')
-  const orphan = tree.resourceItems.get('orphan')
-  assert.ok(orphan?.parent)
-  assert.equal(orphan.parent.name, 'Test')
-  assert.ok(!tree.initialExpanded.has(orphan.parent.id))
+  assert.ok(!tree.resourceItems.has('orphan'))
+  const infra = buildHierarchy(nested)
+  assert.equal(infra.resourceItems.get('orphan')?.parent?.name, 'Test')
   assert.ok(tree.initialExpanded.has('group:nested'))
   assert.equal(tree.resourceItems.get('root'), root)
-  const expanded = new Set(tree.initialExpanded)
+  const expanded = new Set(infra.initialExpanded)
   for (const n of nested.nodes) {
-    const id = revealResource(tree, n.id, expanded)
+    const id = revealResource(infra, n.id, expanded)
     assert.ok(id)
-    assert.ok(projectGraph(tree, 'infra', true, expanded).items.has(id))
+    assert.ok(projectGraph(infra, 'infra', true, expanded).items.has(id))
   }
 })
 test('collapsed connections aggregate by kind and retain each original edge and evidence', () => {
@@ -74,7 +73,7 @@ test('collapsed connections aggregate by kind and retain each original edge and 
       edge('a', 'target', 'connects_to'),
     ],
   }
-  const tree = buildHierarchy(graph),
+  const tree = buildHierarchy(graph, 'after', 'flow'),
     view = projectGraph(tree, 'flow', true, new Set(tree.roots.map((r) => r.id)))
   assert.equal(view.edges.length, 2)
   const aggregate = view.edges.find((e) => e.kind === 'triggers')
@@ -100,9 +99,11 @@ test('active topology controls both parentage and connections; filters do not lo
     let parent = tree.resourceItems.get('a')?.parent
     if (parent?.support) parent = parent.parent
     assert.equal(parent?.id, 'group:' + (state === 'before' ? 'old' : 'new'))
-    const v = projectGraph(tree, 'flow', true, tree.initialExpanded)
+    const flow = buildHierarchy(graph, state, 'flow')
+    const v = projectGraph(flow, 'flow', true, flow.initialExpanded)
     assert.equal(v.edges.length, state === 'before' ? 1 : 0)
-    assert.equal(v.representatives.size, 4)
+    assert.equal(v.representatives.size, state === 'before' ? 3 : 0)
+    assert.equal(projectGraph(tree, 'infra', true, tree.initialExpanded).representatives.size, 4)
     assert.equal(
       projectGraph(tree, 'infra', false, tree.initialExpanded).edges.some((e) => e.kind === 'depends_on'),
       false,
@@ -154,7 +155,7 @@ test('service classification uses explicit provider and service metadata', () =>
   assert.equal(serviceFor().name, 'Unknown')
 })
 
-test('service groups stay inside owners and stacks, collapse by default and retain each resource once', () => {
+test('infrastructure groups each service once per owner and stack; flow retains only its endpoints', () => {
   const graph = {
     nodes: [
       { ...node('root'), stackRoot: true },
@@ -166,16 +167,21 @@ test('service groups stay inside owners and stacks, collapse by default and reta
       { ...node('other-role', 'Resource', 'other'), provider: 'aws', service: 'iam' },
       { ...node('component-role'), provider: 'aws', service: 'iam' },
       { ...node('lambda'), provider: 'aws', service: 'lambda' },
+      { ...node('second-lambda'), provider: 'aws', service: 'lambda' },
+      { ...node('permission'), provider: 'aws', service: 'lambda' },
+      { ...node('second-permission'), provider: 'aws', service: 'lambda' },
+      { ...node('same-name-role'), name: 'lambda', provider: 'aws', service: 'iam' },
     ],
     edges: [
       edge('root', 'component'),
       edge('component', 'component-role'),
       edge('bucket', 'lambda', 'triggers'),
+      edge('second-lambda', 'opensearch-on-ec2', 'connects_to'),
     ],
   }
   const tree = buildHierarchy(graph),
     groups = [...tree.items.values()].filter((i) => i.group && i.support)
-  assert.equal(groups.length, 4)
+  assert.equal(groups.length, 6)
   const role = tree.resourceItems.get('role'),
     policy = tree.resourceItems.get('policy')
   assert.ok(role?.parent && policy?.parent)
@@ -184,10 +190,14 @@ test('service groups stay inside owners and stacks, collapse by default and reta
   assert.notEqual(role.parent, tree.resourceItems.get('other-role')?.parent)
   assert.equal(tree.resourceItems.get('component-role')?.parent?.parent?.id, 'group:component')
   assert.equal(tree.resourceItems.get('opensearch-on-ec2')?.parent?.name, 'EC2')
-  for (const id of ['bucket', 'lambda']) {
-    const parent = tree.resourceItems.get(id)?.parent
-    assert.ok(parent && !parent.support)
-  }
+  const lambda = tree.resourceItems.get('lambda')?.parent
+  assert.deepEqual([...lambda!.members].sort(), ['lambda', 'permission', 'second-lambda', 'second-permission'])
+  assert.equal(role.parent, tree.resourceItems.get('same-name-role')?.parent)
+  const flow = buildHierarchy(graph, 'after', 'flow')
+  const visible = projectGraph(flow, 'flow', true, flow.initialExpanded)
+  assert.deepEqual([...visible.representatives.keys()].sort(), ['bucket', 'lambda', 'opensearch-on-ec2', 'second-lambda'])
+  assert.equal(visible.edges.length, 2)
+  assert.equal([...visible.items.values()].some((item) => item.service), false)
   for (const group of groups) {
     assert.ok(group.group && group.children.length)
     assert.ok(!tree.initialExpanded.has(group.id))

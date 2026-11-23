@@ -1,22 +1,23 @@
-import type { Graph, GraphView, Route } from '../lib/graph.types'
+import type { Graph, Route } from '../lib/graph.types'
 
-import { countLabel } from '../lib/graph-view'
+import { countChanges, countLabel } from '../lib/graph-view'
 import { mapZoom } from '../components/toolbar.config'
 
 type MapControlsOptions = {
   graph: Graph
-  current: GraphView
+  flowCount?: number
   routes: (Route | null)[]
   zoom: (factor: number) => void
 }
 
-export const useMapControls = ({ graph, current, routes, zoom }: MapControlsOptions) => {
+export const useMapControls = ({ graph, flowCount, routes, zoom }: MapControlsOptions) => {
   const missing = routes.filter((route) => !route).length
-  const resources = countLabel(graph.nodes.length, 'resource')
-  const stacks = countLabel(current.roots.length, 'stack')
+  const counts = flowCount === undefined
+    ? [countLabel(graph.nodes.length, 'resource'), countChanges(graph.nodes)]
+    : [`${flowCount} in flow`, `${graph.nodes.length} total`]
 
   return {
-    summary: `${resources} · ${stacks}${missing ? ` · unrouted: ${missing}` : ''}`,
+    summary: [...counts, missing ? `unrouted: ${missing}` : ''].filter(Boolean).join(' · '),
     omitted: (graph.omittedRelations ?? 0) > 0 ? `Omitted references: ${graph.omittedRelations}` : '',
     zoomIn: () => zoom(mapZoom.in),
     zoomOut: () => zoom(mapZoom.out),

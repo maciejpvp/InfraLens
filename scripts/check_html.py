@@ -17,6 +17,21 @@ try {
   const graph=JSON.parse($('infralens-data').textContent);
   const view=()=>$('diagram').querySelector('.react-flow__viewport').style.transform;
   const card=item=>item.closest('[data-diagram-card]');
+  const cardColors={create:'#527e6b',delete:'#986771',update:'#92805b',replace:'#92805b'};
+  const swatch=document.createElement('span');
+  document.body.append(swatch);
+  swatch.style.backgroundColor='var(--color-card)';
+  const neutralCard=getComputedStyle(swatch).backgroundColor;
+  swatch.remove();
+  function checkCardChange(card,change){
+    const style=getComputedStyle(card),color=cardColors[change];
+    assert(style.backgroundColor===neutralCard,'Card background varies with change status');
+    assert(style.getPropertyValue('--card-change').trim()===(color||''),'Wrong card change color: '+change);
+    if(color){
+      assert(style.borderColor==='rgb('+color.slice(1).match(/../g).map(hex=>parseInt(hex,16)).join(', ')+')','Missing status-colored border');
+      assert(style.boxShadow.includes('0px 0px 3px')&&style.boxShadow.includes('0px 0px 12px'),'Missing two-layer status shadow: '+style.boxShadow);
+    }
+  }
   const edgeLabel=edge=>document.querySelector(`[data-edge-label="${edge.dataset.edge}"]`);
   const dialog=()=>$('inspector'),close=()=>$('clear-selection'),back=()=>$('inspector-back');
   const title=()=>dialog().querySelector('[data-slot="dialog-title"]').textContent;
@@ -96,17 +111,6 @@ try {
       }
     }
   }
-  const serviceGroups=[...document.querySelectorAll('[data-service]')];
-  for(const group of serviceGroups){
-    const id=group.dataset.item,toggle=card(group).querySelector('[data-toggle]');
-    assert(toggle.getAttribute('aria-expanded')==='false','Service group is initially expanded');
-    if(group.dataset.service.startsWith('aws:')&&group.querySelector('.service-icon'))assert(group.querySelector('.service-icon').getAttribute('aria-hidden')==='true','Icon is not decorative');
-    await dispatch(toggle,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
-    const expanded=[...document.querySelectorAll('[data-item]')].find(g=>g.dataset.item===id);
-    assert(card(expanded).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
-    assert(view()===initial,'Service expansion changed camera');checkRoutes();
-    await dispatch(card(expanded).querySelector('[data-toggle]'),new MouseEvent('click',{bubbles:true}));
-  }
   const icons=[...new Set([...document.querySelectorAll('.service-icon')].map(e=>e.getAttribute('src')))];
   for(const uri of icons){
     assert(uri.startsWith('data:image/svg+xml;base64,'),'Icon is not embedded');
@@ -121,8 +125,39 @@ try {
   const plannedFlow=graph.edges.filter(e=>(!e.state||e.state==='after')&&['triggers','connects_to'].includes(e.kind));
   if(plannedFlow.length){
     assert($('flow-view').getAttribute('aria-pressed')==='true','Flow did not open by default');
+    const endpoints=new Set(plannedFlow.flatMap(e=>[e.from,e.to]));
+    assert(!document.querySelector('[data-service]'),'Flow contains a service group');
+    assert($('summary').textContent.includes(endpoints.size+' in flow · '+graph.nodes.length+' total'),'Incorrect Flow counts');
+    assert([...document.querySelectorAll('[data-node]')].every(n=>endpoints.has(n.dataset.node)),'Flow contains an unrelated resource');
     const shown=[...document.querySelectorAll('[data-edge]')].reduce((n,e)=>n+(+e.dataset.count),0);
     assert(shown===plannedFlow.length,'Configured flow connections are missing');
+    const flowEdges=[...document.querySelectorAll('[data-edge]')];
+    const flowCards=[...document.querySelectorAll('[data-node]')];
+    const focusCard=flowCards.find(card=>flowEdges.some(edge=>[edge.dataset.from,edge.dataset.to].includes(card.dataset.node)));
+    if(focusCard){
+      const grid=getComputedStyle($('stage')).backgroundImage;
+      await click(focusCard);
+      for(const element of [...flowEdges,...flowCards]){
+        for(const animation of element.getAnimations())if(animation instanceof CSSTransition)animation.finish();
+      }
+      const neighbors=new Set([focusCard.dataset.node]);
+      for(const edge of flowEdges){
+        const incident=[edge.dataset.from,edge.dataset.to].includes(focusCard.dataset.node);
+        if(incident){neighbors.add(edge.dataset.from);neighbors.add(edge.dataset.to);}
+        assert(+getComputedStyle(edge).opacity===(incident?1:.08),'Wrong arrow opacity in object focus: '+getComputedStyle(edge).opacity+' '+edge.getAttribute('class')+' incident='+incident+' connected='+edge.isConnected);
+        const caption=edgeLabel(edge);
+        if(caption)assert(+getComputedStyle(caption).opacity===(incident?1:.08),'Arrow label did not follow object focus');
+        const stream=edge.querySelector('.pipe-current');
+        if(!incident&&stream)assert(getComputedStyle(stream).animationPlayState==='paused','Unrelated arrow is still animated');
+      }
+      for(const node of flowCards){
+        assert(+getComputedStyle(node).opacity===(neighbors.has(node.dataset.node)?1:.25),'Wrong card opacity in object focus');
+        assert(node.classList.contains('selected')===(node===focusCard),'Object focus selected an adjacent resource');
+      }
+      assert(getComputedStyle($('stage')).backgroundImage!==grid,'Object focus did not dim the grid');
+      await click(close());
+      assert(getComputedStyle($('stage')).backgroundImage===grid,'Closing details did not restore the grid');
+    }
     const connection=document.querySelector('[data-edge]');
     await dispatch(connection,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
     assert(inspector()&&$('details').textContent.includes('Evidence'),'Connection evidence is inaccessible');
@@ -170,7 +205,8 @@ try {
     assert(opened(members),'Group accordion could not be opened');
     if(group.dataset.item.startsWith('stack:')){
       const stack=group.dataset.item.slice('stack:'.length);
-      const resources=new Set(graph.nodes.filter(node=>(node.stack||'No stack')===stack).map(node=>node.id));
+      const shownMembers=new Set([...document.querySelectorAll('[data-item]')].map(item=>item.dataset.item));
+      const resources=new Set(graph.nodes.filter(node=>(node.stack||'No stack')===stack&&(!plannedFlow.length||shownMembers.has(node.id)||shownMembers.has('group:'+node.id)||node.stackRoot)).map(node=>node.id));
       const within=graph.edges.find(edge=>edge.kind!=='contains'&&(!edge.state||edge.state==='after')&&resources.has(edge.from)&&resources.has(edge.to));
       if(within){
         const relationNames={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Deployment dependencies'};
@@ -290,10 +326,59 @@ try {
       await click(close());
       assert(!inspector()&&document.activeElement.dataset.edge===firstEdge.dataset.edge,'Close button did not restore edge focus');
     }
-    const beforeMode=view(),beforeCount=document.querySelectorAll('[data-item]').length;await click($('infra-view'));assert(view()===beforeMode,'View switch changed camera');
-    assert(document.querySelectorAll('[data-item]').length===beforeCount,'Infrastructure expanded every resource');checkRoutes();
+    const flowItems=new Set([...document.querySelectorAll('[data-item]')].map(item=>item.dataset.item));
+    const hiddenResources=plannedFlow.length ? graph.nodes.filter(n=>!n.stackRoot&&!flowItems.has(n.id)&&!flowItems.has('group:'+n.id)) : [];
+    const outsideFlow=hiddenResources.find(n=>graph.nodes.some(other=>other.name===n.name&&flowItems.has(other.id)))??hiddenResources[0];
+    if(outsideFlow){
+      $('search').value=outsideFlow.name;await dispatch($('search'),new Event('input',{bubbles:true}));
+      const result=[...$('results').querySelectorAll('button')].find(b=>b.dataset.resource===outsideFlow.id);
+      assert(result?.textContent.includes(outsideFlow.type),'Search result does not identify the resource type');
+      await click(result);
+      assert($('infra-view').getAttribute('aria-pressed')==='true'&&inspector()&&title()===outsideFlow.name,'Search did not reveal the resource in Infrastructure');
+      await click(close());
+      const owningGroup=[...document.querySelectorAll('[data-service]')].find(g=>g.getAttribute('aria-label')&&card(g).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true');
+      if(owningGroup)await click(card(owningGroup).querySelector('[data-toggle]'));
+      await click($('flow-view'));
+    }
+    if(plannedFlow.length&&!graph.edges.some(e=>(!e.state||e.state==='before')&&['triggers','connects_to'].includes(e.kind))){
+      const select=$('topology');
+      select.value='before';await dispatch(select,new Event('change',{bubbles:true}));
+      assert(!$('empty').hidden&&$('empty').textContent==='No configured connections'&&!document.querySelector('[data-item]'),'Before view drew unrelated resources');
+      select.value='after';await dispatch(select,new Event('change',{bubbles:true}));
+    }
+    await click($('infra-view'));
+    assert($('summary').textContent.startsWith(graph.nodes.length+' resource'),'Incorrect Infrastructure count');
+    if(graph.nodes.every(n=>n.change==='create'))assert($('summary').textContent.includes('+ create '+graph.nodes.length),'Incorrect create count');
+    const infraViewport=view();
+    const serviceGroups=[...document.querySelectorAll('[data-service]')];
+    for(const group of serviceGroups){
+      const id=group.dataset.item,toggle=card(group).querySelector('[data-toggle]');
+      assert(toggle.getAttribute('aria-expanded')==='false','Service group is initially expanded');
+      checkCardChange(group,group.dataset.change);
+      const visibleNodes=new Set([...document.querySelectorAll('[data-node]')].map(n=>n.dataset.node));
+      if(group.dataset.service.startsWith('aws:')&&group.querySelector('.service-icon'))assert(group.querySelector('.service-icon').getAttribute('aria-hidden')==='true','Icon is not decorative');
+      await dispatch(toggle,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+      const expanded=[...document.querySelectorAll('[data-item]')].find(g=>g.dataset.item===id);
+      assert(card(expanded).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
+      const members=[...document.querySelectorAll('[data-node]')].filter(n=>!visibleNodes.has(n.dataset.node));
+      const status=['delete','replace','update','create'].find(change=>members.some(n=>n.dataset.change===change))??'';
+      assert(members.length>0&&group.dataset.change===status,'Collapsed service group did not inherit its members’ change status');
+      if(group.dataset.service==='aws:lambda'&&graph.nodes.filter(n=>n.service==='lambda').length===4){
+        const lambdaNodes=graph.nodes.filter(n=>n.service==='lambda');
+        if(lambdaNodes.filter(n=>n.type.endsWith(':Function')).length===2&&lambdaNodes.filter(n=>n.type.endsWith(':Permission')).length===2){
+          assert(group.textContent.includes('4 resources'),'Lambda card does not count all Lambda resources');
+          for(const node of lambdaNodes)assert(document.querySelectorAll('[data-node="'+node.id+'"]').length===1,'Lambda resource missing or duplicated');
+        }
+      }
+      assert(view()===infraViewport,'Service expansion changed camera');checkRoutes();
+      await dispatch(card(expanded).querySelector('[data-toggle]'),new MouseEvent('click',{bubbles:true}));
+    }
+    const beforeMode=view();
+    checkRoutes();
     await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
-    await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');await click($('fit'));
+    await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');
+    if(location.search.includes('parallel'))await click(document.querySelector('[data-service]').closest('[data-diagram-card]').querySelector('[data-toggle]'));
+    await click($('fit'));
     await wait(150);
     const rendered=[...document.querySelectorAll('[data-edge]')];
     const kindLabels={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Deployment dependencies'};
@@ -365,12 +450,7 @@ try {
       await click(close());
       assert(document.activeElement.hasAttribute('data-item'),'Search resource did not receive focus after modal closed');
       const body=document.activeElement.matches('.body')&&document.activeElement;
-      if(body&&['create','delete','unchanged'].includes(target.change)){
-        const [r,g,b]=getComputedStyle(body).backgroundColor.match(/[\d.]+/g).map(Number);
-        if(target.change==='create')assert(g>r*1.5&&g>b,'Created resource is not green');
-        if(target.change==='delete')assert(r>g*1.5&&r>b,'Deleted resource is not red');
-        if(target.change==='unchanged')assert(Math.max(r,g,b)-Math.min(r,g,b)<35,'Unchanged resource is not neutral');
-      }
+      if(body){body.blur();checkCardChange(body,target.change);}
     }
     checkRoutes();
     const beforePan=view(),pane=$('diagram').querySelector('.react-flow__pane');
@@ -449,14 +529,16 @@ def main():
         data_pattern = r'(<script id="infralens-data" type="application/json">)(.*?)(</script>)'
         source_graph = json.loads(re.search(data_pattern, original, re.S).group(2))
         long_graph = json.loads(json.dumps(source_graph))
-        for node in long_graph['nodes']:
+        changes = ('create', 'delete', 'update', 'replace', 'unchanged')
+        for index, node in enumerate(long_graph['nodes']):
+            node['change'] = changes[index % len(changes)]
             node['name'] = 'WWWWWWWWWWWWWWWWWWWWWWWWWWWW 中文 ' + node['name'] + ' bardzo-długa-nazwa' * 8
         mobile_graph = json.loads(json.dumps(long_graph))
         for edge in mobile_graph['edges']:
             for proof in edge['evidence']:
                 proof['details'] = (proof.get('details') or '') + '\n' + '\n'.join(['Long configuration value'] * 50)
         empty_graph = {'schemaVersion': 1, 'nodes': [], 'edges': []}
-        parallel_graph = {'schemaVersion': 1, 'nodes': [{'id': key, 'name': key, 'type': 'test:resource:Resource', 'stack': 'shared/dev'} for key in ['source', 'target']], 'edges': [{'from': 'source', 'to': 'target', 'kind': kind, 'evidence': [{'source': 'test', 'property': kind}]} for kind in ['triggers', 'connects_to', 'depends_on']]}
+        parallel_graph = {'schemaVersion': 1, 'nodes': [{'id': key, 'name': key, 'type': 'test:resource:Resource', 'stack': 'shared/dev', 'change': 'create' if key == 'source' else 'delete'} for key in ['source', 'target']], 'edges': [{'from': 'source', 'to': 'target', 'kind': kind, 'evidence': [{'source': 'test', 'property': kind}]} for kind in ['triggers', 'connects_to', 'depends_on']]}
         scenarios = [('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False)]
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')

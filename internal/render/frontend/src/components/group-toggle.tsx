@@ -1,7 +1,6 @@
 import type { useDiagramItem } from '../hooks/use-diagram-item'
 
 import { Button } from '../ui/button'
-import { diagramStyles as styles } from './diagram.variants'
 
 export const GroupToggle = ({
   id,
@@ -9,6 +8,7 @@ export const GroupToggle = ({
   ariaLabel,
   symbol,
   events,
+  className,
 }: NonNullable<ReturnType<typeof useDiagramItem>['toggleProps']>) => (
   <Button
     type="button"
@@ -16,7 +16,7 @@ export const GroupToggle = ({
     data-toggle={id}
     aria-label={ariaLabel}
     aria-expanded={expanded}
-    className={styles.toggle}
+    className={className}
     {...events}
   >
     {symbol}

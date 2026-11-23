@@ -16,8 +16,8 @@ import type {
 import { defaultTopology, services } from './layout.config.ts'
 
 const compare = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)
-const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'connects_to'
-const activeEdges = (graph: Graph, state: Topology) =>
+export const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'connects_to'
+export const activeEdges = (graph: Graph, state: Topology) =>
   graph.edges.filter((e) => !e.state || e.state === state)
 
 export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provider' | 'service'> = {}): Service => {
@@ -69,7 +69,11 @@ export const edgeCaption = (edge: DescribedEdge) => {
 }
 
 // Groups are a view of ownership, not new infrastructure resources.
-export const buildHierarchy = (graph: Graph, state: Topology = defaultTopology): Hierarchy => {
+export const buildHierarchy = (
+  graph: Graph,
+  state: Topology = defaultTopology,
+  mode: ViewMode = 'infra',
+): Hierarchy => {
   const edges = activeEdges(graph, state),
     nodes = new Map(graph.nodes.map((n) => [n.id, n]))
   const flowIDs = new Set(edges.filter(isFlow).flatMap((e) => [e.from, e.to]))
@@ -103,7 +107,15 @@ export const buildHierarchy = (graph: Graph, state: Topology = defaultTopology):
     members: new Set(node ? [node.id] : []),
     parent: null,
   })
+  const included = new Set(flowIDs)
+  if (mode === 'flow') {
+    for (const id of flowIDs) {
+      for (let ancestor = parents.get(id); ancestor && !included.has(ancestor); ancestor = parents.get(ancestor))
+        included.add(ancestor)
+    }
+  }
   for (const n of [...graph.nodes].sort(compare)) {
+    if (mode === 'flow' && !included.has(n.id)) continue
     const stack = n.stack || 'No stack'
     if (!stacks.has(stack)) {
       const g = makeGroup('stack:' + stack, stack, stack)
@@ -148,18 +160,18 @@ export const buildHierarchy = (graph: Graph, state: Topology = defaultTopology):
     attach(item, cycle ? stack : parent)
   }
   for (const parent of [...items.values()])
-    if (parent.group) {
-      const isSupport = (item: HierarchyItem): item is Extract<HierarchyItem, { group: false }> =>
-        !item.group && !flowIDs.has(item.node.id)
-      const support = parent.children.filter(isSupport)
-      if (!support.length) continue
-      parent.children = parent.children.filter((c) => !isSupport(c))
+    if (mode === 'infra' && parent.group) {
+      const isLeaf = (item: HierarchyItem): item is Extract<HierarchyItem, { group: false }> =>
+        !item.group
+      const leaves = parent.children.filter(isLeaf)
+      if (!leaves.length) continue
+      parent.children = parent.children.filter((c) => !isLeaf(c))
       const groups = new Map<string, Group>()
-      for (const item of support) {
+      for (const item of leaves) {
         const service = serviceFor(item.node)
         let group = groups.get(service.id)
         if (!group) {
-          group = makeGroup('support:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
+          group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
           group.service = service
           groups.set(service.id, group)
           items.set(group.id, group)
@@ -177,14 +189,9 @@ export const buildHierarchy = (graph: Graph, state: Topology = defaultTopology):
   }
   const roots = [...stacks.values()].sort(compare)
   for (const root of roots) collect(root)
-  const expanded = new Set<string>()
-  for (const item of items.values())
-    if (
-      item.group &&
-      !item.support &&
-      (roots.includes(item) || [...item.members].some((id) => flowIDs.has(id)))
-    )
-      expanded.add(item.id)
+  const expanded = new Set(
+    mode === 'flow' ? [...items.values()].filter((item) => item.group).map((item) => item.id) : roots.map((root) => root.id),
+  )
   return { roots, items, resourceItems, edges, flowIDs, initialExpanded: expanded }
 }
 
