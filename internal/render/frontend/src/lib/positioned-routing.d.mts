@@ -1,6 +1,6 @@
 import type { GraphView, Layout, Point, Position, Route } from './graph.types.ts'
 
-export function routeEdges(view: GraphView, layout: Layout): (Route | null)[]
+export function routeEdges(view: GraphView, layout: Layout, retained?: readonly (Route | null)[]): (Route | null)[]
 export function placeEdgeLabel(
   points: Point[],
   width: number,

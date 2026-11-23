@@ -29,29 +29,51 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const expansionKey = `${topology}:${mode}`
   const expanded = expansions[expansionKey] ?? tree.initialExpanded
   const fitAfterLayout = useRef(false)
-  const [dependencies, setDependencies] = useState(true)
+  const legendProps = useConnectionLegend()
+  const { hiddenKinds, setKindVisible } = legendProps
   const stage = useRef<HTMLElement>(null)
   const search = useRef<HTMLInputElement>(null)
   const zoomLabel = useRef<HTMLOutputElement>(null)
   const reveal = useRef<string | null>(null)
   const toggleFocus = useRef<string | null>(null)
-  const current = useMemo(
-    () => projectGraph(tree, mode, dependencies, expanded),
-    [tree, mode, dependencies, expanded],
-  )
-  const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(tree, current, toggleFocus)
-  const legendProps = useConnectionLegend()
-  const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef)
+  const layoutAnchor = useRef<string | null>(null)
+  const restoreOrigin = useRef<InspectorOrigin | null>(null)
+  const findOpener = (origin: InspectorOrigin | null) => {
+    if (typeof origin !== 'string')
+      return origin && diagramElement(stage.current, 'edge-id', origin.edge)
+    const parent = tree.resourceItems.get(origin)?.parent
+    return diagramElement(stage.current, 'item', origin) ||
+      (parent && diagramElement(stage.current, 'item', parent.id))
+  }
   const inspector = useInspector((origin) => {
-    if (typeof origin === 'string') return diagramElement(stage.current, 'item', origin) || search.current
-    if (origin?.edge !== undefined)
-      return diagramElement(stage.current, 'edge', origin.edge) || search.current
-    return search.current
+    const element = findOpener(origin)
+    restoreOrigin.current = origin
+    return element || search.current
   })
   const selection = inspector.pages.at(-1)
+  const focusId = selection?.focusId
+  const [isolatedId, setIsolatedId] = useState<string>()
+  const onlyConnections = Boolean(focusId && isolatedId === focusId)
+  const serviceGroup = focusId ? tree.resourceItems.get(focusId)?.parent : undefined
+  const projectedFocusId = onlyConnections || (serviceGroup?.service && !expanded.has(serviceGroup.id))
+    ? focusId
+    : undefined
+  const context = useMemo(
+    () => projectGraph(tree, mode, hiddenKinds, expanded),
+    [tree, mode, hiddenKinds, expanded],
+  )
+  const current = useMemo(
+    () => projectedFocusId ? projectGraph(tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections) : context,
+    [tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections, context],
+  )
+  const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(
+    tree, current, context, onlyConnections ? undefined : projectedFocusId, layoutAnchor,
+  )
+  const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef)
 
   useLayoutEffect(() => {
     if (!scene || scene.motion || scene.current !== current) return
+    layoutAnchor.current = null
     if (fitAfterLayout.current) {
       fitAfterLayout.current = false
       camera.fit()
@@ -66,10 +88,16 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       diagramElement(stage.current, 'toggle', toggleFocus.current)?.focus({ preventScroll: true })
       toggleFocus.current = null
     }
-  }, [scene, current])
+    if (restoreOrigin.current) {
+      if (document.activeElement === search.current || document.activeElement === document.body)
+        findOpener(restoreOrigin.current)?.focus({ preventScroll: true })
+      restoreOrigin.current = null
+    }
+  }, [scene, current, selection])
 
   const toggle = (id: string) => {
     toggleFocus.current = id
+    layoutAnchor.current = id
     setExpansions((previous) => {
       const next = new Set(previous[expansionKey] ?? tree.initialExpanded)
       if (next.has(id)) next.delete(id)
@@ -84,33 +112,53 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       item,
       links,
       edges: [],
+      focusId: item.group ? undefined : item.id,
     }
   }
 
   const edgePage = (edges: GraphEdge[]): InspectorPage => {
-    return { edges }
+    return { edges, focusId }
+  }
+
+  const revealOnDiagram = (id: string, center = true) => {
+    const target = tree.resourceItems.has(id) ? tree : infra
+    const key = target === tree ? expansionKey : `${topology}:infra`
+    const alreadyExpanded = expansions[key] ?? target.initialExpanded
+    const next = new Set(alreadyExpanded)
+    const itemId = revealResource(target, id, next)
+    if (!itemId) return
+    const item = target.items.get(itemId)!
+    const group = item.parent
+    if (target === tree && group?.service && !next.has(group.id) && !current.items.has(itemId))
+      layoutAnchor.current = group.id
+    reveal.current = center ? itemId : null
+    if (target !== tree) setMode('infra')
+    if (next.size !== alreadyExpanded.size)
+      setExpansions((previous) => ({ ...previous, [key]: next }))
+    return item
   }
 
   const showResource: OpenResource = (id, trigger) => {
-    const target = tree.resourceItems.has(id) ? tree : infra
-    const key = target === tree ? expansionKey : `${topology}:infra`
-    const next = new Set(expansions[key] ?? target.initialExpanded)
-    const itemId = revealResource(target, id, next)
-    if (!itemId) return
-    reveal.current = itemId
-    if (target !== tree) setMode('infra')
-    setExpansions((previous) => ({ ...previous, [key]: next }))
-    const page = resourcePage(target.items.get(itemId)!)
+    const item = revealOnDiagram(id)
+    if (!item) return
+    setIsolatedId(undefined)
+    const page = resourcePage(item)
     if (trigger) inspector.navigate(page, trigger)
-    else inspector.open(page, itemId)
+    else inspector.open(page, item.id)
   }
 
   const openItem = (id: string) => {
     const item = scene?.tree.items.get(id)
-    if (scene && item) inspector.open(resourcePage(item, scene.tree.edges), id)
+    if (scene && item) {
+      setIsolatedId((previous) => previous === id ? previous : undefined)
+      inspector.open(resourcePage(item, scene.tree.edges), id)
+    }
   }
   const openEdges = (edges: GraphEdge[], origin: InspectorOrigin) => inspector.open(edgePage(edges), origin)
-  const navigateEdges: OpenRelation = (edges, trigger) => inspector.navigate(edgePage(edges), trigger)
+  const navigateEdges: OpenRelation = (edge, trigger) => {
+    const dependent = edge.kind === 'depends_on' ? revealOnDiagram(edge.from, false) : undefined
+    inspector.navigate({ edges: [edge], focusId: dependent ? edge.from : focusId }, trigger)
+  }
 
   return {
     stageProps: {
@@ -140,13 +188,25 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       mode,
       setMode: (value: ViewMode) => {
         if (value === mode) return
+        setIsolatedId(undefined)
         fitAfterLayout.current = true
         setMode(value)
       },
-      dependencies,
-      setDependencies,
+      dependencies: !hiddenKinds.has('depends_on'),
+      setDependencies: (visible: boolean) => setKindVisible('depends_on', visible),
       topology,
-      setTopology,
+      setTopology: (value: Topology) => {
+        if (value === topology) return
+        setIsolatedId(undefined)
+        setTopology(value)
+      },
+      connectionScope: focusId && tree.resourceItems.has(focusId) ? {
+        checked: onlyConnections,
+        change: (checked: boolean) => {
+          fitAfterLayout.current = true
+          setIsolatedId(checked ? focusId : undefined)
+        },
+      } : undefined,
       onResource: showResource,
       inspecting: Boolean(selection),
     },
@@ -158,6 +218,6 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       zoom: camera.zoom,
       fit: camera.fit,
     },
-    detailsProps: { inspector, byId, onResource: showResource, onEdges: navigateEdges },
+    detailsProps: { inspector, byId, icons, onResource: showResource, onEdges: navigateEdges },
   }
 }

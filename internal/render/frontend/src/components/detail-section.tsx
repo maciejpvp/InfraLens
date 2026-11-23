@@ -11,7 +11,7 @@ export const DetailSection = ({
   children,
 }: {
   value: string
-  title: string
+  title: ReactNode
   children: ReactNode
 }) => (
   <AccordionItem value={value} className={styles.section}>

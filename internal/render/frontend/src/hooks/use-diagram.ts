@@ -44,10 +44,14 @@ export const useDiagram = ({
   const { current, layout, routes, motion } = scene
   const related = new Set(selection?.item ? selection.links : selection?.edges)
   const selectedNodes = new Set<string>()
+  const selectedEndpoint = selection?.focusId && selection.edges.some(
+    (edge) => edge.from === selection.focusId || edge.to === selection.focusId,
+  ) ? current.representatives.get(selection.focusId) : undefined
   if (selection?.item) {
     selectedNodes.add(selection.item.id)
     for (const id of selection.item.members) selectedNodes.add(current.representatives.get(id) ?? id)
   }
+  if (selectedEndpoint) selectedNodes.add(selectedEndpoint)
 
   const relatedEdges = current.edges.map((edge) => edge.originals.some((original) => related.has(original)))
   const visible = new Set(selectedNodes)
@@ -55,7 +59,7 @@ export const useDiagram = ({
     if (!relatedEdges[index] || !routes[index]) continue
     visible.add(edge.from)
     visible.add(edge.to)
-    if (!selection?.item) {
+    if (!selection?.item && !selectedEndpoint) {
       selectedNodes.add(edge.from)
       selectedNodes.add(edge.to)
     }
@@ -76,7 +80,7 @@ export const useDiagram = ({
       })
       if (hits.length) matches = hits
     }
-    onEdges([...new Set(matches.flatMap((edge) => edge.originals))], { edge: String(index) })
+    onEdges([...new Set(matches.flatMap((edge) => edge.originals))], { edge: edgeKey(current.edges[index]) })
   }
 
   // Layout gives absolute positions in parent-first order. React Flow expects child offsets.
@@ -154,6 +158,7 @@ export const useDiagram = ({
         style: paint.wire,
         domAttributes: {
           'data-edge': index,
+          'data-edge-id': edgeKey(edge),
           'data-from': from,
           'data-to': to,
           'data-count': originals.length,
@@ -165,11 +170,10 @@ export const useDiagram = ({
           index,
           retiring,
           opacity: motion?.edgeOpacity.get(index),
-          path: route.d,
+          route,
           underlay: paint.underlay,
           stream: paint.stream,
           wireClassName: clsx(styles.wire, selected && styles.selectedWire),
-          label: route.label,
           labelClassName: clsx(styles.edgeLabel, muted && styles.mutedEdge),
         },
       },

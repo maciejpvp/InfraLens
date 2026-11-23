@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"infralens/internal/graph"
+	"infralens/internal/graph/awscdk"
 	"infralens/internal/graph/pulumi"
 	"infralens/internal/graph/pulumi/simulate"
 )
@@ -132,6 +133,56 @@ func TestCommands(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestCDKReports(t *testing.T) {
+	var logs bytes.Buffer
+	cli := New(&logs, &logs, map[string]Provider{"aws-cdk": {ReadInputs: awscdk.ReadInputs}})
+	for _, command := range []string{"graph", "render"} {
+		t.Run(command, func(t *testing.T) {
+			output := filepath.Join(t.TempDir(), "report")
+			args := []string{command, "--provider=aws-cdk", "--input", "../../testdata/awscdk/Example.template.json", "--output", output}
+			if cli.Run(args) != 0 {
+				t.Fatal(logs.String())
+			}
+			data, err := os.ReadFile(output)
+			if err != nil || !bytes.Contains(data, []byte("AWS::SQS::Queue")) ||
+				bytes.Contains(data, []byte("CANARY_CDK_SECRET")) || strings.Contains(logs.String(), "CANARY_CDK_SECRET") {
+				t.Fatalf("invalid or unsafe CDK report: %v", err)
+			}
+		})
+	}
+}
+
+func TestInvalidProviderGraphPreservesReports(t *testing.T) {
+	var logs bytes.Buffer
+	cli := New(&logs, &logs, map[string]Provider{
+		"example": {ReadInputs: func([]string, func(string) (io.Reader, error)) (graph.Graph, error) {
+			return graph.Graph{
+				SchemaVersion: 1,
+				Nodes:         []graph.Node{{ID: "source", Name: "Source", Type: "Example"}},
+				Edges: []graph.Edge{{
+					From: "source", To: "missing", Kind: graph.DependsOn, Evidence: []graph.Evidence{{Source: "example"}},
+				}},
+			}, nil
+		}},
+	})
+	for _, command := range []string{"graph", "render"} {
+		t.Run(command, func(t *testing.T) {
+			output := filepath.Join(t.TempDir(), "report")
+			const previous = "previous report"
+			if err := os.WriteFile(output, []byte(previous), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if cli.Run([]string{command, "--provider=example", "--input", "unused", "--output", output}) == 0 {
+				t.Fatal("accepted a graph with a dangling edge")
+			}
+			data, err := os.ReadFile(output)
+			if err != nil || string(data) != previous {
+				t.Fatalf("previous report changed: %q, %v", data, err)
+			}
+		})
 	}
 }
 

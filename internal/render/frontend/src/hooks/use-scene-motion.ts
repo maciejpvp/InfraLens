@@ -7,6 +7,7 @@ export const useSceneMotion = (
   target: Scene | undefined,
   anchor: RefObject<string | null>,
   measure: (text: string) => number,
+  fixed = false,
 ) => {
   const [scene, setScene] = useState<Scene>()
   const shown = useRef<Scene | undefined>(undefined)
@@ -62,13 +63,15 @@ export const useSceneMotion = (
     const id = anchor.current
     const from = id ? current?.layout.positions.get(id) : undefined
     const to = id ? next.layout.positions.get(id) : undefined
-    if (from && to && current?.tree === target.tree) {
+    if (fixed && id && current?.tree === target.tree) {
+      animate(current, next, 150)
+    } else if (!fixed && from && to && current?.tree === target.tree) {
       next = translateScene(next, { x: from.x - to.x, y: from.y - to.y })
       const distance = Math.max(Math.abs(from.height - to.height), Math.abs(from.width - to.width))
       animate(current, next, Math.max(150, Math.min(270, distance * 2)))
     } else {
       stop()
-      if (previousTarget?.tree === target.tree && current) {
+      if (!fixed && previousTarget?.tree === target.tree && current) {
         // Connection filters must not erase the visual origin established by a toggle.
         const common = next.current.roots.find((root) => previousTarget.layout.positions.has(root))
         const oldRoot = common && previousTarget.layout.positions.get(common)
@@ -79,7 +82,7 @@ export const useSceneMotion = (
       publish(next)
     }
     return stop
-  }, [target])
+  }, [target, fixed])
 
   const begin = (id: string) => {
     const current = shown.current
@@ -127,7 +130,7 @@ export const useSceneMotion = (
     else animate(live, destination, 170)
   }
 
-  return { scene, moveCard: { begin, move, end } }
+  return { scene, settled, moveCard: { begin, move, end } }
 }
 
 export type MoveCard = ReturnType<typeof useSceneMotion>['moveCard']

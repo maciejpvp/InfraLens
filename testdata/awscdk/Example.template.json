@@ -1,0 +1,58 @@
+{
+  "Parameters": { "Stage": { "Type": "String" } },
+  "Resources": {
+    "Queue": { "Type": "AWS::SQS::Queue" },
+    "Table": { "Type": "AWS::DynamoDB::Table" },
+    "Worker": {
+      "Type": "AWS::Lambda::Function",
+      "DependsOn": ["Queue", "Missing"],
+      "Properties": {
+        "Environment": { "Variables": {
+          "TABLE": { "Ref": "Table" },
+          "TABLE_ARN": { "Fn::GetAtt": ["Table", "Arn"] },
+          "VALUE": "CANARY_CDK_SECRET",
+          "QUEUE": { "Ref": "Queue" },
+          "STAGE": { "Ref": "Stage" },
+          "NAME": { "Fn::Sub": ["${Queue.Arn}/${AWS::Region}/${Stage}/${!Escaped}/${Replaced}/${Missing}", {
+            "Replaced": { "Fn::GetAtt": "Bucket.Arn" }
+          }] },
+          "OTHER_STACK": { "Fn::ImportValue": "UnresolvedExport" }
+        } }
+      }
+    },
+    "QueueMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "DependsOn": "Queue",
+      "Properties": { "EventSourceArn": { "Fn::GetAtt": ["Queue", "Arn"] }, "FunctionName": { "Ref": "Worker" } }
+    },
+    "StreamMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": { "EventSourceArn": { "Fn::GetAtt": ["Table", "StreamArn"] }, "FunctionName": { "Fn::GetAtt": ["Worker", "Arn"] } }
+    },
+    "DisabledMapping": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": { "Enabled": false, "EventSourceArn": { "Fn::GetAtt": ["Queue", "Arn"] }, "FunctionName": { "Ref": "Worker" } }
+    },
+    "Bucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": { "NotificationConfiguration": { "LambdaConfigurations": [
+        { "Event": "s3:ObjectCreated:*", "Function": { "Fn::GetAtt": ["Worker", "Arn"] } }
+      ] } }
+    },
+    "Notifications": {
+      "Type": "Custom::S3BucketNotifications",
+      "Properties": { "BucketName": { "Ref": "Bucket" }, "NotificationConfiguration": { "LambdaFunctionConfigurations": [
+        { "Events": ["s3:ObjectRemoved:*"], "LambdaFunctionArn": { "Fn::GetAtt": ["Worker", "Arn"] } }
+      ] } }
+    },
+    "Api": { "Type": "AWS::AppSync::GraphQLApi" },
+    "LambdaSource": {
+      "Type": "AWS::AppSync::DataSource",
+      "Properties": { "Type": "AWS_LAMBDA", "ApiId": { "Fn::GetAtt": ["Api", "ApiId"] }, "LambdaConfig": { "LambdaFunctionArn": { "Fn::GetAtt": ["Worker", "Arn"] } } }
+    },
+    "DynamoSource": {
+      "Type": "AWS::AppSync::DataSource",
+      "Properties": { "Type": "AMAZON_DYNAMODB", "ApiId": { "Fn::GetAtt": ["Api", "ApiId"] }, "DynamoDBConfig": { "TableName": { "Ref": "Table" } } }
+    }
+  }
+}

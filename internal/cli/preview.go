@@ -18,7 +18,7 @@ func (c *CLI) preview(args []string) error {
 	noOpen := flags.Bool("no-open", false, "save without opening the browser")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\nPreviews infrastructure changes for the current project without deploying.\n"+c.providerHelp())
+			fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\nGenerates an infrastructure report for the current project without deploying.\n"+c.providerHelp())
 			return nil
 		}
 		return errors.New("invalid flags; use preview --help")
@@ -34,7 +34,7 @@ func (c *CLI) preview(args []string) error {
 		return fmt.Errorf("provider %q does not support preview", *providerName)
 	}
 	report, err := app.Preview(context.Background(), *output, provider.Preview, func() {
-		fmt.Fprintln(c.stderr, "Previewing infrastructure changes for the current project.")
+		fmt.Fprintln(c.stderr, "Generating an infrastructure preview for the current project.")
 	})
 	if err != nil {
 		return err

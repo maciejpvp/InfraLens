@@ -2,10 +2,10 @@ import type { DiagramItemData } from '../components/diagram.types'
 
 import { diagramStyles as styles } from '../components/diagram.variants'
 import { activationProps } from '../lib/activation-props'
-import { changeSummary, countLabel } from '../lib/graph-view'
+import { changeSummary, countLabel, serviceIconSrc } from '../lib/graph-view'
 import { changeLabels } from '../lib/graph-view.config'
 import { GROUP_HEADER_HEIGHT } from '../lib/layout.config'
-import { serviceFor } from '../lib/graph-projection.ts'
+import { isAppSyncAPI, serviceFor } from '../lib/graph-projection.ts'
 import { cn } from '../lib/utils'
 
 const changePriority = ['delete', 'replace', 'update', 'create'] as const
@@ -21,7 +21,7 @@ export const useDiagramItem = ({
   toggle,
 }: DiagramItemData) => {
   const service = item.service || (item.node && serviceFor(item.node))
-  const icon = service?.icon && Object.hasOwn(icons, service.icon) ? icons[service.icon] : undefined
+  const icon = serviceIconSrc(service, icons)
   const change = item.group
     ? changePriority.find((status) => {
         for (const id of item.members) if (byId.get(id)?.change === status) return true
@@ -29,8 +29,10 @@ export const useDiagramItem = ({
       })
     : item.node.change
   const hasChange = change && change !== 'unchanged'
+  const statusColor = styles.changeColor[change ?? 'unchanged']
   const count = countLabel(item.members.size, 'resource')
-  const type = item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
+  const type = isAppSyncAPI(item.node) ? 'AppSync · GraphQL API'
+    : item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
   const open = activationProps<HTMLButtonElement>(() => onItem(item.id))
 
   return {
@@ -54,7 +56,9 @@ export const useDiagramItem = ({
           : [
               styles.node,
               styles.card,
-              hasChange ? [styles.changedCard, styles.changeColor[change]] : styles.cardShadow,
+              styles.statusBorder,
+              statusColor,
+              hasChange ? styles.changedCard : styles.cardShadow,
               item.support && styles.supportCard,
               selected && styles.selectedCard,
             ],
@@ -64,7 +68,13 @@ export const useDiagramItem = ({
       style: item.expanded ? { height: GROUP_HEADER_HEIGHT } : undefined,
       ...open,
     },
-    groupClassName: cn(styles.groupBounds, depth > 0 && styles.nestedGroupBounds, muted && styles.mutedItem),
+    groupClassName: cn(
+      styles.groupBounds,
+      styles.statusBorder,
+      statusColor,
+      depth > 0 && styles.nestedGroupBounds,
+      muted && styles.mutedItem,
+    ),
     cardTopClassName: cn(styles.cardTop, item.group && styles.reserveToggle),
     count,
     showHeaderIcon: Boolean(service),

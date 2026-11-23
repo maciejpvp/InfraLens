@@ -1,8 +1,11 @@
-import type { Change, EdgeKind, GraphEdge, HierarchyItem, ProjectedItem, Resource, ResourcesById } from './graph.types'
+import type { Change, EdgeKind, GraphEdge, HierarchyItem, ProjectedItem, Resource, ResourcesById, Service, ServiceIcons } from './graph.types'
 
 import { changeLabels, relationNames } from './graph-view.config'
 
 export const countLabel = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+
+export const serviceIconSrc = (service: Service | null | undefined, icons: ServiceIcons) =>
+  service?.icon && Object.hasOwn(icons, service.icon) ? icons[service.icon] : undefined
 
 export const countChanges = (nodes: Iterable<Resource | undefined>) => {
   const counts = new Map<Change, number>()
@@ -28,12 +31,12 @@ export const groupRelations = (edges: GraphEdge[]) => {
 
 export const diagramElement = (
   root: HTMLElement | null,
-  field: 'item' | 'toggle' | 'edge',
+  field: 'item' | 'toggle' | 'edge-id',
   value: string,
 ) => {
   if (!root) return
   return [...root.querySelectorAll<HTMLElement | SVGGElement>(`[data-${field}]`)].find(
-    (element) => element.dataset[field] === String(value),
+    (element) => element.getAttribute(`data-${field}`) === value,
   )
 }
 

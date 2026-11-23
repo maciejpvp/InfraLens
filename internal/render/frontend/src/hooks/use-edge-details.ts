@@ -1,17 +1,19 @@
-import type { Evidence, GraphEdge, ResourcesById } from '../lib/graph.types'
+import type { Evidence, GraphEdge, ResourcesById, ServiceIcons } from '../lib/graph.types'
 import type { EvidenceGroup, MetadataRow } from '../lib/inspector.types'
 
 import { relationNotes } from '../components/inspector.config'
-import { connectionTitle, countLabel, groupRelations } from '../lib/graph-view'
+import { connectionTitle, countLabel, groupRelations, serviceIconSrc } from '../lib/graph-view'
+import { serviceFor } from '../lib/graph-projection.ts'
 import { changeLabels, topologyNames } from '../lib/graph-view.config'
 
-const endpointRows = ({ from, to }: GraphEdge, byId: ResourcesById): MetadataRow[] =>
+const endpointRows = ({ from, to }: GraphEdge, byId: ResourcesById, icons: ServiceIcons): MetadataRow[] =>
   [
     ['Source', from],
     ['Target', to],
   ].map(([label, id]) => {
-    const { stack, type, change } = byId.get(id)!
-    return [label, `${stack || 'No stack'} · ${type} · ${changeLabels[change ?? 'unchanged']}`]
+    const resource = byId.get(id)!
+    const { stack, type, change } = resource
+    return [label, `${stack || 'No stack'} · ${type} · ${changeLabels[change ?? 'unchanged']}`, serviceIconSrc(serviceFor(resource), icons)]
   })
 
 const groupEvidence = (evidence: Evidence[], byId: ResourcesById) => {
@@ -28,7 +30,7 @@ const groupEvidence = (evidence: Evidence[], byId: ResourcesById) => {
   return [...groups.values()]
 }
 
-export const useEdgeDetails = ({ edges, byId }: { edges: GraphEdge[]; byId: ResourcesById }) => {
+export const useEdgeDetails = ({ edges, byId, icons }: { edges: GraphEdge[]; byId: ResourcesById; icons: ServiceIcons }) => {
   const groups = groupRelations(edges)
   const states = [...new Set(edges.map((edge) => edge.state).filter((state) => state !== undefined))]
     .sort()
@@ -38,20 +40,20 @@ export const useEdgeDetails = ({ edges, byId }: { edges: GraphEdge[]; byId: Reso
     ['Type', groups.map((group) => group.name).join(' · ')],
     ['Evidence', `${countLabel(edges.length, 'connection')} · ${countLabel(evidenceCount, 'evidence item')}`],
   ]
-  if (edges.length === 1) rows.push(...endpointRows(edges[0], byId))
+  if (edges.length === 1) rows.push(...endpointRows(edges[0], byId, icons))
   if (states.length) rows.push(['Topology', states.map((state) => topologyNames[state]).join(' · ')])
 
   const sections = groups.map(({ kind, name, relations }) => ({
     kind,
     title: `${name} · ${countLabel(relations.length, 'connection')}`,
     note: relationNotes[kind],
-    entries: relations.map((edge) => ({
-      key: JSON.stringify([edge.from, edge.to, edge.state]),
-      title: edges.length > 1 ? connectionTitle(edge, byId) : '',
-      endpoints: edges.length > 1 ? endpointRows(edge, byId) : [],
-      topology: states.length > 1 && edge.state && topologyNames[edge.state],
-      evidence: groupEvidence(edge.evidence, byId),
-    })),
+    edges: relations,
   }))
-  return { rows, sections, defaultSections: groups.length === 1 ? [groups[0].kind] : [] }
+  const toEntry = (edge: GraphEdge) => ({
+    title: edges.length > 1 ? connectionTitle(edge, byId) : '',
+    endpoints: edges.length > 1 ? endpointRows(edge, byId, icons) : [],
+    topology: states.length > 1 && edge.state && topologyNames[edge.state],
+    evidence: groupEvidence(edge.evidence, byId),
+  })
+  return { rows, sections, toEntry, defaultSections: groups.length === 1 ? [groups[0].kind] : [] }
 }

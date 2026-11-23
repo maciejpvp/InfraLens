@@ -1,22 +1,20 @@
 # InfraLens
 
-Lokalny CLI do zamiany eksportu infrastruktury Pulumi w jeden interaktywny plik HTML działający offline.
+Lokalny CLI do zamiany danych infrastruktury Pulumi i AWS CDK w jeden interaktywny plik HTML działający offline.
 
-**Status: działający CLI i interaktywny diagram offline.** Adapter Pulumi buduje neutralny graf, a renderer generuje jeden HTML z węzłami, strzałkami, zoomem, wyszukiwaniem i inspektorem dowodów.
+**Status: działający CLI i interaktywny diagram offline.** Adaptery budują neutralny graf, a renderer generuje jeden HTML z węzłami, strzałkami, zoomem, wyszukiwaniem i inspektorem dowodów.
 
-Każda komenda przetwarzająca infrastrukturę wymaga jawnego `--provider`. Dostępny jest `pulumi`. Wartości `terraform` i `aws-cdk` są widoczne w pomocy jako planowane.
+Każda komenda przetwarzająca infrastrukturę wymaga jawnego `--provider`. Dostępne są `pulumi` i `aws-cdk`. Provider `terraform` jest planowany.
 
 ## Uruchomienie w projekcie Pulumi
 
-Zbuduj binarkę w katalogu InfraLens i umieść ją w katalogu z `PATH` (jednorazowo, Linux):
+Uruchom skrypt z katalogu repozytorium, aby zainstalować lub zaktualizować globalne `InfraLens` na macOS lub Linuksie. Skrypt wymaga Go i Node.js oraz buduje renderer przed kompilacją binarki.
 
 ```bash
-go build -buildvcs=false -o bin/InfraLens ./cmd/infralens
-mkdir -p "$HOME/.local/bin"
-install -m 755 bin/InfraLens "$HOME/.local/bin/InfraLens"
+./scripts/update-global.sh
 ```
 
-Jeśli `~/.local/bin` nie jest w `PATH`, dodaj `export PATH="$HOME/.local/bin:$PATH"` do konfiguracji swojej powłoki.
+Domyślny katalog instalacji to `~/.local/bin`. Możesz go zmienić za pomocą `INFRALENS_BIN_DIR`. Jeśli katalog instalacji nie jest w `PATH`, dodaj go do konfiguracji swojej powłoki.
 
 Następnie w katalogu docelowego projektu zawierającym `Pulumi.yaml` lub `Pulumi.yml`:
 
@@ -47,6 +45,29 @@ InfraLens render --provider=pulumi --input preview.json --output result.html
 Adapter obsługuje eksport v3 i pojedynczy dokument preview z `steps` oraz operacjami `same`, `create`, `update`, `delete`, `replace`. Inne operacje, wersje eksportu i streaming JSON są jawnie odrzucane. Preview pokazuje wyłącznie zasoby obecne w `steps`; nie odtwarza pominiętych zasobów. Fixture’y są syntetyczne, kompatybilność z rzeczywistymi eksportami pozostaje do sprawdzenia.
 
 HTML zawiera interaktywny diagram SVG, osadzony pakiet React, CSS, ikony i dane. Otwiera się z dysku bez serwera i połączeń sieciowych. Zmiany pochodzą z preview, nie z porównania dwóch plików. Zachowujemy relacje sprzed i po zmianie; nie eksportujemy inputs/outputs. Nazwy i ścieżki właściwości pozostają widoczne i mogą być poufne.
+
+## AWS CDK
+
+W katalogu projektu CDK zawierającym `cdk.json` uruchom:
+
+```bash
+InfraLens preview --provider=aws-cdk
+```
+
+InfraLens używa projektowego `node_modules/.bin/cdk` lub `cdk` z `PATH`. Uruchamia `cdk diff '**' --method=template` z wyłączonymi lookupami kontekstu. Buduje diagram z szablonów wygenerowanych przez to samo wywołanie i przypisuje statusy z diffu. Przy pierwszym wdrożeniu CDK oznacza nowe zasoby jako `+ create`. Preview wymaga dostępu do odczytu CloudFormation we właściwym koncie i regionie AWS. Domyślnie zapisuje i otwiera `infralens.html`. Użyj `--no-open` do samego zapisu lub `--output raport.html` do zmiany nazwy. Synteza wykonuje kod projektu i może wymagać narzędzi do bundlowania jego assetów. [Dokumentacja `cdk diff`](https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd-diff.html)
+
+Gotowe szablony ze wcześniejszej syntezy można też odczytać bez uruchamiania CDK:
+
+```bash
+InfraLens graph --provider=aws-cdk --input cdk.out/MyStack.template.json --output graph.json
+InfraLens render --provider=aws-cdk --input cdk.out/MyStack.template.json --output report.html
+```
+
+InfraLens odczytuje gotowe szablony JSON, więc generowanie raportu działa offline. Możesz podać kilka szablonów przez powtarzane `--input`. Nazwa stosu pochodzi z nazwy pliku. Aby nadać inną nazwę lub rozróżnić identyczne nazwy plików, użyj `--input STACK=FILE`.
+
+Graf pokazuje topologię z szablonu. `DependsOn`, `Ref`, `Fn::GetAtt` i `Fn::Sub` wyznaczają zależności wdrożeniowe w obrębie stosu. Widok przepływu pokazuje referencje Lambda → DynamoDB w zmiennych środowiskowych oraz jawnie powiązane SQS i DynamoDB Streams → Lambda, powiadomienia S3 → Lambda oraz źródła danych AppSync powiązane z Lambda lub DynamoDB. W raporcie pozostają identyfikatory logiczne, typy zasobów i dowody relacji.
+
+Preview CDK porównuje szablony bez tworzenia change setu, więc ocena wymiany zasobu jest przybliżona. Usuwane zasoby pojawiają się w raporcie bez dawnych połączeń. Interpretacja warunków CloudFormation, zasoby wewnątrz `NestedStack` i powiązania między stosami przez `Fn::ImportValue` pozostają poza zakresem.
 
 ## Symulacja bez stosów i wdrożenia AWS
 
@@ -120,12 +141,13 @@ Obsługa wielu wejść działa także dla wspieranego podzbioru preview, ale wid
 
 ## Diagram i znaczenie połączeń
 
-- **Przepływ:** pokazuje zasoby biorące udział w rozpoznanych połączeniach oraz ich stosy i komponenty nadrzędne. Licznik podaje liczbę uczestników i pełną liczbę zasobów w raporcie. Turkusowe kanały oznaczają zdarzenia i wywołania, a fioletowe referencje w konfiguracji. Krótkie impulsy poruszają się wewnątrz ciągłych przewodów z przyciemnioną ścianką i podświetloną krawędzią. Bursztynowa strzałka z naprzemiennymi kreskami oznacza zależność wdrożeniową. Legenda w dolnym rogu wyjaśnia wzory i pozwala zatrzymać ruch. Animacja pokazuje kierunek konfiguracji, bez odczytu rzeczywistego ruchu.
+- **Przepływ:** pokazuje zasoby biorące udział w rozpoznanych połączeniach oraz ich stosy i komponenty nadrzędne. Zasoby tej samej usługi w obrębie komponentu lub stosu tworzą zwiniętą grupę, którą można rozwinąć lub odsłonić z niej pojedynczy zasób. Licznik podaje liczbę uczestników i pełną liczbę zasobów w raporcie. Turkusowe kanały oznaczają zdarzenia i wywołania, a fioletowe referencje w konfiguracji. Krótkie impulsy poruszają się wewnątrz ciągłych przewodów z przyciemnioną ścianką i podświetloną krawędzią. Bursztynowa strzałka z naprzemiennymi kreskami oznacza zależność wdrożeniową. Legenda w dolnym rogu wyjaśnia wzory i pozwala zatrzymać ruch. Animacja pokazuje kierunek konfiguracji, bez odczytu rzeczywistego ruchu.
 - **Infrastruktura:** pełny plan zmian z licznikiem zasobów według operacji oraz przełącznikiem zależności Pulumi. W podglądzie pojedynczego stosu liczba zasobów pomija wiersz korzenia stosu Pulumi. `depends_on` wskazuje od zasobu zależnego do jego zależności, a nie kierunek danych.
 - Interfejs i generowane opisy są po angielsku; nazwy zasobów i dane projektu zachowują oryginalną postać. Oficjalne ikony AWS z pakietu 31 lipca 2026 są osadzone jako SVG w HTML i działają offline ([źródło i warunki](internal/render/icons/NOTICE.md)). W widoku Infrastructure zasoby liściowe są grupowane według usługi, w obrębie swojego stosu lub komponentu. Klasyfikacja korzysta z typu Pulumi.
 - Ciemny canvas zajmuje całe okno. Stosy zawierają rzeczywiste komponenty Pulumi; grupy usług w Infrastructure początkowo pozostają zwinięte. Przyciski +/− rozwijają grupy, a połączenia na ich granicach łączą się z zachowaniem wszystkich dowodów.
 - Kliknięcie, dotknięcie, Enter lub Spacja otwiera pływający inspektor szczegółów zasobu, grupy albo połączenia. Akordeony porządkują zasoby w grupie, typy połączeń i dowody. Kliknięcie wspólnego odcinka strzałek pokazuje wszystkie relacje pod wskaźnikiem, a klawiatura otwiera relację z fokusem. Nagłówek inspektora można przeciągnąć, a po ustawieniu fokusu na uchwycie okno można przesuwać strzałkami. Home przywraca pozycję początkową. Diagram pozostaje aktywny. Escape i przycisk zamknięcia zamykają inspektor i przywracają fokus do grafu. Liczniki połączeń omijają karty i inne liczniki.
-- Wyszukiwanie obejmuje wszystkie zasoby, także wewnątrz zwiniętych grup; rozwija przodków i wskazuje wynik. Wybór zasobu spoza Flow przełącza na Infrastructure. Zmiana widoku dopasowuje kamerę. Zoom działa kółkiem lub przyciskami, przesuwanie przez przeciągnięcie tła. Rozwijanie i zwijanie płynnie przesuwa karty oraz połączenia i zachowuje pozycję kamery. Uchwyt karty pozwala przesunąć zasób lub zwiniętą grupę wewnątrz rodzica. Z klawiatury naciśnij Enter na uchwycie, użyj strzałek, a następnie naciśnij Enter, żeby zostawić kartę w nowym miejscu, lub Esc, żeby anulować. Pozycje są pamiętane do zamknięcia raportu. Wybór i zmiana rozmiaru okna zachowują kamerę. „Dopasuj” pokazuje całość. Telefon rozpoczyna od czytelnego fragmentu zamiast miniatury całego grafu. Filtry i legenda są w przycisku obok widoku; preview pozwala przełączyć połączenia przed zmianą lub po niej. Statusy zasobów są dostępne w obu widokach.
+- Wybierz zasób w wyszukiwarce lub na liście **Resources in group**, aby pokazać jego kartę. Jeśli grupa usług jest zwinięta, na mapie pojawi się tylko karta wybranego zasobu obok grupy. W filtrach **Show only this resource’s connections** pokazuje jego bezpośrednie połączenia przychodzące i wychodzące. Wybór zasobu spoza Flow przełącza na Infrastructure. W sekcji **Deployment dependencies** akordeony grupują zależności według kierunkowej pary usług.
+- Zmiana widoku dopasowuje kamerę. Zoom działa kółkiem lub przyciskami, przesuwanie przez przeciągnięcie tła. Rozwijanie i zwijanie płynnie przesuwa karty oraz połączenia i zachowuje pozycję kamery. Uchwyt karty pozwala przesunąć zasób lub zwiniętą grupę wewnątrz rodzica. Z klawiatury naciśnij Enter na uchwycie, użyj strzałek, a następnie naciśnij Enter, żeby zostawić kartę w nowym miejscu, lub Esc, żeby anulować. Pozycje są pamiętane do zamknięcia raportu. Wybór i zmiana rozmiaru okna zachowują kamerę. „Dopasuj” pokazuje całość. Telefon rozpoczyna od czytelnego fragmentu zamiast miniatury całego grafu. Filtry i legenda są w przycisku obok widoku; preview pozwala przełączyć połączenia przed zmianą lub po niej. Statusy zasobów są dostępne w obu widokach.
 - Bez rozpoznanych reguł domyślnie pokazujemy infrastrukturę; nie zamieniamy dependencies na fikcyjny przepływ.
 
 Pierwszy zestaw reguł AWS obejmuje S3 notifications do SQS/Lambda/SNS, EventBridge targety (w tym DLQ), EventBridge patterns dla S3/Step Functions, statyczne wywołania Lambda w definicji Step Functions, SQS event source mapping, referencję ECS Service → TaskDefinition oraz wybrane zmienne środowiskowe Lambda/ECS (`MEDIA_BUCKET`, `BUCKET_NAME`, `S3_BUCKET`, `QUEUE_URL`, `QUEUE_ARN`). Dopasowanie identyfikatora musi być jednoznaczne; wartości nieznane/sekretne nie są zgadywane. Dla S3 → EventBridge sprawdzamy też włączenie EventBridge w BucketNotification.
@@ -151,7 +173,7 @@ npm ci --prefix internal/render/frontend
 npm run build --prefix internal/render/frontend
 ```
 
-Jeśli używasz globalnej komendy `InfraLens`, po buildzie frontendu ponownie zbuduj i zainstaluj binarkę zgodnie z instrukcją na początku README. Wygeneruj też ponownie zapisane raporty HTML.
+Jeśli używasz globalnej komendy `InfraLens`, uruchom `./scripts/update-global.sh` i wygeneruj ponownie zapisane raporty HTML.
 
 ```bash
 go test ./...

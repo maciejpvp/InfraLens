@@ -20,6 +20,9 @@ export const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'con
 export const activeEdges = (graph: Graph, state: Topology) =>
   graph.edges.filter((e) => !e.state || e.state === state)
 
+export const isAppSyncAPI = (node?: Resource | null) =>
+  node?.type === 'AWS::AppSync::GraphQLApi' || node?.type === 'aws:appsync/graphQLApi:GraphQLApi'
+
 export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provider' | 'service'> = {}): Service => {
   if (provider !== 'aws')
     return {
@@ -32,9 +35,23 @@ export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provi
   return {
     id: 'aws:' + id,
     name: service?.[0] || id || 'AWS',
-    icon: service ? id : null,
+    icon: service && id !== 'appsync' ? id : null,
     color: service?.[1] || '#91a5bd',
   }
+}
+
+export const groupDependenciesByService = (edges: GraphEdge[], byId: ReadonlyMap<string, Resource>) => {
+  const groups = new Map<string, { key: string; from: Service; to: Service; edges: GraphEdge[] }>()
+  for (const edge of edges) {
+    const from = serviceFor(byId.get(edge.from))
+    const to = serviceFor(byId.get(edge.to))
+    const key = JSON.stringify([from.id, to.id])
+    const group = groups.get(key)
+    if (group) group.edges.push(edge)
+    else groups.set(key, { key, from, to, edges: [edge] })
+  }
+  return [...groups.values()].sort((a, b) => a.from.name.localeCompare(b.from.name) ||
+    a.to.name.localeCompare(b.to.name) || a.key.localeCompare(b.key))
 }
 
 // Descriptions belong to evidence; grouping must not discard individual routes or filters.
@@ -86,8 +103,17 @@ export const buildHierarchy = (
       nodes.get(e.from)?.stack === nodes.get(e.to)?.stack
     )
       parents.set(e.to, e.from)
-  const parentIDs = new Set(parents.values()),
-    items = new Map<string, HierarchyItem>(),
+  if (mode === 'infra') {
+    for (const e of edges) {
+      const node = nodes.get(e.from), api = nodes.get(e.to)
+      if (e.kind === 'depends_on' && node?.service === 'appsync' && !isAppSyncAPI(node) &&
+        isAppSyncAPI(api) && node.stack === api?.stack &&
+        e.evidence.some((proof) => proof.source === 'appsync_api')) {
+        parents.set(e.from, e.to)
+      }
+    }
+  }
+  const items = new Map<string, HierarchyItem>(),
     resourceItems = new Map<string, HierarchyItem>(),
     stacks = new Map<string, Group>()
   const makeGroup = (
@@ -113,6 +139,11 @@ export const buildHierarchy = (
       for (let ancestor = parents.get(id); ancestor && !included.has(ancestor); ancestor = parents.get(ancestor))
         included.add(ancestor)
     }
+  }
+  const parentIDs = new Set<string>()
+  for (const [child, parent] of parents) {
+    if (mode === 'infra' || !isAppSyncAPI(nodes.get(parent)) || included.has(child))
+      parentIDs.add(parent)
   }
   for (const n of [...graph.nodes].sort(compare)) {
     if (mode === 'flow' && !included.has(n.id)) continue
@@ -159,27 +190,27 @@ export const buildHierarchy = (
     }
     attach(item, cycle ? stack : parent)
   }
-  for (const parent of [...items.values()])
-    if (mode === 'infra' && parent.group) {
-      const isLeaf = (item: HierarchyItem): item is Extract<HierarchyItem, { group: false }> =>
-        !item.group
-      const leaves = parent.children.filter(isLeaf)
-      if (!leaves.length) continue
-      parent.children = parent.children.filter((c) => !isLeaf(c))
-      const groups = new Map<string, Group>()
-      for (const item of leaves) {
-        const service = serviceFor(item.node)
-        let group = groups.get(service.id)
-        if (!group) {
-          group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
-          group.service = service
-          groups.set(service.id, group)
-          items.set(group.id, group)
-          attach(group, parent)
-        }
-        attach(item, group)
-      }
+  for (const parent of [...items.values()]) {
+    if (!parent.group) continue
+    const services = new Map<string, { service: Service; leaves: HierarchyItem[] }>()
+    for (const item of parent.children) {
+      if (item.group || isAppSyncAPI(item.node) || (mode === 'flow' && !item.node.service) ||
+        (isAppSyncAPI(parent.node) && item.node.service === 'appsync')) continue
+      const service = serviceFor(item.node)
+      const bucket = services.get(service.id)
+      if (bucket) bucket.leaves.push(item)
+      else services.set(service.id, { service, leaves: [item] })
     }
+    for (const { service, leaves } of services.values()) {
+      if (mode === 'flow' && leaves.length < 2) continue
+      const group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
+      group.service = service
+      items.set(group.id, group)
+      attach(group, parent)
+      for (const item of leaves) attach(item, group)
+    }
+    parent.children = parent.children.filter((child) => child.parent === parent)
+  }
   const collect = (item: HierarchyItem): Set<string> => {
     if (item.group) {
       item.children.sort(compare)
@@ -190,7 +221,7 @@ export const buildHierarchy = (
   const roots = [...stacks.values()].sort(compare)
   for (const root of roots) collect(root)
   const expanded = new Set(
-    mode === 'flow' ? [...items.values()].filter((item) => item.group).map((item) => item.id) : roots.map((root) => root.id),
+    mode === 'flow' ? [...items.values()].filter((item) => item.group && !item.service).map((item) => item.id) : roots.map((root) => root.id),
   )
   return { roots, items, resourceItems, edges, flowIDs, initialExpanded: expanded }
 }
@@ -198,31 +229,52 @@ export const buildHierarchy = (
 export const revealResource = (tree: Hierarchy, id: string, expanded: Set<string>) => {
   const item = tree.resourceItems.get(id)
   if (!item) return null
-  for (let parent = item.parent; parent; parent = parent.parent) expanded.add(parent.id)
+  const first = !item.group && item.parent?.service ? item.parent.parent : item.parent
+  for (let parent = first; parent; parent = parent.parent) expanded.add(parent.id)
   return item.id
 }
 
 export const projectGraph = (
   tree: Hierarchy,
   mode: ViewMode,
-  dependencies: boolean,
+  hiddenKinds: ReadonlySet<ProjectedEdge['kind']>,
   expanded: ReadonlySet<string>,
+  resourceId?: string,
+  onlyConnections = false,
 ): GraphView => {
   const items = new Map<string, ProjectedItem>(),
     representatives = new Map<string, string>()
-  const visit = (item: HierarchyItem) => {
+  const focus = resourceId ? tree.resourceItems.get(resourceId) : undefined
+  const restrict = onlyConnections && Boolean(focus)
+  const collapsedService = !focus?.group && focus?.parent?.service && !expanded.has(focus.parent.id)
+    ? focus.parent
+    : undefined
+  const visit = (item: HierarchyItem, parent = item.parent) => {
     const open = item.group && expanded.has(item.id)
+    const members = item === collapsedService
+      ? new Set([...item.members].filter((id) => id !== resourceId))
+      : item.members
+    if (!members.size) return
     const projected = {
       ...item,
+      parent,
+      members,
       expanded: open,
-      children: open && item.group ? item.children.map((c) => c.id) : [],
+      children: [] as string[],
     }
     items.set(item.id, projected)
     if (!open) {
-      for (const id of item.members) representatives.set(id, item.id)
+      for (const id of members) representatives.set(id, item.id)
     } else {
       if (item.node) representatives.set(item.node.id, item.id)
-      if (item.group) for (const child of item.children) visit(child)
+      for (const child of item.children) {
+        visit(child)
+        if (items.has(child.id)) projected.children.push(child.id)
+        if (child === collapsedService && focus) {
+          visit(focus, item)
+          projected.children.push(focus.id)
+        }
+      }
     }
   }
   for (const root of tree.roots) visit(root)
@@ -231,7 +283,9 @@ export const projectGraph = (
   for (const original of tree.edges) {
     if (
       original.kind === 'contains' ||
-      (mode === 'flow' ? !isFlow(original) : original.kind === 'depends_on' && !dependencies)
+      hiddenKinds.has(original.kind) ||
+      (restrict && original.from !== resourceId && original.to !== resourceId) ||
+      (mode === 'flow' && !isFlow(original))
     )
       continue
     const from = representatives.get(original.from),
@@ -250,5 +304,23 @@ export const projectGraph = (
       JSON.stringify([b.from, b.to, b.kind, b.state]),
     ),
   )
-  return { items, roots: tree.roots.map((g) => g.id), edges, representatives }
+  if (restrict && resourceId) {
+    const keep = new Set<string>()
+    const retain = (id?: string) => {
+      for (let item = id ? items.get(id) : undefined; item && !keep.has(item.id); item = item.parent ? items.get(item.parent.id) : undefined)
+        keep.add(item.id)
+    }
+    retain(representatives.get(resourceId))
+    for (const edge of edges) {
+      retain(edge.from)
+      retain(edge.to)
+    }
+    for (const [id, item] of items) {
+      if (keep.has(id)) item.children = item.children.filter((child) => keep.has(child))
+      else items.delete(id)
+    }
+    for (const [id, representative] of representatives)
+      if (!keep.has(representative)) representatives.delete(id)
+  }
+  return { items, roots: tree.roots.map((g) => g.id).filter((id) => items.has(id)), edges, representatives }
 }

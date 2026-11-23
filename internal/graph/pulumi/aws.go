@@ -125,6 +125,7 @@ func resolveAWS(resources []resource) map[edgeKey]map[graph.Evidence]struct{} {
 	for _, r := range resources {
 		a.resourceRelations(r)
 	}
+	a.linkAppSync(resources)
 	return a.relations
 }
 
@@ -221,10 +222,14 @@ func (a *awsResolver) resolve(r resource, field string, types ...string) string 
 }
 
 func (a *awsResolver) flow(from, to string, kind graph.Kind, evidence graph.Evidence) {
+	evidence.Source = "aws_rule"
+	a.relate(from, to, kind, evidence)
+}
+
+func (a *awsResolver) relate(from, to string, kind graph.Kind, evidence graph.Evidence) {
 	if from == "" || to == "" || from == to {
 		return
 	}
-	evidence.Source = "aws_rule"
 	edge := edgeKey{from: from, to: to, kind: kind}
 	if a.relations[edge] == nil {
 		a.relations[edge] = map[graph.Evidence]struct{}{}

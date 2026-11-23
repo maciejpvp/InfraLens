@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { buildHierarchy, projectGraph } from '../src/lib/graph-projection.ts'
 import { layoutDiagram } from '../src/lib/elk-layout.ts'
-import { canPlace, motionFrame, moveCard, placementKey, positionScene, translateScene } from '../src/lib/scene-motion.ts'
+import { canPlace, motionFrame, moveCard, placementKey, positionScene, revealInPlace, translateScene } from '../src/lib/scene-motion.ts'
 import type { Graph, Scene } from '../src/lib/graph.types.ts'
 
 const graph: Graph = {
@@ -14,10 +14,31 @@ const graph: Graph = {
 }
 const measure = (text: string) => text.length * 7
 const tree = buildHierarchy(graph)
-const scene = async (expanded: Set<string>): Promise<Scene> => {
-  const current = projectGraph(tree, 'infra', true, expanded)
+const scene = async (expanded: Set<string>, resourceId?: string): Promise<Scene> => {
+  const current = projectGraph(tree, 'infra', new Set(), expanded, resourceId)
   return { ...await layoutDiagram(current, measure), current, tree }
 }
+
+test('a revealed resource slides out from its collapsed service card', async () => {
+  const closed = await scene(tree.initialExpanded)
+  const view = projectGraph(tree, 'infra', new Set(), tree.initialExpanded, 'b')
+  const revealed = revealInPlace(closed, view, 'b', measure)!
+  const group = tree.resourceItems.get('b')!.parent!.id
+  const groupBox = closed.layout.positions.get(group)!
+  for (const [id, position] of closed.layout.positions)
+    assert.deepEqual(revealed.layout.positions.get(id), position)
+  assert.ok(revealed.routes.every(Boolean))
+  const firstFrame = motionFrame(closed, revealed, 0)
+  const childBox = firstFrame.layout.positions.get('b')!
+  assert.equal(childBox.x, groupBox.x)
+  assert.equal(childBox.y, groupBox.y)
+  assert.equal(firstFrame.motion?.fading.get('b'), 0)
+  const midway = motionFrame(closed, revealed, 0.5)
+  for (const [id, position] of closed.layout.positions)
+    assert.deepEqual(midway.layout.positions.get(id), position)
+  assert.ok(!revealed.current.items.get(group)?.expanded)
+  assert.ok(!firstFrame.current.items.has('permission'))
+})
 
 test('the same snapshot moves the group frame, entering children and both ends of routes', async () => {
   const group = tree.resourceItems.get('b')!.parent!.id

@@ -28,7 +28,7 @@ const createView = (
   expand: (tree: Hierarchy) => Set<string> = (tree) => new Set(tree.items.keys()),
 ) => {
   const tree = buildHierarchy(graph)
-  return projectGraph(tree, 'infra', true, expand(tree))
+  return projectGraph(tree, 'infra', new Set(), expand(tree))
 }
 
 const crosses = (a: Point, b: Point, box: Position) => {

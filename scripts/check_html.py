@@ -17,18 +17,22 @@ try {
   const graph=JSON.parse($('infralens-data').textContent);
   const view=()=>$('diagram').querySelector('.react-flow__viewport').style.transform;
   const card=item=>item.closest('[data-diagram-card]');
-  const cardColors={create:'#527e6b',delete:'#986771',update:'#92805b',replace:'#92805b'};
+  const cardColors={unchanged:'#7b8a9e',create:'#55d98a',delete:'#fa7882',update:'#f0c75e',replace:'#f0c75e'};
   const swatch=document.createElement('span');
   document.body.append(swatch);
   swatch.style.backgroundColor='var(--color-card)';
   const neutralCard=getComputedStyle(swatch).backgroundColor;
   swatch.remove();
+  function checkStatusBorder(style,change){
+    const color=cardColors[change||'unchanged'];
+    assert(style.borderColor==='rgb('+color.slice(1).match(/../g).map(hex=>parseInt(hex,16)).join(', ')+')','Wrong status border color: '+change);
+    assert(style.borderTopWidth==='2px','Status border is too thin');
+  }
   function checkCardChange(card,change){
-    const style=getComputedStyle(card),color=cardColors[change];
+    const style=getComputedStyle(card);
+    checkStatusBorder(style,change);
     assert(style.backgroundColor===neutralCard,'Card background varies with change status');
-    assert(style.getPropertyValue('--card-change').trim()===(color||''),'Wrong card change color: '+change);
-    if(color){
-      assert(style.borderColor==='rgb('+color.slice(1).match(/../g).map(hex=>parseInt(hex,16)).join(', ')+')','Missing status-colored border');
+    if(change&&change!=='unchanged'){
       assert(style.boxShadow.includes('0px 0px 3px')&&style.boxShadow.includes('0px 0px 12px'),'Missing two-layer status shadow: '+style.boxShadow);
     }
   }
@@ -52,6 +56,13 @@ try {
   }
   const clickAt=(target,x,y)=>dispatch(target,new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
   async function click(target){target.click();await wait(40);await waitForLayout();}
+  async function expandServicePairs(section){
+    if(!trigger(section).textContent.startsWith('Deployment dependencies'))return;
+    for(const item of section.querySelectorAll('[data-slot="accordion-item"]')){
+      assert(!opened(item),'Service pair should start closed');
+      await click(trigger(item));
+    }
+  }
   function hitCenter(element){
     const rect=element.getBoundingClientRect();
     const x=rect.x+rect.width/2,y=rect.y+rect.height/2;
@@ -78,7 +89,7 @@ try {
     }
     const labelBoxes=[];
     for(const edge of document.querySelectorAll('[data-edge]')){
-      const label=edgeLabel(edge);if(+edge.dataset.count>1)assert(label,'Missing connection count');if(!label)continue;
+      const label=edgeLabel(edge);if(!label)continue;
       const r={x:parseFloat(label.style.left)-3,y:parseFloat(label.style.top)-3,w:label.offsetWidth+6,h:label.offsetHeight+6};
       for(const other of [...boxes,...labelBoxes])assert(!(r.x<other.x+other.w&&r.x+r.w>other.x&&r.y<other.y+other.h&&r.y+r.h>other.y),'Connection count overlaps an element');
       labelBoxes.push(r);
@@ -126,7 +137,11 @@ try {
   if(plannedFlow.length){
     assert($('flow-view').getAttribute('aria-pressed')==='true','Flow did not open by default');
     const endpoints=new Set(plannedFlow.flatMap(e=>[e.from,e.to]));
-    assert(!document.querySelector('[data-service]'),'Flow contains a service group');
+    for(const group of document.querySelectorAll('[data-service]')){
+      const toggle=card(group).querySelector('[data-toggle]');
+      assert(toggle.getAttribute('aria-expanded')==='false','Flow service group should start collapsed');
+      await click(toggle);
+    }
     assert($('summary').textContent.includes(endpoints.size+' in flow · '+graph.nodes.length+' total'),'Incorrect Flow counts');
     assert([...document.querySelectorAll('[data-node]')].every(n=>endpoints.has(n.dataset.node)),'Flow contains an unrelated resource');
     const shown=[...document.querySelectorAll('[data-edge]')].reduce((n,e)=>n+(+e.dataset.count),0);
@@ -175,6 +190,9 @@ try {
     if(focusCard){
       const grid=getComputedStyle($('stage')).backgroundImage;
       await click(focusCard);
+      const selectedStyle=getComputedStyle(focusCard);
+      checkStatusBorder(selectedStyle,focusCard.dataset.change);
+      assert(selectedStyle.outlineStyle==='solid'&&selectedStyle.outlineWidth==='2px','Selected card lost its outline');
       for(const element of [...flowEdges,...flowCards]){
         for(const animation of element.getAnimations())if(animation instanceof CSSTransition)animation.finish();
       }
@@ -251,6 +269,7 @@ try {
         const section=accordionItems().find(item=>trigger(item).textContent.startsWith(relationNames[within.kind]));
         assert(section,'Missing internal relationship section');
         await click(trigger(section));
+        await expandServicePairs(section);
         assert([...section.querySelectorAll('.connection-item')].some(button=>button.textContent.includes('within group')),'Missing internal group relationship');
         await click(trigger(section));
       }
@@ -267,6 +286,7 @@ try {
       if(links){
         assert(!opened(links),'Resource connection accordion should start closed');
         await click(trigger(links));
+        await expandServicePairs(links);
         const link=links.querySelector('.connection-item');
         link.scrollIntoView({block:'end'});
         const scroll=$('details').scrollTop;
@@ -398,6 +418,7 @@ try {
       await dispatch(toggle,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
       const expanded=[...document.querySelectorAll('[data-item]')].find(g=>g.dataset.item===id);
       assert(card(expanded).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
+      checkStatusBorder(getComputedStyle(card(expanded).firstElementChild),expanded.dataset.change);
       const members=[...document.querySelectorAll('[data-node]')].filter(n=>!visibleNodes.has(n.dataset.node));
       const status=['delete','replace','update','create'].find(change=>members.some(n=>n.dataset.change===change))??'';
       assert(members.length>0&&group.dataset.change===status,'Collapsed service group did not inherit its members’ change status');
@@ -415,7 +436,33 @@ try {
     checkRoutes();
     await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');
-    if(location.search.includes('parallel'))await click(document.querySelector('[data-service]').closest('[data-diagram-card]').querySelector('[data-toggle]'));
+    if(location.search.includes('parallel')){
+      await click(document.querySelector('[data-service]').closest('[data-diagram-card]').querySelector('[data-toggle]'));
+      const legendWasHidden=legend.hidden;
+      if(legendWasHidden)await click(legendButton);
+      const entryFor=kind=>legend.querySelector('[data-connection-kind="'+kind+'"]');
+      const edgesOf=kind=>document.querySelectorAll('[data-edge].'+kind);
+      const kinds=['triggers','connects_to','depends_on'];
+      const cardCount=document.querySelectorAll('[data-item]').length;
+      assert(kinds.every(kind=>edgesOf(kind).length===1),'Test diagram is missing a connection kind');
+      for(const [index,kind] of kinds.entries()){
+        const entry=entryFor(kind);
+        await click(entry);
+        assert(entry.getAttribute('aria-pressed')==='false'&&getComputedStyle(entry).filter==='grayscale(1)','Hidden connection is not greyed out in the legend');
+        assert(edgesOf(kind).length===0,'Legend left a hidden connection visible: '+kind);
+        assert(kinds.slice(index+1).every(other=>edgesOf(other).length===1),'Legend hid another connection kind');
+        const sample=entry.querySelector('.pipe-current');
+        if(sample)assert(getComputedStyle(sample).animationPlayState==='paused','Hidden legend sample is still animated');
+      }
+      assert(document.querySelectorAll('[data-item]').length===cardCount,'Hiding all connections removed cards');
+      assert($('dependencies').getAttribute('aria-checked')==='false','Legend state did not reach the dependency filter');
+      for(const kind of kinds)await click(entryFor(kind));
+      assert(kinds.every(kind=>edgesOf(kind).length===1),'Legend did not restore every connection');
+      await click($('dependencies'));
+      assert(entryFor('depends_on').getAttribute('aria-pressed')==='false','Dependency filter state did not reach the legend');
+      await click($('dependencies'));
+      if(legendWasHidden)await click(legendButton);
+    }
     await click($('fit'));
     await wait(150);
     const rendered=[...document.querySelectorAll('[data-edge]')];
@@ -468,6 +515,7 @@ try {
           const section=accordionItems().find(section=>trigger(section).textContent.startsWith(kind));
           assert(section&&!opened(section),'Shared route lost a collapsed relationship type');
           await click(trigger(section));
+          await expandServicePairs(section);
           assert(opened(section)&&section.querySelector('code'),'Shared route lost evidence');
         }
         await click(close());
@@ -488,7 +536,7 @@ try {
       await click(close());
       assert(document.activeElement.hasAttribute('data-item'),'Search resource did not receive focus after modal closed');
       const body=document.activeElement.matches('.body')&&document.activeElement;
-      if(body){body.blur();checkCardChange(body,target.change);}
+      if(body){body.blur();checkCardChange(body,body.dataset.group?body.dataset.change:target.change);}
     }
     checkRoutes();
     const beforePan=view(),pane=$('diagram').querySelector('.react-flow__pane');

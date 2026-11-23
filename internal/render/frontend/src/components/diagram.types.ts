@@ -6,7 +6,7 @@ import type {
   GraphEdge,
   ProjectedItem,
   ResourcesById,
-  RouteLabel,
+  Route,
   Scene,
   ServiceIcons,
   Size,
@@ -33,11 +33,10 @@ export type DiagramNode = Node<DiagramItemData, 'resource'>
 
 type RelationData = {
   index: number
-  path: string
+  route: Route
   wireClassName: string
   underlay?: readonly FlowPaintLayer[]
   stream?: FlowPaintLayer
-  label?: RouteLabel
   labelClassName: string
   opacity?: number
   retiring: boolean

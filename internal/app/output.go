@@ -33,6 +33,11 @@ func inspectOutput(path string) (os.FileInfo, error) {
 }
 
 func writeOutput(path string, g graph.Graph, format outputFormat) (Report, error) {
+	if format == outputJSON {
+		if err := g.Validate(); err != nil {
+			return Report{}, err
+		}
+	}
 	err := fileio.WriteAtomic(path, func(w io.Writer) error {
 		if format == outputJSON {
 			encoder := json.NewEncoder(w)
