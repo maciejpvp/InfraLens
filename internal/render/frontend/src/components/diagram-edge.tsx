@@ -6,21 +6,23 @@ import { FlowPath } from '../ui/flow-path'
 
 export const DiagramEdge = ({ id, data, style, markerEnd, interactionWidth }: EdgeProps<DiagramRelation>) =>
   data ? (
-    <FlowPath
-      id={id}
-      path={data.path}
-      markerEnd={markerEnd}
-      interactionWidth={interactionWidth}
-      style={style}
-      className={data.wireClassName}
-      underlay={data.underlay}
-      stream={data.stream}
-      overlay={
-        data.label && (
-          <Text className={data.labelClassName} data-edge-label={data.index} style={data.label.style}>
-            {data.label.text}
-          </Text>
-        )
-      }
-    />
+    <g opacity={data.opacity} pointerEvents={data.retiring ? 'none' : undefined}>
+      <FlowPath
+        id={id}
+        path={data.path}
+        markerEnd={markerEnd}
+        interactionWidth={interactionWidth}
+        style={style}
+        className={data.wireClassName}
+        underlay={data.underlay}
+        stream={data.stream}
+        overlay={
+          data.label && (
+            <Text className={data.labelClassName} data-edge-label={data.index} style={{ ...data.label.style, opacity: data.opacity }}>
+              {data.label.text}
+            </Text>
+          )
+        }
+      />
+    </g>
   ) : null

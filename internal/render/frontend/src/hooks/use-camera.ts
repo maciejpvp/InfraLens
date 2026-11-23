@@ -34,8 +34,8 @@ export const useCamera = (
       Math.max(1, usableHeight) / (layout.height + 60),
     )
     return {
-      x: (width - layout.width * zoom) / 2,
-      y: top + (usableHeight - layout.height * zoom) / 2,
+      x: (width - layout.width * zoom) / 2 - (layout.left ?? 0) * zoom,
+      y: top + (usableHeight - layout.height * zoom) / 2 - (layout.top ?? 0) * zoom,
       zoom,
     }
   }

@@ -131,6 +131,44 @@ try {
     assert([...document.querySelectorAll('[data-node]')].every(n=>endpoints.has(n.dataset.node)),'Flow contains an unrelated resource');
     const shown=[...document.querySelectorAll('[data-edge]')].reduce((n,e)=>n+(+e.dataset.count),0);
     assert(shown===plannedFlow.length,'Configured flow connections are missing');
+    if(location.search==='?desktop'){
+      const handle=document.querySelector('[data-drag-handle]');
+      if(handle){
+        const id=handle.dataset.dragHandle;
+        const getHandle=()=>[...document.querySelectorAll('[data-drag-handle]')].find(h=>h.dataset.dragHandle===id);
+        const getCard=()=>getHandle().closest('[data-diagram-card]');
+        const shift=()=>getCard().getBoundingClientRect();
+        const zoom=new DOMMatrix(view()).a;
+        const key=(key)=>dispatch(getHandle(),new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+        const initialCard=shift();
+        await key('Enter');await key('ArrowLeft');await key('Enter');
+        const dropped=shift();
+        assert(Math.abs(dropped.left-initialCard.left+12*zoom)<.5,'Keyboard drop did not move the card');
+        const toggle=document.querySelector('[data-toggle]').dataset.toggle;
+        const root=()=>[...document.querySelectorAll('[data-toggle]')].find(t=>t.dataset.toggle===toggle);
+        await click(root());
+        assert(!getHandle(),'Collapse left a movable card visible');
+        await click(root());
+        assert(Math.abs(shift().left-dropped.left)<.5,'Reopening lost the manual position');
+        const rapid=root();
+        rapid.click();rapid.click();
+        await waitForLayout();
+        assert(root().getAttribute('aria-expanded')==='true','Rapid toggles settled in the wrong state');
+        const dragTarget=getHandle();
+        dragTarget.setPointerCapture=()=>{};
+        const rect=dragTarget.getBoundingClientRect();
+        const pointer=(kind,dx)=>dragTarget.dispatchEvent(new PointerEvent(kind,{
+          bubbles:true,isPrimary:true,pointerId:4,button:0,clientX:rect.x+10+dx,clientY:rect.y+10,
+        }));
+        pointer('pointerdown',0);pointer('pointermove',-600);pointer('pointerup',-600);
+        await waitForLayout();
+        assert(Math.abs(shift().left-dropped.left)<.5,'Invalid pointer drop changed the saved position');
+        pointer('pointerdown',0);pointer('pointermove',12*zoom);pointer('pointerup',12*zoom);
+        await waitForLayout();
+        assert(Math.abs(shift().left-initialCard.left)<.5,'Valid pointer drop did not follow the pointer');
+        checkRoutes();
+      }
+    }
     const flowEdges=[...document.querySelectorAll('[data-edge]')];
     const flowCards=[...document.querySelectorAll('[data-node]')];
     const focusCard=flowCards.find(card=>flowEdges.some(edge=>[edge.dataset.from,edge.dataset.to].includes(card.dataset.node)));

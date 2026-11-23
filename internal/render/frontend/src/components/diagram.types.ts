@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react'
+import type { MoveCard } from '../hooks/use-scene-motion'
 import type { FlowPaintLayer } from '../ui/flow-path'
 import type { Edge, Node } from '@xyflow/react'
 import type {
@@ -20,6 +22,9 @@ export type DiagramItemData = {
   icons: ServiceIcons
   selected: boolean
   muted: boolean
+  visual?: CSSProperties
+  retiring: boolean
+  drag?: { moveCard: MoveCard; camera: DiagramProps['camera'] }
   onItem: (id: string) => void
   toggle: (id: string) => void
 }
@@ -34,6 +39,8 @@ type RelationData = {
   stream?: FlowPaintLayer
   label?: RouteLabel
   labelClassName: string
+  opacity?: number
+  retiring: boolean
 }
 
 export type DiagramRelation = Edge<RelationData, 'relation'> & { data: RelationData }
@@ -41,6 +48,7 @@ export type DiagramRelation = Edge<RelationData, 'relation'> & { data: RelationD
 export type DiagramProps = {
   camera: ReturnType<typeof useCamera>
   scene: Scene
+  moveCard: MoveCard
   byId: ResourcesById
   icons: ServiceIcons
   selection?: InspectorPage

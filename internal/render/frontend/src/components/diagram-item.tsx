@@ -7,8 +7,10 @@ import type { DiagramNode } from './diagram.types'
 import { Position } from '@xyflow/react'
 import { FlowAnchor } from '../ui/flow-anchor'
 import { useDiagramItem } from '../hooks/use-diagram-item'
+import { CardDragHandle } from './card-drag-handle'
 import { GroupToggle } from './group-toggle'
 import { ServiceIcon } from './service-icon'
+import { cn } from '../lib/utils'
 import { diagramStyles as styles } from './diagram.variants'
 
 export const DiagramItem = ({ data }: NodeProps<DiagramNode>) => {
@@ -28,7 +30,7 @@ export const DiagramItem = ({ data }: NodeProps<DiagramNode>) => {
   } = useDiagramItem(data)
 
   return (
-    <Box className={styles.item} style={bounds} data-diagram-card>
+    <Box className={styles.item} style={{ ...bounds, ...data.visual }} inert={data.retiring} data-diagram-card>
       {item.expanded && <Box className={groupClassName} />}
       <Button unstyled type="button" {...buttonProps}>
         {item.expanded ? (
@@ -45,11 +47,12 @@ export const DiagramItem = ({ data }: NodeProps<DiagramNode>) => {
               <Text className={styles.nodeType}>{type}</Text>
               {changeBadge && <Text className={changeBadge.className}>{changeBadge.text}</Text>}
             </Text>
-            <Text className={styles.nodeName}>{item.name}</Text>
-            <Text className={styles.nodeMeta}>{meta}</Text>
+            <Text className={cn(styles.nodeName, data.drag && 'pr-8')}>{item.name}</Text>
+            <Text className={cn(styles.nodeMeta, data.drag && 'pr-8')}>{meta}</Text>
           </>
         )}
       </Button>
+      {data.drag && <CardDragHandle {...data.drag} id={item.id} name={item.name} />}
       {toggleProps && <GroupToggle {...toggleProps} />}
       <FlowAnchor type="target" position={Position.Left} className={styles.handle} />
       <FlowAnchor type="source" position={Position.Right} className={styles.handle} />

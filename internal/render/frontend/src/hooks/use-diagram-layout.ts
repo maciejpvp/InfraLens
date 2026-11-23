@@ -1,10 +1,12 @@
+import type { RefObject } from 'react'
 import type { GraphView, Hierarchy, Scene } from '../lib/graph.types'
 
 import { useEffect, useMemo, useState } from 'react'
 import { edgeCaptionFontSize } from '../lib/elk.config'
+import { useSceneMotion } from './use-scene-motion'
 import { layoutDiagram } from '../lib/elk-layout.ts'
 
-export const useDiagramLayout = (tree: Hierarchy, current: GraphView) => {
+export const useDiagramLayout = (tree: Hierarchy, current: GraphView, anchor: RefObject<string | null>) => {
   const [result, setResult] = useState<{ current: GraphView; scene?: Scene; failed?: boolean }>()
   const measureText = useMemo(() => {
     const context = document.createElement('canvas').getContext('2d')
@@ -28,6 +30,7 @@ export const useDiagramLayout = (tree: Hierarchy, current: GraphView) => {
     }
   }, [tree, current, measureText])
 
+  const { scene, moveCard } = useSceneMotion(result?.scene, anchor, measureText)
   const layoutPending = result?.current !== current
-  return { scene: result?.scene, layoutPending, layoutFailed: !layoutPending && Boolean(result?.failed) }
+  return { scene, moveCard, layoutPending, layoutFailed: !layoutPending && Boolean(result?.failed) }
 }

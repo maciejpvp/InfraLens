@@ -39,7 +39,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     () => projectGraph(tree, mode, dependencies, expanded),
     [tree, mode, dependencies, expanded],
   )
-  const { scene, layoutPending, layoutFailed } = useDiagramLayout(tree, current)
+  const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(tree, current, toggleFocus)
   const legendProps = useConnectionLegend()
   const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef)
   const inspector = useInspector((origin) => {
@@ -51,7 +51,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const selection = inspector.pages.at(-1)
 
   useLayoutEffect(() => {
-    if (!scene || scene.current !== current) return
+    if (!scene || scene.motion || scene.current !== current) return
     if (fitAfterLayout.current) {
       fitAfterLayout.current = false
       camera.fit()
@@ -70,10 +70,12 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
 
   const toggle = (id: string) => {
     toggleFocus.current = id
-    const next = new Set(expanded)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setExpansions((previous) => ({ ...previous, [expansionKey]: next }))
+    setExpansions((previous) => {
+      const next = new Set(previous[expansionKey] ?? tree.initialExpanded)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return { ...previous, [expansionKey]: next }
+    })
   }
 
   const resourcePage = (item: HierarchyItem, edges = tree.edges): InspectorPage => {
@@ -113,7 +115,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   return {
     stageProps: {
       ref: stage,
-      'aria-busy': layoutPending,
+      'aria-busy': layoutPending || Boolean(scene?.motion),
       'data-inspecting': Boolean(selection),
       'data-pipe-motion': legendProps.playing ? 'on' : 'off',
     },
@@ -124,6 +126,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     diagramProps: scene && {
       camera,
       scene,
+      moveCard,
       byId,
       icons,
       selection,
