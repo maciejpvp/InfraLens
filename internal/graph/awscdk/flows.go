@@ -18,6 +18,13 @@ const (
 func (doc template) linkFlows(b *stackGraph, id string, res resource) {
 	props := res.Properties
 	switch res.Type {
+	case lambdaFunction:
+		env, _ := props["Environment"].(map[string]any)
+		variables, _ := env["Variables"].(map[string]any)
+		for name, value := range variables {
+			table := doc.resolve(value, dynamoTable, "", "Arn")
+			b.link(id, table, graph.ConnectsTo, id, "Lambda environment", "Properties.Environment.Variables."+name)
+		}
 	case "AWS::Lambda::EventSourceMapping":
 		if enabled, ok := props["Enabled"].(bool); ok && !enabled {
 			return

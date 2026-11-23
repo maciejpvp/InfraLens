@@ -258,7 +258,17 @@ test('infrastructure groups each service once per owner and stack; flow retains 
   const visible = projectGraph(flow, 'flow', true, flow.initialExpanded)
   assert.deepEqual([...visible.representatives.keys()].sort(), ['bucket', 'lambda', 'opensearch-on-ec2', 'second-lambda'])
   assert.equal(visible.edges.length, 2)
-  assert.equal([...visible.items.values()].some((item) => item.service), false)
+  const flowLambda = flow.resourceItems.get('lambda')!.parent!
+  assert.equal(flowLambda.service?.id, 'aws:lambda')
+  assert.equal(visible.items.get(flowLambda.id)?.expanded, false)
+  assert.equal(visible.representatives.get('second-lambda'), flowLambda.id)
+  assert.equal(visible.representatives.get('bucket'), 'bucket')
+  assert.ok(visible.edges.some((edge) => edge.from === 'bucket' && edge.to === flowLambda.id))
+  assert.ok(visible.edges.some((edge) => edge.from === flowLambda.id && edge.to === 'opensearch-on-ec2'))
+  const opened = projectGraph(flow, 'flow', true, new Set([...flow.initialExpanded, flowLambda.id]))
+  assert.deepEqual(opened.items.get(flowLambda.id)?.children, ['lambda', 'second-lambda'])
+  const focused = projectGraph(flow, 'flow', true, flow.initialExpanded, 'lambda')
+  assert.ok(focused.items.has('lambda') && !focused.items.has('second-lambda'))
   for (const group of groups) {
     assert.ok(group.group && group.children.length)
     assert.ok(!tree.initialExpanded.has(group.id))

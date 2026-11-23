@@ -14,6 +14,7 @@ type assemblyManifest struct {
 		Properties  struct {
 			TemplateFile  string `json:"templateFile"`
 			DirectoryName string `json:"directoryName"`
+			StackName     string `json:"stackName"`
 		} `json:"properties"`
 	} `json:"artifacts"`
 }
@@ -39,7 +40,14 @@ func assemblySources(assembly fs.FS, dir string) ([]source, error) {
 			if stack == "" {
 				stack = path.Join(dir, id)
 			}
-			sources = append(sources, source{stack: stack, path: path.Join(dir, file)})
+			diffName := artifact.DisplayName
+			if diffName == "" {
+				diffName = id
+			}
+			if name := artifact.Properties.StackName; name != "" && name != id {
+				diffName += " (" + name + ")"
+			}
+			sources = append(sources, source{stack: stack, path: path.Join(dir, file), diffName: diffName})
 		case "cdk:cloud-assembly":
 			child := artifact.Properties.DirectoryName
 			if !fs.ValidPath(child) || child == "." {

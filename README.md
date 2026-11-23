@@ -56,7 +56,7 @@ W katalogu projektu CDK zawierającym `cdk.json` uruchom:
 InfraLens preview --provider=aws-cdk
 ```
 
-InfraLens używa projektowego `node_modules/.bin/cdk` lub `cdk` z `PATH`. Uruchamia `cdk synth` z wyłączonymi lookupami kontekstu, czyta szablony ze stosów wskazanych w tymczasowym manifeście i otwiera `infralens.html`. Użyj `--no-open` do samego zapisu lub `--output raport.html` do zmiany nazwy. Synteza wykonuje kod projektu i może wymagać narzędzi do bundlowania jego assetów. [Dokumentacja syntezy CDK](https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd-synth.html)
+InfraLens używa projektowego `node_modules/.bin/cdk` lub `cdk` z `PATH`. Uruchamia `cdk diff '**' --method=template` z wyłączonymi lookupami kontekstu. Buduje diagram z szablonów wygenerowanych przez to samo wywołanie i przypisuje statusy z diffu. Przy pierwszym wdrożeniu CDK oznacza nowe zasoby jako `+ create`. Preview wymaga dostępu do odczytu CloudFormation we właściwym koncie i regionie AWS. Domyślnie zapisuje i otwiera `infralens.html`. Użyj `--no-open` do samego zapisu lub `--output raport.html` do zmiany nazwy. Synteza wykonuje kod projektu i może wymagać narzędzi do bundlowania jego assetów. [Dokumentacja `cdk diff`](https://docs.aws.amazon.com/cdk/v2/guide/ref-cli-cmd-diff.html)
 
 Gotowe szablony ze wcześniejszej syntezy można też odczytać bez uruchamiania CDK:
 
@@ -67,9 +67,9 @@ InfraLens render --provider=aws-cdk --input cdk.out/MyStack.template.json --outp
 
 InfraLens odczytuje gotowe szablony JSON, więc generowanie raportu działa offline. Możesz podać kilka szablonów przez powtarzane `--input`. Nazwa stosu pochodzi z nazwy pliku. Aby nadać inną nazwę lub rozróżnić identyczne nazwy plików, użyj `--input STACK=FILE`.
 
-Graf pokazuje topologię z szablonu. `DependsOn`, `Ref`, `Fn::GetAtt` i `Fn::Sub` wyznaczają zależności wdrożeniowe w obrębie stosu. Widok przepływu pokazuje jawnie powiązane SQS i DynamoDB Streams → Lambda, powiadomienia S3 → Lambda oraz źródła danych AppSync powiązane z Lambda lub DynamoDB. W raporcie pozostają identyfikatory logiczne, typy zasobów i dowody relacji.
+Graf pokazuje topologię z szablonu. `DependsOn`, `Ref`, `Fn::GetAtt` i `Fn::Sub` wyznaczają zależności wdrożeniowe w obrębie stosu. Widok przepływu pokazuje referencje Lambda → DynamoDB w zmiennych środowiskowych oraz jawnie powiązane SQS i DynamoDB Streams → Lambda, powiadomienia S3 → Lambda oraz źródła danych AppSync powiązane z Lambda lub DynamoDB. W raporcie pozostają identyfikatory logiczne, typy zasobów i dowody relacji.
 
-Preview CDK pokazuje stan wynikający z syntezy. Porównanie z wdrożonym stosem, interpretacja warunków CloudFormation i powiązania między stosami przez `Fn::ImportValue` pozostają poza zakresem.
+Preview CDK porównuje szablony bez tworzenia change setu, więc ocena wymiany zasobu jest przybliżona. Usuwane zasoby pojawiają się w raporcie bez dawnych połączeń. Interpretacja warunków CloudFormation, zasoby wewnątrz `NestedStack` i powiązania między stosami przez `Fn::ImportValue` pozostają poza zakresem.
 
 ## Symulacja bez stosów i wdrożenia AWS
 
@@ -143,7 +143,7 @@ Obsługa wielu wejść działa także dla wspieranego podzbioru preview, ale wid
 
 ## Diagram i znaczenie połączeń
 
-- **Przepływ:** pokazuje zasoby biorące udział w rozpoznanych połączeniach oraz ich stosy i komponenty nadrzędne. Licznik podaje liczbę uczestników i pełną liczbę zasobów w raporcie. Turkusowe kanały oznaczają zdarzenia i wywołania, a fioletowe referencje w konfiguracji. Krótkie impulsy poruszają się wewnątrz ciągłych przewodów z przyciemnioną ścianką i podświetloną krawędzią. Bursztynowa strzałka z naprzemiennymi kreskami oznacza zależność wdrożeniową. Legenda w dolnym rogu wyjaśnia wzory i pozwala zatrzymać ruch. Animacja pokazuje kierunek konfiguracji, bez odczytu rzeczywistego ruchu.
+- **Przepływ:** pokazuje zasoby biorące udział w rozpoznanych połączeniach oraz ich stosy i komponenty nadrzędne. Zasoby tej samej usługi w obrębie komponentu lub stosu tworzą zwiniętą grupę, którą można rozwinąć lub odsłonić z niej pojedynczy zasób. Licznik podaje liczbę uczestników i pełną liczbę zasobów w raporcie. Turkusowe kanały oznaczają zdarzenia i wywołania, a fioletowe referencje w konfiguracji. Krótkie impulsy poruszają się wewnątrz ciągłych przewodów z przyciemnioną ścianką i podświetloną krawędzią. Bursztynowa strzałka z naprzemiennymi kreskami oznacza zależność wdrożeniową. Legenda w dolnym rogu wyjaśnia wzory i pozwala zatrzymać ruch. Animacja pokazuje kierunek konfiguracji, bez odczytu rzeczywistego ruchu.
 - **Infrastruktura:** pełny plan zmian z licznikiem zasobów według operacji oraz przełącznikiem zależności Pulumi. W podglądzie pojedynczego stosu liczba zasobów pomija wiersz korzenia stosu Pulumi. `depends_on` wskazuje od zasobu zależnego do jego zależności, a nie kierunek danych.
 - Interfejs i generowane opisy są po angielsku; nazwy zasobów i dane projektu zachowują oryginalną postać. Oficjalne ikony AWS z pakietu 31 lipca 2026 są osadzone jako SVG w HTML i działają offline ([źródło i warunki](internal/render/icons/NOTICE.md)). W widoku Infrastructure zasoby liściowe są grupowane według usługi, w obrębie swojego stosu lub komponentu. Klasyfikacja korzysta z typu Pulumi.
 - Ciemny canvas zajmuje całe okno. Stosy zawierają rzeczywiste komponenty Pulumi; grupy usług w Infrastructure początkowo pozostają zwinięte. Przyciski +/− rozwijają grupy, a połączenia na ich granicach łączą się z zachowaniem wszystkich dowodów.

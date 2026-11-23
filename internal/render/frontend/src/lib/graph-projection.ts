@@ -173,27 +173,26 @@ export const buildHierarchy = (
     }
     attach(item, cycle ? stack : parent)
   }
-  for (const parent of [...items.values()])
-    if (mode === 'infra' && parent.group) {
-      const isLeaf = (item: HierarchyItem): item is Extract<HierarchyItem, { group: false }> =>
-        !item.group
-      const leaves = parent.children.filter(isLeaf)
-      if (!leaves.length) continue
-      parent.children = parent.children.filter((c) => !isLeaf(c))
-      const groups = new Map<string, Group>()
-      for (const item of leaves) {
-        const service = serviceFor(item.node)
-        let group = groups.get(service.id)
-        if (!group) {
-          group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
-          group.service = service
-          groups.set(service.id, group)
-          items.set(group.id, group)
-          attach(group, parent)
-        }
-        attach(item, group)
-      }
+  for (const parent of [...items.values()]) {
+    if (!parent.group) continue
+    const services = new Map<string, { service: Service; leaves: HierarchyItem[] }>()
+    for (const item of parent.children) {
+      if (item.group || (mode === 'flow' && !item.node.service)) continue
+      const service = serviceFor(item.node)
+      const bucket = services.get(service.id)
+      if (bucket) bucket.leaves.push(item)
+      else services.set(service.id, { service, leaves: [item] })
     }
+    for (const { service, leaves } of services.values()) {
+      if (mode === 'flow' && leaves.length < 2) continue
+      const group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
+      group.service = service
+      items.set(group.id, group)
+      attach(group, parent)
+      for (const item of leaves) attach(item, group)
+    }
+    parent.children = parent.children.filter((child) => child.parent === parent)
+  }
   const collect = (item: HierarchyItem): Set<string> => {
     if (item.group) {
       item.children.sort(compare)
@@ -204,7 +203,7 @@ export const buildHierarchy = (
   const roots = [...stacks.values()].sort(compare)
   for (const root of roots) collect(root)
   const expanded = new Set(
-    mode === 'flow' ? [...items.values()].filter((item) => item.group).map((item) => item.id) : roots.map((root) => root.id),
+    mode === 'flow' ? [...items.values()].filter((item) => item.group && !item.service).map((item) => item.id) : roots.map((root) => root.id),
   )
   return { roots, items, resourceItems, edges, flowIDs, initialExpanded: expanded }
 }

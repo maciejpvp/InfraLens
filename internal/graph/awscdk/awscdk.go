@@ -56,8 +56,9 @@ func ReadInputs(inputs []string, open func(string) (io.Reader, error)) (graph.Gr
 }
 
 type source struct {
-	stack string
-	path  string
+	stack    string
+	path     string
+	diffName string
 }
 
 func readSources(sources []source, open func(string) (io.Reader, error)) (graph.Graph, error) {
@@ -119,15 +120,19 @@ func readTemplate(reader io.Reader) (template, error) {
 	return doc, nil
 }
 
+func resourceNode(stack, id, kind string) graph.Node {
+	sum := sha256.Sum256([]byte("aws-cdk\x00" + stack + "\x00" + id))
+	return graph.Node{
+		ID: hex.EncodeToString(sum[:]), Name: id, Stack: stack, Type: kind, Provider: "aws", Service: service(kind),
+	}
+}
+
 func (doc template) addTo(g *graph.Graph, stack string) {
 	b := stackGraph{graph: g, ids: make(map[string]string, len(doc.Resources)), edges: map[edgeKey]int{}}
 	for id, res := range doc.Resources {
-		sum := sha256.Sum256([]byte("aws-cdk\x00" + stack + "\x00" + id))
-		nodeID := hex.EncodeToString(sum[:])
-		b.ids[id] = nodeID
-		g.Nodes = append(g.Nodes, graph.Node{
-			ID: nodeID, Name: id, Stack: stack, Type: res.Type, Provider: "aws", Service: service(res.Type),
-		})
+		node := resourceNode(stack, id, res.Type)
+		b.ids[id] = node.ID
+		g.Nodes = append(g.Nodes, node)
 	}
 	for id, res := range doc.Resources {
 		omitted := map[string]bool{}

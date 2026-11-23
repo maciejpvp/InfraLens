@@ -29,6 +29,7 @@ export const useDiagramItem = ({
       })
     : item.node.change
   const hasChange = change && change !== 'unchanged'
+  const statusColor = styles.changeColor[change ?? 'unchanged']
   const count = countLabel(item.members.size, 'resource')
   const type = item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
   const open = activationProps<HTMLButtonElement>(() => onItem(item.id))
@@ -54,7 +55,9 @@ export const useDiagramItem = ({
           : [
               styles.node,
               styles.card,
-              hasChange ? [styles.changedCard, styles.changeColor[change]] : styles.cardShadow,
+              styles.statusBorder,
+              statusColor,
+              hasChange ? styles.changedCard : styles.cardShadow,
               item.support && styles.supportCard,
               selected && styles.selectedCard,
             ],
@@ -64,7 +67,13 @@ export const useDiagramItem = ({
       style: item.expanded ? { height: GROUP_HEADER_HEIGHT } : undefined,
       ...open,
     },
-    groupClassName: cn(styles.groupBounds, depth > 0 && styles.nestedGroupBounds, muted && styles.mutedItem),
+    groupClassName: cn(
+      styles.groupBounds,
+      styles.statusBorder,
+      statusColor,
+      depth > 0 && styles.nestedGroupBounds,
+      muted && styles.mutedItem,
+    ),
     cardTopClassName: cn(styles.cardTop, item.group && styles.reserveToggle),
     count,
     showHeaderIcon: Boolean(service),

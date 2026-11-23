@@ -8,6 +8,8 @@
       "DependsOn": ["Queue", "Missing"],
       "Properties": {
         "Environment": { "Variables": {
+          "TABLE": { "Ref": "Table" },
+          "TABLE_ARN": { "Fn::GetAtt": ["Table", "Arn"] },
           "VALUE": "CANARY_CDK_SECRET",
           "QUEUE": { "Ref": "Queue" },
           "STAGE": { "Ref": "Stage" },

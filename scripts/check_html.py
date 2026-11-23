@@ -17,18 +17,22 @@ try {
   const graph=JSON.parse($('infralens-data').textContent);
   const view=()=>$('diagram').querySelector('.react-flow__viewport').style.transform;
   const card=item=>item.closest('[data-diagram-card]');
-  const cardColors={create:'#527e6b',delete:'#986771',update:'#92805b',replace:'#92805b'};
+  const cardColors={unchanged:'#7b8a9e',create:'#55d98a',delete:'#fa7882',update:'#f0c75e',replace:'#f0c75e'};
   const swatch=document.createElement('span');
   document.body.append(swatch);
   swatch.style.backgroundColor='var(--color-card)';
   const neutralCard=getComputedStyle(swatch).backgroundColor;
   swatch.remove();
+  function checkStatusBorder(style,change){
+    const color=cardColors[change||'unchanged'];
+    assert(style.borderColor==='rgb('+color.slice(1).match(/../g).map(hex=>parseInt(hex,16)).join(', ')+')','Wrong status border color: '+change);
+    assert(style.borderTopWidth==='2px','Status border is too thin');
+  }
   function checkCardChange(card,change){
-    const style=getComputedStyle(card),color=cardColors[change];
+    const style=getComputedStyle(card);
+    checkStatusBorder(style,change);
     assert(style.backgroundColor===neutralCard,'Card background varies with change status');
-    assert(style.getPropertyValue('--card-change').trim()===(color||''),'Wrong card change color: '+change);
-    if(color){
-      assert(style.borderColor==='rgb('+color.slice(1).match(/../g).map(hex=>parseInt(hex,16)).join(', ')+')','Missing status-colored border');
+    if(change&&change!=='unchanged'){
       assert(style.boxShadow.includes('0px 0px 3px')&&style.boxShadow.includes('0px 0px 12px'),'Missing two-layer status shadow: '+style.boxShadow);
     }
   }
@@ -133,7 +137,11 @@ try {
   if(plannedFlow.length){
     assert($('flow-view').getAttribute('aria-pressed')==='true','Flow did not open by default');
     const endpoints=new Set(plannedFlow.flatMap(e=>[e.from,e.to]));
-    assert(!document.querySelector('[data-service]'),'Flow contains a service group');
+    for(const group of document.querySelectorAll('[data-service]')){
+      const toggle=card(group).querySelector('[data-toggle]');
+      assert(toggle.getAttribute('aria-expanded')==='false','Flow service group should start collapsed');
+      await click(toggle);
+    }
     assert($('summary').textContent.includes(endpoints.size+' in flow · '+graph.nodes.length+' total'),'Incorrect Flow counts');
     assert([...document.querySelectorAll('[data-node]')].every(n=>endpoints.has(n.dataset.node)),'Flow contains an unrelated resource');
     const shown=[...document.querySelectorAll('[data-edge]')].reduce((n,e)=>n+(+e.dataset.count),0);
@@ -182,6 +190,9 @@ try {
     if(focusCard){
       const grid=getComputedStyle($('stage')).backgroundImage;
       await click(focusCard);
+      const selectedStyle=getComputedStyle(focusCard);
+      checkStatusBorder(selectedStyle,focusCard.dataset.change);
+      assert(selectedStyle.outlineStyle==='solid'&&selectedStyle.outlineWidth==='2px','Selected card lost its outline');
       for(const element of [...flowEdges,...flowCards]){
         for(const animation of element.getAnimations())if(animation instanceof CSSTransition)animation.finish();
       }
@@ -407,6 +418,7 @@ try {
       await dispatch(toggle,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
       const expanded=[...document.querySelectorAll('[data-item]')].find(g=>g.dataset.item===id);
       assert(card(expanded).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
+      checkStatusBorder(getComputedStyle(card(expanded).firstElementChild),expanded.dataset.change);
       const members=[...document.querySelectorAll('[data-node]')].filter(n=>!visibleNodes.has(n.dataset.node));
       const status=['delete','replace','update','create'].find(change=>members.some(n=>n.dataset.change===change))??'';
       assert(members.length>0&&group.dataset.change===status,'Collapsed service group did not inherit its members’ change status');

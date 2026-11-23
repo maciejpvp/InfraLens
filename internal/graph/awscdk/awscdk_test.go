@@ -53,6 +53,7 @@ func TestReadInputs(t *testing.T) {
 	want := map[relation][]string{
 		{"Worker", "Queue", graph.DependsOn}:  {"DependsOn", "Fn::Sub", "Ref"},
 		{"Worker", "Bucket", graph.DependsOn}: {"Fn::GetAtt"},
+		{"Worker", "Table", graph.ConnectsTo}: {"Lambda environment", "Lambda environment"},
 		{"Queue", "Worker", graph.Triggers}:   {"EventSourceMapping"},
 		{"Table", "Worker", graph.Triggers}:   {"EventSourceMapping"},
 		{"Bucket", "Worker", graph.Triggers}:  {"S3 notification", "S3 notification"},
