@@ -8,7 +8,7 @@ import type {
 } from '../src/lib/graph.types.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildHierarchy, groupDependenciesByService, projectGraph, revealResource, serviceFor } from '../src/lib/graph-projection.ts'
+import { buildHierarchy, edgeCaption, flowDescriptions, groupDependenciesByService, projectGraph, revealResource, serviceFor } from '../src/lib/graph-projection.ts'
 const node = (id: string, type = 'test', stack = 'stack'): Resource => ({
   id,
   name: id,
@@ -214,6 +214,62 @@ test('service classification uses explicit provider and service metadata', () =>
   assert.equal(serviceFor({ provider: 'aws', service: 'other' }).name, 'other')
   assert.equal(serviceFor({ provider: 'random' }).name, 'Random')
   assert.equal(serviceFor().name, 'Unknown')
+})
+
+test('AppSync API cards retain expandable infrastructure and direct GraphQL flows', () => {
+  const aws = (id: string, type: string, service: string) => ({ ...node(id, type), provider: 'aws', service })
+  const membership = (helper: string, api: string, state?: Topology): GraphEdge => ({
+    ...edge(helper, api, 'depends_on', state),
+    evidence: [{ source: 'appsync_api', property: 'inputs.apiId' }],
+  })
+  const graph = {
+    nodes: [
+      aws('api', 'aws:appsync/graphQLApi:GraphQLApi', 'appsync'),
+      aws('other-api', 'AWS::AppSync::GraphQLApi', 'appsync'),
+      aws('source', 'aws:appsync/dataSource:DataSource', 'appsync'),
+      aws('resolver', 'aws:appsync/resolver:Resolver', 'appsync'),
+      aws('read', 'aws:lambda/function:Function', 'lambda'),
+      aws('write', 'aws:lambda/function:Function', 'lambda'),
+      node('component'),
+    ],
+    edges: [
+      edge('component', 'resolver'),
+      edge('api', 'source'),
+      membership('source', 'api'),
+      membership('resolver', 'api', 'after'),
+      membership('resolver', 'other-api', 'before'),
+      {
+        ...edge('api', 'read', 'connects_to', 'after'),
+        evidence: [{ source: 'test', label: 'Query.getItem' }, { source: 'test', label: 'Mutation.setItem' }],
+      },
+      { ...edge('api', 'write', 'connects_to', 'after'), evidence: [{ source: 'test', label: 'Mutation.setItem' }] },
+    ],
+  }
+  const infra = buildHierarchy(graph)
+  const collapsed = projectGraph(infra, 'infra', true, infra.initialExpanded)
+  assert.equal(collapsed.representatives.get('api'), 'group:api')
+  assert.equal(collapsed.representatives.get('resolver'), 'group:api')
+  assert.equal(collapsed.representatives.get('source'), 'group:api')
+  assert.equal(collapsed.representatives.get('other-api'), 'other-api')
+  assert.equal(buildHierarchy(graph, 'before').resourceItems.get('resolver')?.parent?.id, 'group:other-api')
+  const open = new Set(infra.initialExpanded)
+  assert.equal(revealResource(infra, 'resolver', open), 'resolver')
+  const expanded = projectGraph(infra, 'infra', true, open)
+  assert.deepEqual(expanded.items.get('group:api')?.children, ['resolver', 'source'])
+  assert.ok(expanded.edges.some((e) => e.from === 'resolver' && e.to === 'group:api' && e.kind === 'depends_on'))
+
+  const flow = buildHierarchy(graph, 'after', 'flow')
+  const grouped = projectGraph(flow, 'flow', true, flow.initialExpanded)
+  const lambda = flow.resourceItems.get('read')?.parent
+  assert.ok(lambda?.service)
+  assert.equal(grouped.edges.length, 1)
+  assert.equal(grouped.edges[0].to, lambda.id)
+  assert.equal(grouped.representatives.get('api'), 'api')
+  assert.ok(!grouped.representatives.has('resolver') && !grouped.representatives.has('source'))
+  const byFunction = projectGraph(flow, 'flow', true, new Set([...flow.initialExpanded, lambda.id]))
+  assert.deepEqual(byFunction.edges.map((e) => [e.from, e.to]), [['api', 'read'], ['api', 'write']])
+  assert.equal(edgeCaption(byFunction.edges[0]), 'Mutation.setItem +1')
+  assert.deepEqual(flowDescriptions([byFunction.edges[0]]).map(({ label }) => label), ['Mutation.setItem', 'Query.getItem'])
 })
 
 test('infrastructure groups each service once per owner and stack; flow retains only its endpoints', () => {

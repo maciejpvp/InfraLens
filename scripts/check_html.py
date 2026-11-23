@@ -510,7 +510,7 @@ try {
       await click(close());
       assert(document.activeElement.hasAttribute('data-item'),'Search resource did not receive focus after modal closed');
       const body=document.activeElement.matches('.body')&&document.activeElement;
-      if(body){body.blur();checkCardChange(body,target.change);}
+      if(body){body.blur();checkCardChange(body,body.dataset.group?body.dataset.change:target.change);}
     }
     checkRoutes();
     const beforePan=view(),pane=$('diagram').querySelector('.react-flow__pane');

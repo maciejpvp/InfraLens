@@ -69,6 +69,92 @@ func TestAWSRelationRegressions(t *testing.T) {
 		}
 	})
 
+	t.Run("AppSync resolves fields and scopes data sources to their API", func(t *testing.T) {
+		api := newResource("app", "aws:appsync/graphQLApi:GraphQLApi", "api", "main-api", nil, nil)
+		other := newResource("app", appsyncAPIType, "other", "other-api", nil, nil)
+		read := newResource("app", lambdaType, "read", "read-arn", nil, nil)
+		write := newResource("app", lambdaType, "write", "write-arn", nil, nil)
+		table := newResource("app", tableType, "table", "items", nil, nil)
+		ds := func(name, apiID, dataSource, arn string) resource {
+			return newResource("app", appsyncSourceType, name, apiID+"-"+dataSource, map[string]any{
+				"apiId": apiID, "name": dataSource, "type": "AWS_LAMBDA", "lambdaConfig": map[string]any{"functionArn": arn},
+			}, nil)
+		}
+		mainDS, otherDS := ds("main", api.ID, "shared", read.ID), ds("secondary", other.ID, "shared", write.ID)
+		tableDS := newResource("app", appsyncSourceType, "tableSource", "", map[string]any{
+			"apiId": api.ID, "name": "table", "type": "AMAZON_DYNAMODB",
+			"dynamodbConfig": map[string]any{"tableName": table.ID},
+		}, nil)
+		first := newResource("app", appsyncFunctionType, "first", api.ID+"-first-id",
+			map[string]any{"apiId": api.ID, "dataSource": "shared"}, nil)
+		second := newResource("app", appsyncFunctionType, "second", "",
+			map[string]any{"apiId": api.ID, "dataSource": "table"}, map[string]any{"functionId": "second-id"})
+		query := newResource("app", appsyncResolverType, "query", "", map[string]any{
+			"apiId": api.ID, "type": "Query", "field": "getItem", "dataSource": "shared",
+		}, nil)
+		mutation := newResource("app", appsyncResolverType, "mutation", "", map[string]any{
+			"apiId": api.ID, "type": "Mutation", "field": "setItem", "kind": "PIPELINE",
+			"pipelineConfig": map[string]any{"functions": []string{"first-id", "second-id"}},
+		}, nil)
+		labels := func(edges []graph.Edge) map[[3]string][]string {
+			result := map[[3]string][]string{}
+			for _, e := range edges {
+				key := [3]string{e.From, e.To, e.State}
+				for _, proof := range e.Evidence {
+					if proof.Label != "" {
+						result[key] = append(result[key], proof.Label)
+					}
+				}
+				slices.Sort(result[key])
+			}
+			return result
+		}
+		want := map[[3]string][]string{
+			{id(api.URN), id(read.URN), ""}:    {"Mutation.setItem", "Query.getItem"},
+			{id(api.URN), id(table.URN), ""}:   {"Mutation.setItem"},
+			{id(other.URN), id(write.URN), ""}: {"AppSync data source"},
+		}
+		got := labels(flows(t, export(api, other, read, write, table, mainDS, otherDS, tableDS, first, second, query, mutation)))
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("flow labels = %v, want %v", got, want)
+		}
+
+		afterDS := ds("main", unknownValue, "shared", unknownValue)
+		afterDS.PropertyDependencies = map[string][]string{"apiId": {api.URN}, "lambdaConfig": {write.URN}}
+		afterQuery := newResource("app", appsyncResolverType, "query", "", map[string]any{
+			"apiId": unknownValue, "type": "Query", "field": "getItem", "dataSource": unknownValue,
+		}, nil)
+		afterQuery.PropertyDependencies = map[string][]string{"apiId": {api.URN}, "dataSource": {mainDS.URN}}
+		afterMutation := newResource("app", appsyncResolverType, "mutation", "", map[string]any{
+			"apiId": api.ID, "type": "Mutation", "field": "setItem", "kind": "PIPELINE",
+			"pipelineConfig": map[string]any{"functions": []string{unknownValue}},
+		}, nil)
+		afterMutation.PropertyDependencies = map[string][]string{"pipelineConfig": {first.URN}}
+		snapshot := func() Source {
+			return preview(same(api), same(read), same(write), same(first),
+				step{Op: "update", URN: mainDS.URN, Old: &mainDS, New: &afterDS},
+				step{Op: "update", URN: query.URN, Old: &query, New: &afterQuery},
+				step{Op: "update", URN: mutation.URN, Old: &mutation, New: &afterMutation})
+		}
+		want = map[[3]string][]string{
+			{id(api.URN), id(read.URN), "before"}: {"Mutation.setItem", "Query.getItem"},
+			{id(api.URN), id(write.URN), "after"}: {"Mutation.setItem", "Query.getItem"},
+		}
+		if got = labels(flows(t, snapshot())); !reflect.DeepEqual(got, want) {
+			t.Fatalf("preview flow labels = %v, want %v", got, want)
+		}
+		g, err := ReadSources(snapshot())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.ContainsFunc(g.Edges, func(e graph.Edge) bool {
+			return e.From == id(query.URN) && e.To == id(api.URN) && e.Kind == graph.DependsOn && e.State == "after" &&
+				slices.Contains(e.Evidence, graph.Evidence{Source: graph.AppSyncAPISource, Resource: id(query.URN), Property: "propertyDependencies.apiId"})
+		}) {
+			t.Fatal("missing AppSync association from preview property dependency")
+		}
+	})
+
 	t.Run("S3 EventBridge across exports and previews", func(t *testing.T) {
 		bucket := newResource("storage", "aws:s3/bucket:Bucket", "bucket", "bucket-id", nil, nil)
 		notification := newResource("storage", "aws:s3/bucketNotification:BucketNotification", "notification", "", map[string]any{

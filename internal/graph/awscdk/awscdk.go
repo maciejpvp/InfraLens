@@ -154,6 +154,7 @@ func (doc template) addTo(g *graph.Graph, stack string) {
 		g.OmittedRelations += len(omitted)
 		doc.linkFlows(&b, id, res)
 	}
+	doc.linkAppSync(&b)
 }
 
 func service(resourceType string) string {
@@ -191,11 +192,14 @@ type stackGraph struct {
 }
 
 func (b *stackGraph) link(from, to string, kind graph.Kind, resource, source, property string) {
+	b.linkEvidence(from, to, kind, graph.Evidence{Source: source, Resource: b.ids[resource], Property: property})
+}
+
+func (b *stackGraph) linkEvidence(from, to string, kind graph.Kind, evidence graph.Evidence) {
 	key := edgeKey{b.ids[from], b.ids[to], kind}
 	if key.from == "" || key.to == "" || key.from == key.to {
 		return
 	}
-	evidence := graph.Evidence{Source: source, Resource: b.ids[resource], Property: property}
 	if index, ok := b.edges[key]; ok {
 		edge := &b.graph.Edges[index]
 		if !slices.Contains(edge.Evidence, evidence) {

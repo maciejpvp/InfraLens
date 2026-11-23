@@ -20,6 +20,9 @@ export const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'con
 export const activeEdges = (graph: Graph, state: Topology) =>
   graph.edges.filter((e) => !e.state || e.state === state)
 
+export const isAppSyncAPI = (node?: Resource | null) =>
+  node?.type === 'AWS::AppSync::GraphQLApi' || node?.type === 'aws:appsync/graphQLApi:GraphQLApi'
+
 export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provider' | 'service'> = {}): Service => {
   if (provider !== 'aws')
     return {
@@ -32,7 +35,7 @@ export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provi
   return {
     id: 'aws:' + id,
     name: service?.[0] || id || 'AWS',
-    icon: service ? id : null,
+    icon: service && id !== 'appsync' ? id : null,
     color: service?.[1] || '#91a5bd',
   }
 }
@@ -100,8 +103,17 @@ export const buildHierarchy = (
       nodes.get(e.from)?.stack === nodes.get(e.to)?.stack
     )
       parents.set(e.to, e.from)
-  const parentIDs = new Set(parents.values()),
-    items = new Map<string, HierarchyItem>(),
+  if (mode === 'infra') {
+    for (const e of edges) {
+      const node = nodes.get(e.from), api = nodes.get(e.to)
+      if (e.kind === 'depends_on' && node?.service === 'appsync' && !isAppSyncAPI(node) &&
+        isAppSyncAPI(api) && node.stack === api?.stack &&
+        e.evidence.some((proof) => proof.source === 'appsync_api')) {
+        parents.set(e.from, e.to)
+      }
+    }
+  }
+  const items = new Map<string, HierarchyItem>(),
     resourceItems = new Map<string, HierarchyItem>(),
     stacks = new Map<string, Group>()
   const makeGroup = (
@@ -127,6 +139,11 @@ export const buildHierarchy = (
       for (let ancestor = parents.get(id); ancestor && !included.has(ancestor); ancestor = parents.get(ancestor))
         included.add(ancestor)
     }
+  }
+  const parentIDs = new Set<string>()
+  for (const [child, parent] of parents) {
+    if (mode === 'infra' || !isAppSyncAPI(nodes.get(parent)) || included.has(child))
+      parentIDs.add(parent)
   }
   for (const n of [...graph.nodes].sort(compare)) {
     if (mode === 'flow' && !included.has(n.id)) continue
@@ -177,7 +194,8 @@ export const buildHierarchy = (
     if (!parent.group) continue
     const services = new Map<string, { service: Service; leaves: HierarchyItem[] }>()
     for (const item of parent.children) {
-      if (item.group || (mode === 'flow' && !item.node.service)) continue
+      if (item.group || isAppSyncAPI(item.node) || (mode === 'flow' && !item.node.service) ||
+        (isAppSyncAPI(parent.node) && item.node.service === 'appsync')) continue
       const service = serviceFor(item.node)
       const bucket = services.get(service.id)
       if (bucket) bucket.leaves.push(item)

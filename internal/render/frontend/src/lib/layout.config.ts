@@ -9,6 +9,7 @@ export const services: Record<string, readonly [string, string]> = {
   iam: ['IAM', '#c8799e'],
   ecs: ['ECS', '#829bd4'],
   'api-gateway': ['API Gateway', '#aa8dd0'],
+  appsync: ['AppSync', '#ad88d1'],
   ec2: ['EC2', '#6da7af'],
   cloudwatch: ['CloudWatch', '#bc87b8'],
   eventbridge: ['EventBridge', '#bf83a0'],

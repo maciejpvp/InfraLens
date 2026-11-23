@@ -5,7 +5,7 @@ import { activationProps } from '../lib/activation-props'
 import { changeSummary, countLabel, serviceIconSrc } from '../lib/graph-view'
 import { changeLabels } from '../lib/graph-view.config'
 import { GROUP_HEADER_HEIGHT } from '../lib/layout.config'
-import { serviceFor } from '../lib/graph-projection.ts'
+import { isAppSyncAPI, serviceFor } from '../lib/graph-projection.ts'
 import { cn } from '../lib/utils'
 
 const changePriority = ['delete', 'replace', 'update', 'create'] as const
@@ -31,7 +31,8 @@ export const useDiagramItem = ({
   const hasChange = change && change !== 'unchanged'
   const statusColor = styles.changeColor[change ?? 'unchanged']
   const count = countLabel(item.members.size, 'resource')
-  const type = item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
+  const type = isAppSyncAPI(item.node) ? 'AppSync · GraphQL API'
+    : item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
   const open = activationProps<HTMLButtonElement>(() => onItem(item.id))
 
   return {
