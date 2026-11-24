@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import type { CostReport } from '../src/lib/costs.ts'
-import { layoutDiagram } from '../src/lib/elk-layout.ts'
+import type { CostReport } from '../src/features/costs/costs.ts'
+import { layoutDiagram } from '../src/features/diagram/layout/elk-layout.ts'
 import { buildHierarchy, projectGraph } from '../src/lib/graph-projection.ts'
 import type { Graph, GraphEdge } from '../src/lib/graph.types.ts'
-import type { WorkflowMeter, WorkflowState } from '../src/lib/workflows.ts'
-import { buildWorkflowSide, workflowKey, workflowPath, workflowsForResource, workflowGraph, workflowUsage, workflowUserPresets } from '../src/lib/workflows.ts'
+import type { WorkflowMeter, WorkflowState } from '../src/features/costs/workflows.ts'
+import { buildWorkflowSide, workflowKey, workflowPath, workflowsForResource, workflowGraph, workflowUsage, workflowUserPresets } from '../src/features/costs/workflows.ts'
 
 const meter = (label: string, rate: string, value: number | null): WorkflowMeter => ({
   label, factors: [{ label, value }], pricing: { charges: [{ rate, quantity: 1 }] },

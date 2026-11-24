@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { buildHierarchy, projectGraph } from '../src/lib/graph-projection.ts'
-import { layoutDiagram } from '../src/lib/elk-layout.ts'
+import { layoutDiagram } from '../src/features/diagram/layout/elk-layout.ts'
 
 for (const count of [76, 150, 300, 500]) {
   const nodes = Array.from({ length: count }, (_, i) => ({

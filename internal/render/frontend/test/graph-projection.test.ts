@@ -8,8 +8,8 @@ import type {
 } from '../src/lib/graph.types.ts'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildHierarchy, edgeCaption, flowDescriptions, groupDependenciesByService, projectGraph, revealResource, serviceFor } from '../src/lib/graph-projection.ts'
-import { groupBySharedEndpoint } from '../src/lib/relation-groups.ts'
+import { buildHierarchy, edgeCaption, flowDescriptions, projectGraph, revealResource, serviceFor } from '../src/lib/graph-projection.ts'
+import { groupBySharedEndpoint, groupDependenciesByService } from '../src/features/inspector/relation-groups.ts'
 const node = (id: string, type = 'test', stack = 'stack'): Resource => ({
   id,
   name: id,

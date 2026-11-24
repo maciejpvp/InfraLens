@@ -1,6 +1,18 @@
 import { useCallback, useRef } from 'react'
 import type { KeyboardEvent, PointerEvent } from 'react'
-import { floatingWindowConfig as config } from './floating-window.config'
+
+const config = {
+  margin: 8,
+  dragThreshold: 5,
+  keyboardStep: 24,
+  sampleWindowMs: 85,
+  projectionSeconds: 0.12,
+  maxThrow: 85,
+  springRate: 18,
+  minimumSettleSeconds: 0.15,
+  maximumSettleSeconds: 0.6,
+  settleThreshold: 0.4,
+}
 
 type Point = { x: number; y: number }
 type Sample = Point & { time: number }

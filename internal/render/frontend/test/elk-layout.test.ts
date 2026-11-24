@@ -1,18 +1,10 @@
-import type {
-  DiagramLayout,
-  EdgeKind,
-  Graph,
-  GraphEdge,
-  GraphView,
-  Hierarchy,
-  Point,
-  Position,
-} from '../src/lib/graph.types.ts'
+import type { EdgeKind, Graph, GraphEdge, GraphView, Hierarchy } from '../src/lib/graph.types.ts'
+import type { DiagramLayout, Point, Position } from '../src/features/diagram/layout/layout-model.ts'
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { layoutDiagram } from '../src/lib/elk-layout.ts'
+import { layoutDiagram } from '../src/features/diagram/layout/elk-layout.ts'
 import { buildHierarchy, projectGraph } from '../src/lib/graph-projection.ts'
-import { GROUP_HEADER_HEIGHT } from '../src/lib/layout.config.ts'
+import { GROUP_HEADER_HEIGHT } from '../src/features/diagram/layout/dimensions.ts'
 
 const node = (id: string, stack = 'app/dev') => ({ id, name: id, type: 'test:resource:Resource', stack })
 const edge = (from: string, to: string, kind: EdgeKind = 'triggers', label?: string): GraphEdge => ({

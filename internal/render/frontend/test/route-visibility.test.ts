@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isDenseScene, routeLayers, routeVisibility } from '../src/lib/route-visibility.ts'
+import { isDenseScene, routeLayers, routeVisibility } from '../src/features/diagram/layout/route-visibility.ts'
 
 test('retains route bends crossing the viewport with both endpoints outside', () => {
   const route = { points: [{ x: -100, y: -100 }, { x: 50, y: -100 }, { x: 50, y: 200 }, { x: -100, y: 200 }], d: '' }

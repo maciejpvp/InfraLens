@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { buildHierarchy, projectGraph } from '../src/lib/graph-projection.ts'
-import { layoutDiagram } from '../src/lib/elk-layout.ts'
-import { canPlace, motionFrame, moveCard, placementKey, positionScene, revealInPlace, translateScene } from '../src/lib/scene-motion.ts'
-import type { Graph, Scene } from '../src/lib/graph.types.ts'
+import { layoutDiagram } from '../src/features/diagram/layout/elk-layout.ts'
+import { canPlace, motionFrame, moveCard, placementKey, positionScene, revealInPlace, translateScene } from '../src/features/diagram/layout/scene-motion.ts'
+import type { Graph } from '../src/lib/graph.types.ts'
+import type { Scene } from '../src/features/diagram/layout/layout-model.ts'
 
 const graph: Graph = {
   nodes: ['a', 'b', 'permission', 'log', 'version'].map((id) => ({

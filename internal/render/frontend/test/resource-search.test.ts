@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Resource } from '../src/lib/graph.types.ts'
-import type { SearchFilters } from '../src/lib/resource-search.ts'
-import { indexResources, searchResources } from '../src/lib/resource-search.ts'
+import type { SearchFilters } from '../src/features/diagram/search-resources.ts'
+import { indexResources, searchResources } from '../src/features/diagram/search-resources.ts'
 
 const resource = (id: string, name: string, service: string, extra?: Partial<Resource>): Resource => ({
   id, name, service, provider: 'aws', type: 'AWS::Lambda::Function', ...extra,

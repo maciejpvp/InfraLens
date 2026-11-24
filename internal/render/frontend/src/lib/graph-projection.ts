@@ -13,7 +13,27 @@ import type {
   ViewMode,
 } from './graph.types.ts'
 
-import { defaultTopology, services } from './layout.config.ts'
+
+export const defaultTopology = 'after'
+
+const services: Record<string, readonly [string, string]> = {
+  s3: ['S3', '#39afa4'],
+  lambda: ['Lambda', '#cf9c66'],
+  iam: ['IAM', '#c8799e'],
+  ecs: ['ECS', '#829bd4'],
+  'api-gateway': ['API Gateway', '#aa8dd0'],
+  appsync: ['AppSync', '#ad88d1'],
+  ec2: ['EC2', '#6da7af'],
+  rds: ['RDS', '#729bd0'],
+  elb: ['Elastic Load Balancing', '#6da7af'],
+  cloudwatch: ['CloudWatch', '#bc87b8'],
+  eventbridge: ['EventBridge', '#bf83a0'],
+  sqs: ['SQS', '#c7a05d'],
+  sns: ['SNS', '#ce8fa6'],
+  dynamodb: ['DynamoDB', '#729bd0'],
+  'step-functions': ['Step Functions', '#a38bce'],
+  opensearch: ['OpenSearch', '#8a9ed7'],
+}
 
 const compare = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)
 const minimumGroupSize = 4
@@ -58,20 +78,6 @@ const connectedServices = (edges: GraphEdge[], nodes: ReadonlyMap<string, Resour
     if (edge.kind === 'triggers') add(eventSources, edge.to, edge.from)
   }
   return { neighbors: servicesByResource, eventSources }
-}
-
-export const groupDependenciesByService = (edges: GraphEdge[], byId: ReadonlyMap<string, Resource>) => {
-  const groups = new Map<string, { key: string; from: Service; to: Service; edges: GraphEdge[] }>()
-  for (const edge of edges) {
-    const from = serviceFor(byId.get(edge.from))
-    const to = serviceFor(byId.get(edge.to))
-    const key = JSON.stringify([from.id, to.id])
-    const group = groups.get(key)
-    if (group) group.edges.push(edge)
-    else groups.set(key, { key, from, to, edges: [edge] })
-  }
-  return [...groups.values()].sort((a, b) => a.from.name.localeCompare(b.from.name) ||
-    a.to.name.localeCompare(b.to.name) || a.key.localeCompare(b.key))
 }
 
 // Descriptions belong to evidence; grouping must not discard individual routes or filters.

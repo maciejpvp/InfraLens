@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { assumptionKey, calculateCosts, usageAssumptions } from '../src/lib/costs.ts'
-import type { CostItem, CostReport } from '../src/lib/costs.ts'
+import { assumptionKey, calculateCosts, usageAssumptions } from '../src/features/costs/costs.ts'
+import type { CostItem, CostReport } from '../src/features/costs/costs.ts'
 
 const functionItem = (id: string, durationUnits: number): CostItem => ({
   id,
