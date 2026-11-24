@@ -564,6 +564,68 @@ try {
       }
     }
 
+    const lambda=graph.nodes.find(node=>node.provider==='aws'&&node.service==='lambda');
+    if(lambda){
+      const filterButton=document.querySelector('[aria-controls="search-filters"]');
+      const filterPanel=$('search-filters'),search=$('search'),results=$('results');
+      const resultButtons=()=>[...results.querySelectorAll('button[data-resource]')];
+      const action=(panel,label)=>[...panel.querySelectorAll('button')].find(button=>button.textContent===label);
+      const key=(target,key)=>dispatch(target,new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+      const update=async value=>{
+        search.value=value;
+        await dispatch(search,new Event('input',{bubbles:true}));
+      };
+      const snapshot=()=>JSON.stringify([view(),[...document.querySelectorAll('[data-item]')].map(node=>node.dataset.item)]);
+      const beforeSearch=snapshot();
+      const changeLabels={create:'+ create',update:'~ update',delete:'− delete',replace:'↻ replace',unchanged:'Unchanged'};
+      if(search.value)await click(document.querySelector('[aria-label="Clear search"]'));
+      await click(filterButton);
+      assert(!filterPanel.hidden&&filterButton.getAttribute('aria-expanded')==='true','Search filters did not open');
+      const panel=filterPanel.getBoundingClientRect();
+      assert(panel.left>=0&&panel.right<=innerWidth&&panel.bottom<=innerHeight,'Search filters overflowed the viewport');
+      for(const [index,value] of ['Lambda',lambda.stack||'No stack',changeLabels[lambda.change||'unchanged']].entries()){
+        const label=[...filterPanel.querySelectorAll('fieldset')[index].querySelectorAll('label')].find(label=>label.children[label.children.length-2]?.textContent===value);
+        assert(label?.control,'Search filter is missing '+value);
+        if(index===0){
+          const [icon,name,count]=label.children;
+          assert(icon?.src.startsWith('data:image/svg+xml;base64,'),'Missing offline icon on service filter');
+          const center=element=>{const rect=element.getBoundingClientRect();return rect.top+rect.height/2;};
+          assert([label.control,icon,name,count].every(element=>Math.abs(center(element)-center(label))<1),'Service filter contents are not vertically aligned');
+          assert(count.getBoundingClientRect().left>name.getBoundingClientRect().right,'Service count is not separated from its label');
+        }
+        await click(label.control);
+      }
+      assert(filterButton.getAttribute('aria-label').includes('3 active'),'Search filters did not report the active count');
+      await click(action(filterPanel,'Show results'));
+      const expected=graph.nodes.filter(node=>node.provider==='aws'&&node.service==='lambda'&&
+        (node.stack||'')===(lambda.stack||'')&&(node.change||'unchanged')===(lambda.change||'unchanged'));
+      assert(!results.hidden&&resultButtons().length===expected.length,'Filters did not produce results with an empty query');
+      assert(resultButtons().every(button=>expected.some(node=>node.id===button.dataset.resource)),'Search results did not combine the three filters');
+      await update('lamdba');
+      assert(resultButtons().length===expected.length&&resultButtons()[0]?.querySelector('img')?.src.startsWith('data:image/svg+xml;base64,'),'Fuzzy service query lost filtered or offline results');
+      await update('qqzzqqzz');
+      assert(results.querySelector('[role="status"]').textContent==='No resources found.','Search has no empty state');
+      await click(document.querySelector('[aria-label="Clear search"]'));
+      assert(search.value===''&&resultButtons().length===expected.length,'Clearing search did not retain filters');
+      assert(snapshot()===beforeSearch,'Search filters changed the diagram');
+      await key(search,'ArrowDown');
+      assert(document.activeElement===resultButtons()[0],'ArrowDown did not focus the first search result');
+      await key(document.activeElement,'ArrowUp');
+      assert(document.activeElement===search,'ArrowUp did not return to the search field');
+      await key(search,'Escape');
+      assert(results.hidden&&document.activeElement===search,'Escape did not dismiss search');
+      await key(search,'ArrowDown');
+      assert(document.activeElement===resultButtons()[0],'ArrowDown did not reopen search and focus results');
+      const match=expected.find(node=>node.id===resultButtons()[0].dataset.resource);
+      await key(document.activeElement,'ArrowUp');
+      await key(search,'Enter');
+      assert(inspector()&&title()===match.name,'Enter did not open the first result');
+      await click(close());
+      await click(filterButton);
+      await click(action(filterPanel,'Clear filters'));
+      await click(action(filterPanel,'Show results'));
+      assert(filterPanel.hidden&&results.hidden&&filterButton.getAttribute('aria-label')==='Search filters','Reset did not clear search filters');
+    }
     for(const target of graph.nodes){
       $('search').value=target.name;await dispatch($('search'),new Event('input',{bubbles:true}));
       const result=[...$('results').querySelectorAll('button')].find(b=>b.dataset.resource===target.id);

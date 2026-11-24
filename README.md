@@ -186,7 +186,8 @@ Repeat `--input` to combine files from the same provider. For Pulumi stack refer
 ## Read and share reports
 
 - **Flow** shows event triggers, invocations, and configuration references that InfraLens recognizes. Use the legend to distinguish connection types and the inspector to see their evidence. The diagram describes IaC configuration. Observed traffic, application behavior, and permissions are outside its scope.
-- **Infrastructure** lets you expand service groups, search for resources, and inspect connections. In a preview report, use the filters to switch between connections before and after the change. Pulumi preview reports contain the resources present in `steps`, and CDK previews show removed resources without their former connections.
+- **Infrastructure** lets you expand service groups and inspect connections. In a preview report, use the diagram filters to switch between connections before and after the change. Pulumi preview reports contain the resources present in `steps`, and CDK previews show removed resources without their former connections.
+- **Search** matches resource names, services, types, and stacks, including common typos. Use the button beside the search field to narrow results by service, stack, and change status. Selecting a result opens its details on the diagram.
 - **Coverage** depends on the provider and integration. Pulumi preview ingestion supports `same`, `create`, `update`, `delete`, and `replace` in a single document. CDK coverage excludes CloudFormation condition evaluation, resources inside nested stacks, and cross-stack links through `Fn::ImportValue`. Terraform support is planned.
 - **Sharing** requires only the HTML file. Raw resource inputs and outputs are excluded from reports. Resource names, property paths, and selected configuration details such as event filters can still reveal project information, so review the report before sharing it.
 

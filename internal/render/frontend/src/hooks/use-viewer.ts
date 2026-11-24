@@ -197,6 +197,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     },
     toolbarProps: {
       graph,
+      icons,
       search,
       mode,
       setMode: (value: ViewMode) => {
