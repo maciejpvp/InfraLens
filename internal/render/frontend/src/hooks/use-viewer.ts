@@ -7,6 +7,8 @@ import type {
   Topology,
   ViewMode,
 } from '../lib/graph.types'
+import { workflowGraph } from '../lib/workflows'
+import type { WorkflowPath } from '../lib/workflows'
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../lib/inspector.types'
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -17,18 +19,21 @@ import { useInspector } from './use-inspector'
 import { diagramElement } from '../lib/graph-view'
 import { defaultTopology } from '../lib/layout.config'
 
-export const useViewer = (graph: Graph, icons: ServiceIcons) => {
-  const byId = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node])), [graph])
+export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: WorkflowPath, usage?: ReadonlyMap<string, string[]>) => {
   const [topology, setTopology] = useState<Topology>(defaultTopology)
+  const activePath = path?.side === topology ? path : undefined
+  const graph = useMemo(() => activePath ? workflowGraph(baseGraph, activePath) : baseGraph, [baseGraph, activePath])
+  const byId = useMemo(() => new Map(baseGraph.nodes.map((node) => [node.id, node])), [baseGraph])
   const [mode, setMode] = useState<ViewMode>(() =>
-    activeEdges(graph, defaultTopology).some(isFlow) ? 'flow' : 'infra',
+    activeEdges(baseGraph, defaultTopology).some(isFlow) ? 'flow' : 'infra',
   )
-  const infra = useMemo(() => buildHierarchy(graph, topology), [graph, topology])
-  const tree = useMemo(() => mode === 'flow' ? buildHierarchy(graph, topology, 'flow') : infra, [graph, topology, mode, infra])
+  const infra = useMemo(() => buildHierarchy(graph, topology, activePath ? 'workflow' : 'infra'), [graph, topology, activePath])
+  const tree = useMemo(() => !activePath && mode === 'flow' ? buildHierarchy(graph, topology, 'flow') : infra, [activePath, graph, topology, mode, infra])
   const [expansions, setExpansions] = useState<Record<string, ReadonlySet<string>>>({})
   const expansionKey = `${topology}:${mode}`
-  const expanded = expansions[expansionKey] ?? tree.initialExpanded
+  const expanded = activePath ? tree.initialExpanded : expansions[expansionKey] ?? tree.initialExpanded
   const fitAfterLayout = useRef(false)
+  const fittedPath = useRef<WorkflowPath | undefined>(undefined)
   const legendProps = useConnectionLegend()
   const { hiddenKinds, setKindVisible } = legendProps
   const stage = useRef<HTMLElement>(null)
@@ -55,29 +60,35 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
   const [isolatedId, setIsolatedId] = useState<string>()
   const onlyConnections = Boolean(focusId && isolatedId === focusId)
   const serviceGroup = focusId ? tree.resourceItems.get(focusId)?.parent : undefined
-  const projectedFocusId = onlyConnections || (serviceGroup?.service && !expanded.has(serviceGroup.id))
+  const projectedFocusId = !activePath && (onlyConnections || (serviceGroup?.service && !expanded.has(serviceGroup.id)))
     ? focusId
     : undefined
+  const visibleKinds = useMemo(() => activePath
+    ? new Set([...hiddenKinds].filter((kind) => kind !== 'connects_to' && kind !== 'triggers')) : hiddenKinds,
+  [activePath, hiddenKinds])
   const context = useMemo(
-    () => projectGraph(tree, mode, hiddenKinds, expanded),
-    [tree, mode, hiddenKinds, expanded],
+    () => projectGraph(tree, mode, visibleKinds, expanded),
+    [tree, mode, visibleKinds, expanded],
   )
   const current = useMemo(
     () => projectedFocusId ? projectGraph(tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections) : context,
     [tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections, context],
   )
   const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(
-    tree, current, context, onlyConnections ? undefined : projectedFocusId, layoutAnchor,
+    tree, current, context, onlyConnections ? undefined : projectedFocusId, layoutAnchor, Boolean(activePath),
   )
-  const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef)
+  const camera = useCamera(stage, search, zoomLabel, scene, legendProps.legendRef, Boolean(activePath))
 
   useLayoutEffect(() => {
     if (!scene || scene.motion || scene.current !== current) return
     layoutAnchor.current = null
-    if (fitAfterLayout.current) {
+    if (activePath !== fittedPath.current || fitAfterLayout.current) {
       fitAfterLayout.current = false
-      camera.fit()
+      if (activePath !== fittedPath.current) reveal.current = null
+      if (activePath) camera.frameWorkflow()
+      else camera.fit()
     }
+    fittedPath.current = activePath
     if (reveal.current) {
       const id = reveal.current
       reveal.current = null
@@ -93,7 +104,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
         findOpener(restoreOrigin.current)?.focus({ preventScroll: true })
       restoreOrigin.current = null
     }
-  }, [scene, current, selection])
+  }, [scene, current, selection, activePath])
 
   const toggle = (id: string) => {
     toggleFocus.current = id
@@ -170,7 +181,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
     legendProps,
     layoutFailed,
     isEmpty: graph.nodes.length === 0,
-    noFlow: graph.nodes.length > 0 && mode === 'flow' && !tree.flowIDs.size,
+    noFlow: !activePath && graph.nodes.length > 0 && mode === 'flow' && !tree.flowIDs.size,
     diagramProps: scene && {
       camera,
       scene,
@@ -178,6 +189,8 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
       byId,
       icons,
       selection,
+      workflowPath: activePath,
+      workflowUsage: usage,
       toggle,
       onItem: openItem,
       onEdges: openEdges,
@@ -200,7 +213,7 @@ export const useViewer = (graph: Graph, icons: ServiceIcons) => {
         setIsolatedId(undefined)
         setTopology(value)
       },
-      connectionScope: focusId && tree.resourceItems.has(focusId) ? {
+      connectionScope: !activePath && focusId && tree.resourceItems.has(focusId) ? {
         checked: onlyConnections,
         change: (checked: boolean) => {
           fitAfterLayout.current = true

@@ -42,6 +42,7 @@ var page = template.Must(template.New("diagram").Parse(`<!doctype html>
 <noscript>This diagram requires JavaScript. All scripts are embedded in this file.</noscript>
 <pre id="infralens-licenses" hidden>{{.Notices}}</pre>
 <script id="infralens-data" type="application/json">{{.Data}}</script>
+{{if .Costs}}<script id="infralens-costs" type="application/json">{{.Costs}}</script>{{end}}
 <script id="infralens-icons" type="application/json">{{.Icons}}</script>
 <script>{{.JS}}</script>
 </body>
@@ -55,6 +56,14 @@ func HTML(w io.Writer, g graph.Graph) error {
 	data, err := json.Marshal(g)
 	if err != nil {
 		return err
+	}
+	var costs template.JS
+	if g.Costs != nil {
+		payload, err := json.Marshal(g.Costs)
+		if err != nil {
+			return err
+		}
+		costs = template.JS(payload)
 	}
 	files, err := iconFiles.ReadDir("icons")
 	if err != nil {
@@ -75,9 +84,10 @@ func HTML(w io.Writer, g graph.Graph) error {
 	// Only encoding/json output and compiled-in code receive trusted template types.
 	return page.Execute(w, struct {
 		Data    template.JS
+		Costs   template.JS
 		Icons   template.JS
 		JS      template.JS
 		CSS     template.CSS
 		Notices string
-	}{template.JS(data), template.JS(iconJSON), template.JS(viewerJS), template.CSS(css), shadcnNotice + "\n\n" + dependencyNotices})
+	}{template.JS(data), costs, template.JS(iconJSON), template.JS(viewerJS), template.CSS(css), shadcnNotice + "\n\n" + dependencyNotices})
 }

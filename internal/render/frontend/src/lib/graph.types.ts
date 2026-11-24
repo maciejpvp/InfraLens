@@ -81,7 +81,7 @@ export type ProjectedItem = (Omit<Group, 'children'> | Leaf) & {
 }
 
 export type Hierarchy = {
-  roots: Group[]
+  roots: HierarchyItem[]
   items: Map<string, HierarchyItem>
   resourceItems: Map<string, HierarchyItem>
   edges: GraphEdge[]

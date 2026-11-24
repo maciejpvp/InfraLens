@@ -19,6 +19,7 @@ export const useDiagramItem = ({
   muted,
   onItem,
   toggle,
+  workflowUsage,
 }: DiagramItemData) => {
   const service = item.service || (item.node && serviceFor(item.node))
   const icon = serviceIconSrc(service, icons)
@@ -42,7 +43,7 @@ export const useDiagramItem = ({
       'data-service': item.service?.id,
       'data-node': item.group ? undefined : item.id,
       'data-change': change ?? '',
-      'aria-label': `${item.name}, ${item.group ? count : item.node.type}`,
+      'aria-label': `${item.name}, ${item.group ? count : item.node.type}${workflowUsage?.length ? ', per run: ' + workflowUsage.join(', ') : ''}`,
       'aria-haspopup': 'dialog' as const,
       className: cn(
         styles.button,

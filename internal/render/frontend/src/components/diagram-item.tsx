@@ -15,6 +15,7 @@ import { diagramStyles as styles } from './diagram.variants'
 
 export const DiagramItem = ({ data }: NodeProps<DiagramNode>) => {
   const { item, bounds } = data
+  const usage = data.workflowUsage?.join(' · ')
   const {
     buttonProps,
     groupClassName,
@@ -48,7 +49,8 @@ export const DiagramItem = ({ data }: NodeProps<DiagramNode>) => {
               {changeBadge && <Text className={changeBadge.className}>{changeBadge.text}</Text>}
             </Text>
             <Text className={cn(styles.nodeName, data.drag && 'pr-8')}>{item.name}</Text>
-            <Text className={cn(styles.nodeMeta, data.drag && 'pr-8')}>{meta}</Text>
+            <Text className={cn(usage ? 'line-clamp-2 text-xs leading-tight text-muted-foreground' : styles.nodeMeta,
+              data.drag && 'pr-8')} title={usage}>{usage ?? meta}</Text>
           </>
         )}
       </Button>

@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"infralens/internal/cost"
+	"infralens/internal/graph"
 	"io"
 	"slices"
 	"strings"
-
-	"infralens/internal/graph"
 )
 
 // Only fields allowed to influence the public graph are decoded.
@@ -20,6 +20,7 @@ type resource struct {
 	Parent               string                     `json:"parent"`
 	Dependencies         []string                   `json:"dependencies"`
 	PropertyDependencies map[string][]string        `json:"propertyDependencies"`
+	Provider             string                     `json:"provider"`
 	ID                   string                     `json:"id"`
 	Inputs               map[string]json.RawMessage `json:"inputs"`
 	Outputs              map[string]json.RawMessage `json:"outputs"`
@@ -50,6 +51,10 @@ func Read(r io.Reader) (graph.Graph, error) {
 }
 
 func ReadSources(sources ...Source) (graph.Graph, error) {
+	return readSources(nil, sources...)
+}
+
+func readSources(inventory *cost.Inventory, sources ...Source) (graph.Graph, error) {
 	b := graphBuilder{
 		graph:   graph.Graph{SchemaVersion: 1, Nodes: []graph.Node{}, Edges: []graph.Edge{}},
 		nodeIDs: map[string]string{}, roots: map[string]string{}, edges: map[edgeKey]int{},
@@ -67,6 +72,9 @@ func ReadSources(sources ...Source) (graph.Graph, error) {
 		b.linkResource(entry)
 	}
 	b.linkAWSRelations()
+	if inventory != nil {
+		b.collectCosts(inventory)
+	}
 	b.graph.Normalize()
 	return b.graph, b.graph.Validate()
 }

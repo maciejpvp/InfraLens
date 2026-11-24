@@ -11,6 +11,8 @@ export const services: Record<string, readonly [string, string]> = {
   'api-gateway': ['API Gateway', '#aa8dd0'],
   appsync: ['AppSync', '#ad88d1'],
   ec2: ['EC2', '#6da7af'],
+  rds: ['RDS', '#729bd0'],
+  elb: ['Elastic Load Balancing', '#6da7af'],
   cloudwatch: ['CloudWatch', '#bc87b8'],
   eventbridge: ['EventBridge', '#bf83a0'],
   sqs: ['SQS', '#c7a05d'],

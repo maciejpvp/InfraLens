@@ -10,12 +10,17 @@ import (
 	"path/filepath"
 	"time"
 
+	"infralens/internal/cost"
 	"infralens/internal/fileio"
 	"infralens/internal/graph"
 )
 
 // Preview compares synthesized CDK stacks with their deployed templates.
 func Preview(ctx context.Context, onStart func()) (graph.Graph, error) {
+	return PreviewCosts(ctx, onStart, nil)
+}
+
+func PreviewCosts(ctx context.Context, onStart func(), inventory *cost.Inventory) (graph.Graph, error) {
 	if _, err := fileio.StatRegular("cdk.json"); err != nil {
 		return graph.Graph{}, errors.New("run preview from an AWS CDK project directory containing cdk.json")
 	}
@@ -64,12 +69,15 @@ func Preview(ctx context.Context, onStart func()) (graph.Graph, error) {
 	g, err := readSources(sources, func(path string) (io.Reader, error) {
 		data, err := readAssemblyFile(assembly, path)
 		return bytes.NewReader(data), err
-	})
+	}, inventory)
 	if err != nil {
 		return graph.Graph{}, err
 	}
 	if err := applyDiff(&g, sources, string(diff)); err != nil {
 		return graph.Graph{}, err
+	}
+	if inventory != nil {
+		collectDeployedCosts(ctx, sources, inventory, awsCommand)
 	}
 	return g, nil
 }

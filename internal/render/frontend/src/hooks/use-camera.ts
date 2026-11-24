@@ -12,6 +12,7 @@ export const useCamera = (
   zoomLabel: RefObject<HTMLOutputElement | null>,
   scene: Scene | undefined,
   legend: RefObject<HTMLElement | null>,
+  workflowFocused: boolean,
 ) => {
   const flow = useRef<ReactFlowInstance<DiagramNode, DiagramRelation> | null>(null)
   const fitZoom = useRef(1)
@@ -21,20 +22,24 @@ export const useCamera = (
     zoomLabel.current.textContent = `${Math.round((zoom / fitZoom.current) * 100)}%`
   }
 
-  const fitViewport = () => {
-    if (!stage.current || !search.current || !scene) return
+  const fitViewport = (layout = scene?.layout) => {
+    if (!stage.current || !search.current || !layout) return
     const { clientWidth: width, clientHeight: height } = stage.current
-    const { layout } = scene
     const top = search.current.getBoundingClientRect().bottom + cameraConfig.initialTopPadding
     const legendTop = legend.current?.getBoundingClientRect().top ?? height
     const bottom = Math.max(cameraConfig.bottomPadding, height - legendTop + cameraConfig.legendGap)
     const usableHeight = height - top - bottom
+    const costs = workflowFocused ? document.getElementById('report-cost-window')?.getBoundingClientRect() : undefined
+    const stageLeft = stage.current.getBoundingClientRect().left
+    const panelRight = costs ? costs.right - stageLeft : 0
+    const left = panelRight > 0 && width - panelRight >= 300 ? panelRight + 12 : 0
+    const usableWidth = width - left
     const zoom = Math.min(
-      Math.max(1, width - 40) / (layout.width + 60),
+      Math.max(1, usableWidth - 40) / (layout.width + 60),
       Math.max(1, usableHeight) / (layout.height + 60),
     )
     return {
-      x: (width - layout.width * zoom) / 2 - (layout.left ?? 0) * zoom,
+      x: left + (usableWidth - layout.width * zoom) / 2 - (layout.left ?? 0) * zoom,
       y: top + (usableHeight - layout.height * zoom) / 2 - (layout.top ?? 0) * zoom,
       zoom,
     }
@@ -47,6 +52,7 @@ export const useCamera = (
     flow.current?.setViewport(viewport)
     showZoom(null, viewport)
   }
+
 
   const init = (instance: ReactFlowInstance<DiagramNode, DiagramRelation>) => {
     flow.current = instance
@@ -65,16 +71,21 @@ export const useCamera = (
     const first =
       entries
         .filter(([id]) => !current.items.get(id)!.group && tree.flowIDs.has(id))
-        .sort(([, a], [, b]) => a.x - b.x || a.y - b.y)[0]?.[1] ?? layout.positions.get(current.roots[0])
+        .sort(([, a], [, b]) => workflowFocused ? a.y - b.y || a.x - b.x : a.x - b.x || a.y - b.y)[0]?.[1] ?? layout.positions.get(current.roots[0])
     if (!first) return
     const zoom = Math.max(initial.zoom, width / cameraConfig.mobileInitialWidth)
     const viewport = {
-      x: (cameraConfig.mobileLeftPadding - first.x) * zoom,
+      x: workflowFocused ? (width - first.width * zoom) / 2 - first.x * zoom
+        : (cameraConfig.mobileLeftPadding - first.x) * zoom,
       y: search.current.getBoundingClientRect().bottom + cameraConfig.mobileTopPadding - first.y * zoom,
       zoom,
     }
     instance.setViewport(viewport)
     showZoom(null, viewport)
+  }
+
+  const frameWorkflow = () => {
+    if (flow.current) init(flow.current)
   }
 
   const zoom = (factor: number) => {
@@ -94,5 +105,5 @@ export const useCamera = (
     )
   }
 
-  return { fit, zoom, center, init, showZoom, flow }
+  return { fit, frameWorkflow, zoom, center, init, showZoom, flow }
 }

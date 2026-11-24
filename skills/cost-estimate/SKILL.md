@@ -1,0 +1,26 @@
+---
+name: cost-estimate
+description: Trace application workflows and estimate workload quantities from repository evidence for InfraLens. Use for cost-assumptions.json and Before/After workload comparisons across a Git diff.
+---
+
+# Cost assumptions for InfraLens
+
+Write `cost-assumptions.json` at the repository root or at the requested path. Use [the workload JSON format](references/assumptions.md). Work from local code, IaC, tests, documentation, fixtures, and telemetry the user already provides. The output contains business workflows, resource bindings, usage quantities, and evidence. InfraLens resolves billing from the infrastructure and AWS Price List. During the skill, never call AWS, access pricing pages or APIs, request AWS credentials, run cloud lookups, or write prices, SKUs, catalog selectors, billing modes, regions, or resource sizing copied from IaC into the model.
+
+## Identify and trace business workflows
+
+1. Inventory the application entry points, client actions, API routes/resolvers, background jobs, handlers, shared clients, and infrastructure event bindings. Name workflows after the business action, such as `UserProfilePicChange`. An API can serve several workflows. An upload or playback can span several requests.
+2. Follow the actual code from trigger through API, Lambda, SDK calls, client handoffs, and asynchronous consumers. For a profile photo example, trace API Gateway → upload-handler Lambda → S3 → ObjectCreated → image-processing Lambda and its later writes. Confirm the bucket, event types and prefix/suffix filters, queue or bus subscriptions, and whether downstream writes can retrigger the handler. Record each branch with directional links and supporting code or IaC references. Avoid adding resources merely because they are deployed alongside the workflow or referenced by IAM permissions.
+3. Bind AWS steps to exact local graph or IaC resource identities. Use an existing graph, synthesized template, or exported state only if it matches the snapshot. If unresolved, record the ambiguity in `issues` and preserve the step. Keep external steps for meaningful handoffs, such as a client following a signed URL. Use the same resource selector on multiple steps when the workflow revisits it.
+4. Derive per-run counts and quantities from the code. Include Lambda invocations and estimated billed duration, DynamoDB read/write units from item size, consistency and transaction behavior, and separate S3 GET/Range and PUT/multipart calls. For S3 uploads, infer realistic payload bytes from the app's file types, image dimensions, compression, examples or limits. Distinguish a typical payload from the maximum accepted size. For downloads and playback, estimate bytes actually delivered and trace who serves them. Put average retained bytes in shared monthly usage where a retention and volume assumption is available. Account for fan-out, retries and cache behavior when they materially change expected quantities. Keep unsupported dimensions visible using `unpriced`.
+
+## Set and explain assumptions
+
+- Estimate `runsPerUser` separately for each action as its average monthly executions per active user, including active users who never take that action. Ground it in telemetry when available or in code, product context and expected adoption. For inferred values of 10 or more use multiples of 10 or 50 (for example 10, 50, 100, 150), leaning high within a realistic range. For a rare action, use a small whole number such as 1 instead of inflating it to 10. Keep more precise values when the user or telemetry provides them. Explain each estimate in `frequencyEvidence`. Leave user scenarios to InfraLens, which provides 1K, 10K and 100K presets.
+- After tracing, ask one short batch of questions when the scope, frequency, payload size, or traffic mix materially affects the estimate and repository evidence cannot settle it. Offer a plausible estimate with its basis. Reuse existing answers. When asked to proceed with gaps, use `null` for genuinely unknown quantities and list them in `issues`. Use zero only when the traced scope establishes zero usage.
+- Use labeled factors for calculations such as requests per batch × batches per run. Cite exact file paths and lines or local measurements for the material quantities. Record inference and uncertainty without including credentials, customer data or raw logs.
+
+## Handle snapshots and validate
+
+- The default analyzes the current working tree, including relevant untracked files, and writes After. For `--diff [BASE [TARGET]]`, default BASE to HEAD and TARGET to the working tree. Use `git diff`, `git ls-tree` and `git show` without switching branches. Trace both connected implementations, including relevant files outside the diff. Record revision references and reuse workflow IDs across snapshots. Write a null state only if confirmed absent. Omit an uninvestigated state.
+- Validate JSON syntax, resource bindings, links, units and the rationale for each monthly frequency. Check that quantities cover the user action through async completion. Summarize the material usage and unresolved assumptions, then provide the matching InfraLens command with `--costs --cost-assumptions <file>`. The skill produces the JSON locally. Run the cost report as a separate InfraLens step.

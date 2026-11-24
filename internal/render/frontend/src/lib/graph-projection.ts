@@ -89,11 +89,19 @@ export const edgeCaption = (edge: DescribedEdge) => {
 export const buildHierarchy = (
   graph: Graph,
   state: Topology = defaultTopology,
-  mode: ViewMode = 'infra',
+  mode: ViewMode | 'workflow' = 'infra',
 ): Hierarchy => {
   const edges = activeEdges(graph, state),
     nodes = new Map(graph.nodes.map((n) => [n.id, n]))
   const flowIDs = new Set(edges.filter(isFlow).flatMap((e) => [e.from, e.to]))
+  if (mode === 'workflow') {
+    const roots: HierarchyItem[] = [...nodes.values()].sort(compare).map((node) => ({
+      id: node.id, name: node.name, stack: node.stack || 'No stack', node, group: false,
+      members: new Set([node.id]), parent: null,
+    }))
+    const items = new Map(roots.map((item) => [item.id, item]))
+    return { roots, items, resourceItems: items, edges, flowIDs, initialExpanded: new Set() }
+  }
   const parents = new Map<string, string>()
   for (const e of edges)
     if (

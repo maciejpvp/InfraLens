@@ -12,14 +12,17 @@ import (
 	"strings"
 
 	"infralens/internal/app"
+	"infralens/internal/cost"
 	"infralens/internal/graph"
 )
 
 // Provider contains the operations available for an IaC source.
 type Provider struct {
-	ReadInputs   app.ReadInputsFunc
-	Preview      app.PreviewFunc
-	MockTopology func(context.Context, []string, string) (graph.Graph, error)
+	ReadInputs     app.ReadInputsFunc
+	Preview        app.PreviewFunc
+	ReadCostInputs func([]string, func(string) (io.Reader, error), *cost.Inventory) (graph.Graph, error)
+	PreviewCosts   func(context.Context, func(), *cost.Inventory) (graph.Graph, error)
+	MockTopology   func(context.Context, []string, string) (graph.Graph, error)
 }
 
 // CLI runs InfraLens commands using the configured output streams.
@@ -95,7 +98,7 @@ func (c *CLI) dispatch(args []string) error {
 }
 
 func (c *CLI) help() {
-	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       infralens <graph|render>"+graphUsage+
+	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       infralens graph"+graphUsage+"\n       infralens render"+graphUsage+costUsage+
 		"\n       "+mockTopologyUsage+" (deprecated)\n"+c.providerHelp())
 }
 

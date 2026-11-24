@@ -11,10 +11,12 @@ import type {
   ServiceIcons,
   Size,
 } from '../lib/graph.types'
+import type { WorkflowPath } from '../lib/workflows'
 import type { InspectorOrigin, InspectorPage } from '../lib/inspector.types'
 import type { useCamera } from '../hooks/use-camera'
 
 export type DiagramItemData = {
+  workflowUsage?: string[]
   item: ProjectedItem
   depth: number
   bounds: Size
@@ -51,6 +53,8 @@ export type DiagramProps = {
   byId: ResourcesById
   icons: ServiceIcons
   selection?: InspectorPage
+  workflowPath?: WorkflowPath
+  workflowUsage?: ReadonlyMap<string, string[]>
   onItem: (id: string) => void
   onEdges: (edges: GraphEdge[], origin: InspectorOrigin) => void
   toggle: (id: string) => void

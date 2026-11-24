@@ -37,6 +37,8 @@ export const useDiagram = ({
   byId,
   icons,
   selection,
+  workflowPath,
+  workflowUsage,
   onItem,
   onEdges,
   toggle,
@@ -53,7 +55,15 @@ export const useDiagram = ({
   }
   if (selectedEndpoint) selectedNodes.add(selectedEndpoint)
 
-  const relatedEdges = current.edges.map((edge) => edge.originals.some((original) => related.has(original)))
+  if (workflowPath) {
+    selectedNodes.clear()
+    for (const id of workflowPath.nodes) {
+      selectedNodes.add(current.representatives.get(id) ?? id)
+    }
+  }
+  const relatedEdges = current.edges.map((edge) => edge.originals.some(
+    (original) => (workflowPath?.edges ?? related).has(original),
+  ))
   const visible = new Set(selectedNodes)
   for (const [index, edge] of current.edges.entries()) {
     if (!relatedEdges[index] || !routes[index]) continue
@@ -62,6 +72,16 @@ export const useDiagram = ({
     if (!selection?.item && !selectedEndpoint) {
       selectedNodes.add(edge.from)
       selectedNodes.add(edge.to)
+    }
+  }
+
+  if (workflowPath) {
+    for (const id of selectedNodes) {
+      let parent = current.items.get(id)?.parent
+      while (parent) {
+        visible.add(parent.id)
+        parent = parent.parent
+      }
     }
   }
 
@@ -114,6 +134,7 @@ export const useDiagram = ({
       zIndex: scene.dragging === id ? diagramLayers.node + 1 : item.expanded ? diagramLayers.group : diagramLayers.node,
       data: {
         item,
+        workflowUsage: workflowUsage?.get(id),
         retiring,
         visual: { opacity: fading, clipPath },
         drag: !retiring && !item.expanded && parentId ? { moveCard, camera } : undefined,
@@ -124,7 +145,7 @@ export const useDiagram = ({
         onItem,
         toggle,
         selected: selectedNodes.has(id),
-        muted: Boolean(selection && !visible.has(id)),
+        muted: Boolean((selection || workflowPath) && !visible.has(id)),
       },
     }
   })
@@ -133,8 +154,9 @@ export const useDiagram = ({
     const route = routes[index]
     if (!route) return []
     const { from, to, kind, originals } = edge
-    const selected = !selection?.item && relatedEdges[index]
-    const muted = selection && !relatedEdges[index]
+    const selected = (workflowPath || !selection?.item) && relatedEdges[index]
+    const muted = (selection || workflowPath) && !relatedEdges[index]
+    const inferred = originals.some((original) => original.evidence.some(({ source }) => source === 'cost-workflow'))
     const title = `${current.items.get(from)!.name} → ${current.items.get(to)!.name}`
     const description = flowDescriptions([edge])
       .map(({ label }) => label)
@@ -155,13 +177,15 @@ export const useDiagram = ({
         className: clsx(styles.edge, kind, selected && styles.selected, muted && styles.mutedEdge),
         markerEnd: { ...edgeMarker, color: pipeAppearance[kind].color },
         interactionWidth: retiring ? 0 : edgeInteractionWidth,
-        style: paint.wire,
+        style: inferred ? { ...paint.wire, strokeDasharray: '10 7' } : paint.wire,
         domAttributes: {
           'data-edge': index,
           'data-edge-id': edgeKey(edge),
           'data-from': from,
           'data-to': to,
           'data-count': originals.length,
+          'data-workflow-edge': Boolean(workflowPath && relatedEdges[index]),
+          'data-inferred-workflow-edge': inferred,
           'aria-haspopup': retiring ? undefined : 'dialog',
           'aria-hidden': retiring,
           onKeyDown: activationProps<SVGGElement>((event) => openEdge(event, index)).onKeyDown,
@@ -171,8 +195,8 @@ export const useDiagram = ({
           retiring,
           opacity: motion?.edgeOpacity.get(index),
           route,
-          underlay: paint.underlay,
-          stream: paint.stream,
+          underlay: inferred ? undefined : paint.underlay,
+          stream: inferred ? undefined : paint.stream,
           wireClassName: clsx(styles.wire, selected && styles.selectedWire),
           labelClassName: clsx(styles.edgeLabel, muted && styles.mutedEdge),
         },

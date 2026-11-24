@@ -7,7 +7,7 @@ import { useSceneMotion } from './use-scene-motion'
 import { layoutDiagram } from '../lib/elk-layout.ts'
 import { revealInPlace } from '../lib/scene-motion.ts'
 
-export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: GraphView, liftedId: string | undefined, anchor: RefObject<string | null>) => {
+export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: GraphView, liftedId: string | undefined, anchor: RefObject<string | null>, workflow: boolean) => {
   const [result, setResult] = useState<{ current: GraphView; scene?: Scene; fixed?: boolean; failed?: boolean }>()
   const contextScene = useRef<Scene>(undefined)
   const measureText = useMemo(() => {
@@ -30,7 +30,7 @@ export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: G
         const lifted = revealInPlace(reference, current, liftedId, measureText)
         if (lifted) return { scene: lifted, fixed: true }
       }
-      return { scene: { tree, current, ...await layoutDiagram(current, measureText) } }
+      return { scene: { tree, current, ...await layoutDiagram(current, measureText, workflow ? 'DOWN' : 'RIGHT') } }
     }
     resolve().then(
       (resolved) => {
@@ -43,7 +43,7 @@ export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: G
     return () => {
       active = false
     }
-  }, [tree, current, context, liftedId, measureText, settled])
+  }, [tree, current, context, liftedId, measureText, settled, workflow])
 
   const layoutPending = result?.current !== current
   return { scene, moveCard, layoutPending, layoutFailed: !layoutPending && Boolean(result?.failed) }

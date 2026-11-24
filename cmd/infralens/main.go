@@ -11,9 +11,20 @@ import (
 
 func main() {
 	providers := map[string]cli.Provider{
-		"pulumi":    {ReadInputs: pulumi.ReadInputs, Preview: pulumi.Preview, MockTopology: simulate.RunInputs},
+		"pulumi": {
+			ReadInputs:     pulumi.ReadInputs,
+			Preview:        pulumi.Preview,
+			ReadCostInputs: pulumi.ReadCostInputs,
+			PreviewCosts:   pulumi.PreviewCosts,
+			MockTopology:   simulate.RunInputs,
+		},
 		"terraform": {},
-		"aws-cdk":   {ReadInputs: awscdk.ReadInputs, Preview: awscdk.Preview},
+		"aws-cdk": {
+			ReadInputs:     awscdk.ReadInputs,
+			Preview:        awscdk.Preview,
+			ReadCostInputs: awscdk.ReadCostInputs,
+			PreviewCosts:   awscdk.PreviewCosts,
+		},
 	}
 	os.Exit(cli.New(os.Stdout, os.Stderr, providers).Run(os.Args[1:]))
 }

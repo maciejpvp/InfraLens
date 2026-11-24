@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"infralens/internal/cost"
 	"infralens/internal/fileio"
 	"infralens/internal/graph"
 )
@@ -19,6 +20,7 @@ import (
 type resource struct {
 	Type       string         `json:"Type"`
 	DependsOn  dependsOn      `json:"DependsOn"`
+	Condition  string         `json:"Condition"`
 	Properties map[string]any `json:"Properties"`
 }
 
@@ -47,21 +49,28 @@ var (
 
 // ReadInputs builds a graph from one or more JSON templates emitted by cdk synth.
 func ReadInputs(inputs []string, open func(string) (io.Reader, error)) (graph.Graph, error) {
+	return ReadCostInputs(inputs, open, nil)
+}
+
+func ReadCostInputs(inputs []string, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
 	sources := make([]source, 0, len(inputs))
 	for _, input := range inputs {
 		stack, path := splitInput(input)
 		sources = append(sources, source{stack: stack, path: path})
 	}
-	return readSources(sources, open)
+	return readSources(sources, open, inventory)
 }
 
 type source struct {
-	stack    string
-	path     string
-	diffName string
+	stack     string
+	path      string
+	diffName  string
+	stackName string
+	account   string
+	region    string
 }
 
-func readSources(sources []source, open func(string) (io.Reader, error)) (graph.Graph, error) {
+func readSources(sources []source, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
 	if len(sources) == 0 {
 		return graph.Graph{}, errors.New("at least one CDK template is required")
 	}
@@ -82,6 +91,9 @@ func readSources(sources []source, open func(string) (io.Reader, error)) (graph.
 			return graph.Graph{}, err
 		}
 		doc.addTo(&g, stack)
+		if inventory != nil {
+			inventory.After = append(inventory.After, doc.costResources(stack, input.region)...)
+		}
 	}
 	g.Normalize()
 	return g, g.Validate()

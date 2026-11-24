@@ -21,10 +21,18 @@ func (c *CLI) graphOrRender(command string, args []string, run func([]string, st
 		inputs = append(inputs, value)
 		return nil
 	})
+	costs := &costOptions{}
+	if command == "render" {
+		costs = costFlags(flags)
+	}
 	output := flags.String("output", "", "destination file")
 	err := flags.Parse(args)
 	if errors.Is(err, flag.ErrHelp) {
-		fmt.Fprintln(c.stdout, "Usage: infralens "+command+graphUsage+"\n"+c.providerHelp())
+		usage := graphUsage
+		if command == "render" {
+			usage += costUsage
+		}
+		fmt.Fprintln(c.stdout, "Usage: infralens "+command+usage+"\n"+c.providerHelp())
 		return nil
 	}
 	if err != nil {
@@ -36,6 +44,9 @@ func (c *CLI) graphOrRender(command string, args []string, run func([]string, st
 	if len(inputs) == 0 {
 		return errors.New("graph/render require --input and do not accept --project")
 	}
+	if err := costs.load(*output); err != nil {
+		return err
+	}
 	provider, err := c.provider(*providerName)
 	if err != nil {
 		return err
@@ -43,7 +54,14 @@ func (c *CLI) graphOrRender(command string, args []string, run func([]string, st
 	if provider.ReadInputs == nil {
 		return fmt.Errorf("provider %q does not support file inputs", *providerName)
 	}
-	report, err := run(inputs, *output, provider.ReadInputs)
+	read := provider.ReadInputs
+	if costs.enabled {
+		if provider.ReadCostInputs == nil {
+			return fmt.Errorf("provider %q does not support cost estimates", *providerName)
+		}
+		read = c.costReader(provider, *costs)
+	}
+	report, err := run(inputs, *output, read)
 	if err != nil {
 		return err
 	}

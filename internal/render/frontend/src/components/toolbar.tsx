@@ -10,7 +10,7 @@ import { Logo } from './Logo'
 import { ResourceSearch } from './resource-search'
 import { toolbarStyles as styles } from './toolbar.variants'
 
-export const Toolbar = (props: Parameters<typeof useToolbar>[0]) => {
+export const Toolbar = ({ onClearWorkflow, ...props }: Parameters<typeof useToolbar>[0] & { onClearWorkflow?: () => void }) => {
   const { simulated, provenance, modes, filtersOpen, toggleFilters, filterProps, searchProps } =
     useToolbar(props)
 
@@ -30,7 +30,11 @@ export const Toolbar = (props: Parameters<typeof useToolbar>[0]) => {
         <ResourceSearch {...searchProps} />
         <Box className={styles.actions}>
           <Box role="group" aria-label="View" className={styles.modes}>
-            {modes.map(({ id, label, pressed, variant, onClick }) => (
+            {onClearWorkflow ? (
+              <Button type="button" size="sm" variant="ghost" className={styles.modeButton} onClick={onClearWorkflow}>
+                Exit workflow
+              </Button>
+            ) : modes.map(({ id, label, pressed, variant, onClick }) => (
               <Button
                 key={id}
                 id={id}

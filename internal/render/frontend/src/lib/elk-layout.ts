@@ -64,11 +64,12 @@ const toRoute = (edge: ElkExtendedEdge, text: string): Route | null => {
 export const layoutDiagram = async (
   view: GraphView,
   measureText: (text: string) => number,
+  direction: 'DOWN' | 'RIGHT' = 'RIGHT',
 ): Promise<DiagramLayout> => {
   const captions = view.edges.map(edgeCaption)
   const result = await elk.layout<ElkNode>({
     id: 'root',
-    layoutOptions: elkOptions,
+    layoutOptions: { ...elkOptions, 'elk.direction': direction },
     children: view.roots.map((id) => toElkNode(view, id)),
     edges: view.edges.map(({ from, to }, index) => {
       const caption = captions[index]

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Box } from '../ui/box'
 import { Icon } from '../ui/icon'
 import { Text } from '../ui/text'
@@ -21,12 +22,14 @@ export const DetailsDialog = ({
   icons,
   onResource,
   onEdges,
+  resourceWorkflows,
 }: {
   inspector: Parameters<typeof useDetailsDialog>[0]
   byId: Parameters<typeof useDetailsDialog>[1]
   icons: ServiceIcons
   onResource: OpenResource
   onEdges: OpenRelation
+  resourceWorkflows?: (id: string) => ReactNode
 }) => {
   const {
     pages,
@@ -105,14 +108,17 @@ export const DetailsDialog = ({
           {pages.map((entry, index) => (
             <Box key={index} data-inspector-page hidden={entry !== page}>
               {entry.item ? (
-                <ResourceDetails
-                  item={entry.item}
-                  links={entry.links}
-                  byId={byId}
-                  icons={icons}
-                  onResource={onResource}
-                  onEdges={onEdges}
-                />
+                <>
+                  {entry.item.node && resourceWorkflows?.(entry.item.node.id)}
+                  <ResourceDetails
+                    item={entry.item}
+                    links={entry.links}
+                    byId={byId}
+                    icons={icons}
+                    onResource={onResource}
+                    onEdges={onEdges}
+                  />
+                </>
               ) : (
                 <EdgeDetails edges={entry.edges} byId={byId} icons={icons} />
               )}

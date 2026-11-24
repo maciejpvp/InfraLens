@@ -1,6 +1,6 @@
 # AWS Architecture Icons
 
-These 13 SVG files are unmodified 48px service icons from AWS Architecture
+These 16 SVG files are unmodified 48px service icons from AWS Architecture
 Icons, release 07312026 (31 July 2026). The filenames are shortened for lookup;
 the artwork and original colours are unchanged.
 

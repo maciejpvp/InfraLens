@@ -69,7 +69,7 @@ func TestOfflineIconsAndEnglishInterface(t *testing.T) {
 	if err := json.Unmarshal([]byte(match[1]), &icons); err != nil {
 		t.Fatal(err)
 	}
-	if len(icons) != 13 {
+	if len(icons) != 16 {
 		t.Fatalf("got %d service icons", len(icons))
 	}
 	for name, uri := range icons {

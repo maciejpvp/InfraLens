@@ -4,6 +4,8 @@ package graph
 import (
 	"errors"
 	"sort"
+
+	"infralens/internal/cost"
 )
 
 type Change string
@@ -26,11 +28,12 @@ const (
 )
 
 type Graph struct {
-	SchemaVersion    int    `json:"schemaVersion"`
-	Simulated        bool   `json:"simulated,omitempty"`
-	Nodes            []Node `json:"nodes"`
-	Edges            []Edge `json:"edges"`
-	OmittedRelations int    `json:"omittedRelations"`
+	Costs            *cost.Report `json:"-"`
+	SchemaVersion    int          `json:"schemaVersion"`
+	Simulated        bool         `json:"simulated,omitempty"`
+	Nodes            []Node       `json:"nodes"`
+	Edges            []Edge       `json:"edges"`
+	OmittedRelations int          `json:"omittedRelations"`
 }
 
 type Node struct {

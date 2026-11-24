@@ -5,12 +5,14 @@ import (
 	"errors"
 	"io/fs"
 	"path"
+	"strings"
 )
 
 type assemblyManifest struct {
 	Artifacts map[string]struct {
 		Type        string `json:"type"`
 		DisplayName string `json:"displayName"`
+		Environment string `json:"environment"`
 		Properties  struct {
 			TemplateFile  string `json:"templateFile"`
 			DirectoryName string `json:"directoryName"`
@@ -47,7 +49,16 @@ func assemblySources(assembly fs.FS, dir string) ([]source, error) {
 			if name := artifact.Properties.StackName; name != "" && name != id {
 				diffName += " (" + name + ")"
 			}
-			sources = append(sources, source{stack: stack, path: path.Join(dir, file), diffName: diffName})
+			name := artifact.Properties.StackName
+			if name == "" {
+				name = id
+			}
+			environment := strings.TrimPrefix(artifact.Environment, "aws://")
+			account, region, _ := strings.Cut(environment, "/")
+			sources = append(sources, source{
+				stack: stack, path: path.Join(dir, file), diffName: diffName,
+				stackName: name, account: account, region: region,
+			})
 		case "cdk:cloud-assembly":
 			child := artifact.Properties.DirectoryName
 			if !fs.ValidPath(child) || child == "." {

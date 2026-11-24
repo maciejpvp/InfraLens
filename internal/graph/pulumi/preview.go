@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"infralens/internal/cost"
 	"infralens/internal/fileio"
 	"infralens/internal/graph"
 )
@@ -16,6 +17,10 @@ import (
 // Preview builds a graph from the current Pulumi project.
 // If supplied, onPreview runs just before the preview starts.
 func Preview(ctx context.Context, onPreview func()) (graph.Graph, error) {
+	return PreviewCosts(ctx, onPreview, nil)
+}
+
+func PreviewCosts(ctx context.Context, onPreview func(), inventory *cost.Inventory) (graph.Graph, error) {
 	if _, yamlErr := fileio.StatRegular("Pulumi.yaml"); yamlErr != nil {
 		if _, ymlErr := fileio.StatRegular("Pulumi.yml"); ymlErr != nil {
 			return graph.Graph{}, errors.New("run preview from a Pulumi project directory containing Pulumi.yaml or Pulumi.yml")
@@ -46,7 +51,7 @@ func Preview(ctx context.Context, onPreview func()) (graph.Graph, error) {
 	if _, err := preview.Seek(0, io.SeekStart); err != nil {
 		return graph.Graph{}, errors.New("cannot read temporary preview")
 	}
-	g, err := Read(preview)
+	g, err := readSources(inventory, Source{Reader: preview})
 	if err != nil {
 		return graph.Graph{}, err
 	}
