@@ -1,32 +1,30 @@
-import type { ComponentProps } from 'react'
-import type { GraphEdge } from '../lib/graph.types'
+import type { GraphEdge, ResourcesById, ServiceIcons } from '../lib/graph.types'
+import type { Endpoint } from '../lib/relation-groups'
+import type { useResourceDetails } from '../hooks/use-resource-details'
 
-import { ArrowRight } from 'lucide-react'
 import { Box } from '../ui/box'
-import { Icon } from '../ui/icon'
 import { Text } from '../ui/text'
 import { DetailRow } from './detail-row'
+import { RelationEndpoints } from './relation-endpoints'
 import { inspectorStyles as styles } from './inspector.variants'
 
-export const RelationRows = ({ edges, toRow }: {
+export const RelationRows = ({ edges, byId, icons, shared, toRow }: {
   edges: GraphEdge[]
-  toRow: (edge: GraphEdge) => Omit<ComponentProps<typeof DetailRow>, 'title'> & {
-    from: string
-    to: string
-  }
+  byId: ResourcesById
+  icons: ServiceIcons
+  shared?: Endpoint
+  toRow: ReturnType<typeof useResourceDetails>['toRow']
 }) => (
   <Box className={styles.rows}>
     {edges.map((edge) => {
-      const { from, to, ...row } = toRow(edge)
+      const { descriptions, summary, onClick } = toRow(edge)
       return (
-        <DetailRow key={JSON.stringify([edge.from, edge.to, edge.state])} {...row} title={
-          <Text className={styles.rowRoute}>
-            <Text>{from}</Text>
-            <Icon icon={ArrowRight} className="size-4 text-muted-foreground" />
-            <Text className="sr-only"> to </Text>
-            <Text>{to}</Text>
+        <DetailRow key={JSON.stringify([edge.from, edge.to, edge.state])} onClick={onClick}>
+          <RelationEndpoints edge={edge} byId={byId} icons={icons} shared={shared} />
+          <Text className={styles.relationCaption}>
+            {descriptions && `${descriptions} · `}{summary}
           </Text>
-        } />
+        </DetailRow>
       )
     })}
   </Box>

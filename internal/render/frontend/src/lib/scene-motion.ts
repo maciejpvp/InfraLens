@@ -108,14 +108,14 @@ const labelRoutes = (view: GraphView, layout: Layout, routes: (Route | null)[], 
 }
 
 export const revealInPlace = (base: Scene, view: GraphView, id: string, measure: (text: string) => number): Scene | undefined => {
-  const group = base.tree.resourceItems.get(id)?.parent
-  const anchor = group && base.layout.positions.get(group.id)
+  const group = base.current.representatives.get(id)
+  const anchor = group && base.layout.positions.get(group)
   const item = view.items.get(id)
   if (!anchor || !group || !item || base.current.items.has(id)) return
   const positions = new Map([...base.layout.positions].filter(([id]) => view.items.has(id)))
   if (positions.size + 1 !== view.items.size) return
   let point: Point = anchor
-  if (positions.has(group.id)) {
+  if (positions.has(group)) {
     const ancestors = new Set<string>()
     for (let parent = item.parent; parent; parent = parent.parent) ancestors.add(parent.id)
     const obstacles = [...positions].map(([id, box]) =>
@@ -133,6 +133,7 @@ export const revealInPlace = (base: Scene, view: GraphView, id: string, measure:
       y: [...positions.values()].reduce((bottom, box) => Math.max(bottom, box.y + box.height), 0) + gap,
     }
   }
+  if (item.parent?.service && !canPlace({ ...base, current: view }, id, point, positions)) return
   const card = { ...CARD, ...point, depth: anchor.depth }
   positions.set(id, card)
   const layout = layoutBounds(positions)
@@ -237,10 +238,12 @@ export const motionFrame = (start: Scene, target: Scene, t: number): Scene => {
     const before = start.layout.positions.get(id), after = target.layout.positions.get(id)
     const item = (after ? target : start).current.items.get(id)!
     const parent = item.parent?.id
-    const previousParent = !before && after && !item.group ? target.tree.resourceItems.get(id)?.parent : undefined
-    const previousGroup = previousParent?.service ? start.layout.positions.get(previousParent.id) : undefined
+    const previousParent = !before && !item.group ? start.current.representatives.get(id) : undefined
+    const previousGroup = previousParent ? start.layout.positions.get(previousParent) : undefined
     const origin = before ?? previousGroup ?? (parent ? start.layout.positions.get(parent) : undefined) ?? after!
-    const end = after ?? (parent ? target.layout.positions.get(parent) : undefined) ?? origin
+    const nextParent = !after && !item.group ? target.current.representatives.get(id) : undefined
+    const end = after ?? (nextParent ? target.layout.positions.get(nextParent) : undefined) ??
+      (parent ? target.layout.positions.get(parent) : undefined) ?? origin
     const sizeBefore = before ?? after!, sizeAfter = after ?? before!
     const position = {
       x: mix(origin.x, end.x, t), y: mix(origin.y, end.y, t),

@@ -2,7 +2,7 @@ import type { Evidence, GraphEdge, ResourcesById, ServiceIcons } from '../lib/gr
 import type { EvidenceGroup, MetadataRow } from '../lib/inspector.types'
 
 import { relationNotes } from '../components/inspector.config'
-import { connectionTitle, countLabel, groupRelations, serviceIconSrc } from '../lib/graph-view'
+import { countLabel, groupRelations, inspectorServiceIconSrc } from '../lib/graph-view'
 import { serviceFor } from '../lib/graph-projection.ts'
 import { changeLabels, topologyNames } from '../lib/graph-view.config'
 
@@ -13,7 +13,7 @@ const endpointRows = ({ from, to }: GraphEdge, byId: ResourcesById, icons: Servi
   ].map(([label, id]) => {
     const resource = byId.get(id)!
     const { stack, type, change } = resource
-    return [label, `${stack || 'No stack'} · ${type} · ${changeLabels[change ?? 'unchanged']}`, serviceIconSrc(serviceFor(resource), icons)]
+    return [label, `${stack || 'No stack'} · ${type} · ${changeLabels[change ?? 'unchanged']}`, inspectorServiceIconSrc(serviceFor(resource), icons)]
   })
 
 const groupEvidence = (evidence: Evidence[], byId: ResourcesById) => {
@@ -50,7 +50,6 @@ export const useEdgeDetails = ({ edges, byId, icons }: { edges: GraphEdge[]; byI
     edges: relations,
   }))
   const toEntry = (edge: GraphEdge) => ({
-    title: edges.length > 1 ? connectionTitle(edge, byId) : '',
     endpoints: edges.length > 1 ? endpointRows(edge, byId, icons) : [],
     topology: states.length > 1 && edge.state && topologyNames[edge.state],
     evidence: groupEvidence(edge.evidence, byId),

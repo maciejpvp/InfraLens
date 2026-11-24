@@ -4,7 +4,7 @@ import type { GraphEdge, ResourcesById, ServiceIcons } from '../lib/graph.types'
 import { ArrowRight } from 'lucide-react'
 import { useMemo } from 'react'
 import { groupDependenciesByService } from '../lib/graph-projection.ts'
-import { serviceIconSrc } from '../lib/graph-view'
+import { inspectorServiceIconSrc } from '../lib/graph-view'
 import { Accordion } from '../ui/accordion'
 import { Text } from '../ui/text'
 import { Icon } from '../ui/icon'
@@ -24,10 +24,10 @@ export const DependencyGroups = ({ edges, byId, icons, children }: {
       {groups.map(({ key, from, to, edges }) => (
         <DetailSection key={key} value={key} title={
           <Text className={styles.dependencyTitle}>
-            <ServiceIcon icon={serviceIconSrc(from, icons)} />{from.name}
+            <ServiceIcon icon={inspectorServiceIconSrc(from, icons)} />{from.name}
             <Icon icon={ArrowRight} className="size-4 text-muted-foreground" />
             <Text className="sr-only"> to </Text>
-            <ServiceIcon icon={serviceIconSrc(to, icons)} />{to.name} ({edges.length})
+            <ServiceIcon icon={inspectorServiceIconSrc(to, icons)} />{to.name} ({edges.length})
           </Text>
         }>
           {children(edges)}

@@ -7,6 +7,9 @@ export const countLabel = (count: number, word: string) => `${count} ${word}${co
 export const serviceIconSrc = (service: Service | null | undefined, icons: ServiceIcons) =>
   service?.icon && Object.hasOwn(icons, service.icon) ? icons[service.icon] : undefined
 
+export const inspectorServiceIconSrc = (service: Service, icons: ServiceIcons) =>
+  service.id === 'aws:appsync' && Object.hasOwn(icons, 'appsync') ? icons.appsync : serviceIconSrc(service, icons)
+
 export const countChanges = (nodes: Iterable<Resource | undefined>) => {
   const counts = new Map<Change, number>()
   for (const node of nodes) {

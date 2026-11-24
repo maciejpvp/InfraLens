@@ -32,19 +32,22 @@ export const useDiagramItem = ({
   const hasChange = change && change !== 'unchanged'
   const statusColor = styles.changeColor[change ?? 'unchanged']
   const count = countLabel(item.members.size, 'resource')
+  const connectionGroup = item.group && item.connectionGroup
   const type = isAppSyncAPI(item.node) ? 'AppSync · GraphQL API'
-    : item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
+    : connectionGroup ? 'CONNECTED SERVICES' : item.service ? 'SERVICE' : item.group ? 'GROUP' : item.node.type.split(':').at(-1)
   const open = activationProps<HTMLButtonElement>(() => onItem(item.id))
 
   return {
     buttonProps: {
       'data-item': item.id,
       'data-group': item.group ? item.id : undefined,
-      'data-service': item.service?.id,
+      'data-service': connectionGroup ? undefined : item.service?.id,
+      'data-connection-group': connectionGroup ? '' : undefined,
       'data-node': item.group ? undefined : item.id,
       'data-change': change ?? '',
       'aria-label': `${item.name}, ${item.group ? count : item.node.type}${workflowUsage?.length ? ', per run: ' + workflowUsage.join(', ') : ''}`,
       'aria-haspopup': 'dialog' as const,
+      title: connectionGroup ? item.name : undefined,
       className: cn(
         styles.button,
         item.expanded

@@ -56,11 +56,19 @@ try {
   }
   const clickAt=(target,x,y)=>dispatch(target,new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
   async function click(target){target.click();await wait(40);await waitForLayout();}
-  async function expandServicePairs(section){
-    if(!trigger(section).textContent.startsWith('Deployment dependencies'))return;
+  async function expandRelationGroups(section){
     for(const item of section.querySelectorAll('[data-slot="accordion-item"]')){
-      assert(!opened(item),'Service pair should start closed');
+      assert(!opened(item),'Nested relationship group should start closed');
       await click(trigger(item));
+    }
+  }
+  async function expandConnectionGroups(seen=new Set()){
+    while(true){
+      const group=[...document.querySelectorAll('[data-connection-group]')].find(node=>!seen.has(node.dataset.item));
+      if(!group)return;
+      seen.add(group.dataset.item);
+      const toggle=card(group).querySelector('[data-toggle]');
+      if(toggle.getAttribute('aria-expanded')==='false')await click(toggle);
     }
   }
   function hitCenter(element){
@@ -180,6 +188,7 @@ try {
       assert(toggle.getAttribute('aria-expanded')==='false','Flow service group should start collapsed');
       await click(toggle);
     }
+    await expandConnectionGroups();
     assert($('summary').textContent.includes(endpoints.size+' in flow · '+graph.nodes.length+' total'),'Incorrect Flow counts');
     assert([...document.querySelectorAll('[data-node]')].every(n=>endpoints.has(n.dataset.node)),'Flow contains an unrelated resource');
     const shown=[...document.querySelectorAll('[data-edge]')].reduce((n,e)=>n+(+e.dataset.count),0);
@@ -260,6 +269,7 @@ try {
       const proofs=plannedFlow.filter(e=>e.from===connection.dataset.from&&e.to===connection.dataset.to&&connection.classList.contains(e.kind)).flatMap(e=>e.evidence).filter(p=>p.label||p.details);
       if(!proofs.length)continue;
       await dispatch(connection,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+      for(const section of accordionItems().filter(opened))await expandRelationGroups(section);
       for(const proof of proofs){
         if(proof.label)assert($('details').textContent.includes(proof.label),'Endpoint or event missing from inspector');
         if(proof.details)assert($('details').textContent.includes(proof.details),'Filter or parameters missing from inspector');
@@ -307,14 +317,24 @@ try {
         const section=accordionItems().find(item=>trigger(item).textContent.startsWith(relationNames[within.kind]));
         assert(section,'Missing internal relationship section');
         await click(trigger(section));
-        await expandServicePairs(section);
+        await expandRelationGroups(section);
         assert([...section.querySelectorAll('.connection-item')].some(button=>button.textContent.includes('within group')),'Missing internal group relationship');
         await click(trigger(section));
       }
     }
-    const member=[...members.querySelectorAll('.connection-item')].find(button=>graph.nodes.some(node=>!node.stackRoot&&node.name===button.textContent));
-    if(member){
-      const memberName=member.textContent;
+    const memberNames=[...members.querySelectorAll('[data-member-id]')];
+    assert(memberNames.length,'Group has no resource rows');
+    for(const name of memberNames){
+      const resource=graph.nodes.find(node=>node.id===name.dataset.memberId);
+      const button=name.closest('button');
+      assert(resource&&name.textContent===resource.name,'Group row lost the full resource name');
+      assert(button.textContent.includes(resource.type),'Group row is missing the resource type');
+      assert(name.scrollWidth<=name.clientWidth+1,'Resource name overflows its row');
+    }
+    const memberNameElement=memberNames.find(name=>graph.nodes.some(node=>!node.stackRoot&&node.id===name.dataset.memberId));
+    if(memberNameElement){
+      const member=memberNameElement.closest('button');
+      const memberName=memberNameElement.textContent;
       await click(member);
       assert(inspector()&&title()===memberName,'Group member did not open in the same dialog');
       assert(document.activeElement===close(),'New modal content did not receive focus');
@@ -324,8 +344,10 @@ try {
       if(links){
         assert(!opened(links),'Resource connection accordion should start closed');
         await click(trigger(links));
-        await expandServicePairs(links);
+        await expandRelationGroups(links);
         const link=links.querySelector('.connection-item');
+        const linkGroup=link.closest('[data-slot="accordion-item"]');
+        assert(link.scrollWidth<=link.clientWidth+1,'Connection overflows its row');
         link.scrollIntoView({block:'end'});
         const scroll=$('details').scrollTop;
         await click(link);
@@ -333,6 +355,7 @@ try {
         assert(back(),'Connection does not offer a way back');
         await click(back());
         assert(inspector()&&title()===memberName&&opened(links),'Back did not restore resource details and its accordion');
+        assert(opened(linkGroup),'Back did not restore the nested relationship group');
         assert(document.activeElement===link&&$('details').scrollTop===scroll,'Back did not restore the selected row and scroll');
       }
       assert(back(),'Resource does not offer a way back to the group');
@@ -452,11 +475,13 @@ try {
       assert(toggle.getAttribute('aria-expanded')==='false','Service group is initially expanded');
       checkCardChange(group,group.dataset.change);
       const visibleNodes=new Set([...document.querySelectorAll('[data-node]')].map(n=>n.dataset.node));
+      const visibleSubgroups=new Set([...document.querySelectorAll('[data-connection-group]')].map(n=>n.dataset.item));
       if(group.dataset.service.startsWith('aws:')&&group.querySelector('.service-icon'))assert(group.querySelector('.service-icon').getAttribute('aria-hidden')==='true','Icon is not decorative');
       await dispatch(toggle,new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
       const expanded=[...document.querySelectorAll('[data-item]')].find(g=>g.dataset.item===id);
       assert(card(expanded).querySelector('[data-toggle]').getAttribute('aria-expanded')==='true','Service group did not expand');
       checkStatusBorder(getComputedStyle(card(expanded).firstElementChild),expanded.dataset.change);
+      await expandConnectionGroups(visibleSubgroups);
       const members=[...document.querySelectorAll('[data-node]')].filter(n=>!visibleNodes.has(n.dataset.node));
       const status=['delete','replace','update','create'].find(change=>members.some(n=>n.dataset.change===change))??'';
       assert(members.length>0&&group.dataset.change===status,'Collapsed service group did not inherit its members’ change status');
@@ -475,7 +500,6 @@ try {
     await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');
     if(location.search.includes('parallel')){
-      await click(document.querySelector('[data-service]').closest('[data-diagram-card]').querySelector('[data-toggle]'));
       const legendWasHidden=legend.hidden;
       if(legendWasHidden)await click(legendButton);
       const entryFor=kind=>legend.querySelector('[data-connection-kind="'+kind+'"]');
@@ -553,7 +577,7 @@ try {
           const section=accordionItems().find(section=>trigger(section).textContent.startsWith(kind));
           assert(section&&!opened(section),'Shared route lost a collapsed relationship type');
           await click(trigger(section));
-          await expandServicePairs(section);
+          await expandRelationGroups(section);
           assert(opened(section)&&section.querySelector('code'),'Shared route lost evidence');
         }
         await click(close());

@@ -16,6 +16,7 @@ import type {
 import { defaultTopology, services } from './layout.config.ts'
 
 const compare = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)
+const minimumGroupSize = 4
 export const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'connects_to'
 export const activeEdges = (graph: Graph, state: Topology) =>
   graph.edges.filter((e) => !e.state || e.state === state)
@@ -38,6 +39,25 @@ export const serviceFor = ({ provider, service: id = '' }: Pick<Resource, 'provi
     icon: service && id !== 'appsync' ? id : null,
     color: service?.[1] || '#91a5bd',
   }
+}
+
+const connectedServices = (edges: GraphEdge[], nodes: ReadonlyMap<string, Resource>) => {
+  const servicesByResource = new Map<string, Map<string, Service>>()
+  const eventSources = new Map<string, Map<string, Service>>()
+  const add = (connections: typeof servicesByResource, id: string, neighbor: string) => {
+    const node = nodes.get(neighbor)
+    if (!node?.service) return
+    const service = serviceFor(node)
+    if (!connections.has(id)) connections.set(id, new Map())
+    connections.get(id)!.set(service.id, service)
+  }
+  for (const edge of edges) {
+    if (!isFlow(edge) || edge.from === edge.to) continue
+    add(servicesByResource, edge.from, edge.to)
+    add(servicesByResource, edge.to, edge.from)
+    if (edge.kind === 'triggers') add(eventSources, edge.to, edge.from)
+  }
+  return { neighbors: servicesByResource, eventSources }
 }
 
 export const groupDependenciesByService = (edges: GraphEdge[], byId: ReadonlyMap<string, Resource>) => {
@@ -198,6 +218,34 @@ export const buildHierarchy = (
     }
     attach(item, cycle ? stack : parent)
   }
+  const { neighbors, eventSources } = connectedServices(edges, nodes)
+  const addConnectionGroup = (parent: Group, key: string, name: string, members: HierarchyItem[]) => {
+    const subgroup = makeGroup(`connections:${JSON.stringify([parent.id, key])}`, name, parent.stack, null, true)
+    subgroup.service = parent.service
+    subgroup.connectionGroup = true
+    items.set(subgroup.id, subgroup)
+    attach(subgroup, parent)
+    for (const item of members) attach(item, subgroup)
+    return subgroup
+  }
+  const groupByServiceSet = (parent: Group, leaves: HierarchyItem[]) => {
+    const signatures = new Map<string, { services: Service[]; members: HierarchyItem[] }>()
+    for (const item of leaves) {
+      const connections = neighbors.get(item.id)
+      if (!connections?.size) continue
+      const services = [...connections.values()].sort(compare)
+      const key = JSON.stringify(services.map(({ id }) => id))
+      const bucket = signatures.get(key)
+      if (bucket) bucket.members.push(item)
+      else signatures.set(key, { services, members: [item] })
+    }
+    for (const [key, { services, members }] of signatures) {
+      if (members.length < minimumGroupSize || (parent.connectionGroup && members.length === leaves.length)) continue
+      const name = services.map(({ name }) => name).sort((a, b) => a.localeCompare(b)).join(' + ')
+      addConnectionGroup(parent, key, name, members)
+    }
+    parent.children = parent.children.filter((child) => child.parent === parent)
+  }
   for (const parent of [...items.values()]) {
     if (!parent.group) continue
     const services = new Map<string, { service: Service; leaves: HierarchyItem[] }>()
@@ -210,12 +258,30 @@ export const buildHierarchy = (
       else services.set(service.id, { service, leaves: [item] })
     }
     for (const { service, leaves } of services.values()) {
-      if (mode === 'flow' && leaves.length < 2) continue
+      if (leaves.length < minimumGroupSize) continue
       const group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
       group.service = service
       items.set(group.id, group)
       attach(group, parent)
       for (const item of leaves) attach(item, group)
+
+      const bySource = new Map<string, { service: Service; members: HierarchyItem[] }>()
+      for (const item of leaves) {
+        for (const source of eventSources.get(item.id)?.values() ?? []) {
+          const bucket = bySource.get(source.id)
+          if (bucket) bucket.members.push(item)
+          else bySource.set(source.id, { service: source, members: [item] })
+        }
+      }
+      // Prefer the shared trigger with the most members when a resource has multiple event sources.
+      const triggers = [...bySource.values()].sort((a, b) => b.members.length - a.members.length || compare(a.service, b.service))
+      for (const { service: source, members } of triggers) {
+        const available = members.filter((item) => item.parent === group)
+        if (available.length < minimumGroupSize) continue
+        const subgroup = addConnectionGroup(group, `events:${source.id}`, `${source.name} events`, available)
+        groupByServiceSet(subgroup, available)
+      }
+      groupByServiceSet(group, leaves.filter((item) => item.parent === group))
     }
     parent.children = parent.children.filter((child) => child.parent === parent)
   }
@@ -237,9 +303,19 @@ export const buildHierarchy = (
 export const revealResource = (tree: Hierarchy, id: string, expanded: Set<string>) => {
   const item = tree.resourceItems.get(id)
   if (!item) return null
-  const first = !item.group && item.parent?.service ? item.parent.parent : item.parent
+  let first = item.parent
+  if (!item.group) while (first?.service) first = first.parent
   for (let parent = first; parent; parent = parent.parent) expanded.add(parent.id)
   return item.id
+}
+
+export const collapsedServiceAncestor = (item: HierarchyItem | undefined, expanded: ReadonlySet<string>) => {
+  if (!item || item.group) return undefined
+  let collapsed: Group | undefined
+  for (let parent = item.parent; parent?.service; parent = parent.parent) {
+    if (!expanded.has(parent.id)) collapsed = parent
+  }
+  return collapsed
 }
 
 export const projectGraph = (
@@ -254,9 +330,7 @@ export const projectGraph = (
     representatives = new Map<string, string>()
   const focus = resourceId ? tree.resourceItems.get(resourceId) : undefined
   const restrict = onlyConnections && Boolean(focus)
-  const collapsedService = !focus?.group && focus?.parent?.service && !expanded.has(focus.parent.id)
-    ? focus.parent
-    : undefined
+  const collapsedService = collapsedServiceAncestor(focus, expanded)
   const visit = (item: HierarchyItem, parent = item.parent) => {
     const open = item.group && expanded.has(item.id)
     const members = item === collapsedService

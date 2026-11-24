@@ -29,7 +29,7 @@ export const useResourceDetails = ({ item, links, byId, onResource, onEdges }: R
         title: `Resources in group (${item.members.size})`,
         entries: [...item.members].sort().map((id) => ({
           id,
-          title: byId.get(id)!.name,
+          resource: byId.get(id)!,
           onClick: (event: MouseEvent<HTMLButtonElement>) => onResource(id, event.currentTarget),
         })),
       }
@@ -42,8 +42,6 @@ export const useResourceDetails = ({ item, links, byId, onResource, onEdges }: R
   }))
 
   const toRow = (edge: GraphEdge) => ({
-    from: byId.get(edge.from)!.name,
-    to: byId.get(edge.to)!.name,
     descriptions: flowDescriptions([edge]).map(({ label }) => label).join(' · '),
     summary: countLabel(edge.evidence.length, 'evidence item') +
       (item.group && item.members.has(edge.from) && item.members.has(edge.to) ? ' · within group' : ''),

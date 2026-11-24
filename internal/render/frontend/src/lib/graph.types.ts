@@ -65,6 +65,7 @@ type ItemBase = {
 
 export type Group = ItemBase & {
   group: true
+  connectionGroup?: true
   node: Resource | null
   children: HierarchyItem[]
 }

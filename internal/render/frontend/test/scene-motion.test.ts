@@ -6,7 +6,7 @@ import { canPlace, motionFrame, moveCard, placementKey, positionScene, revealInP
 import type { Graph, Scene } from '../src/lib/graph.types.ts'
 
 const graph: Graph = {
-  nodes: ['a', 'b', 'permission'].map((id) => ({
+  nodes: ['a', 'b', 'permission', 'log', 'version'].map((id) => ({
     id, name: id, type: 'test:resource:Resource', stack: 'app/dev',
     provider: id === 'a' ? 'one' : 'two',
   })),

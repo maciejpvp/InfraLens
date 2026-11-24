@@ -1,14 +1,21 @@
 import { Text } from '../ui/text'
+import type { GraphEdge } from '../lib/graph.types'
+import type { Endpoint } from '../lib/relation-groups'
 import { useEdgeDetails } from '../hooks/use-edge-details'
 import { Accordion } from '../ui/accordion'
 import { DetailSection } from './detail-section'
 import { ConnectionEntries } from './connection-entries'
 import { DependencyGroups } from './dependency-groups'
+import { RelationGroups } from './relation-groups'
 import { Metadata } from './metadata'
 import { inspectorStyles as styles } from './inspector.variants'
 
 export const EdgeDetails = (props: Parameters<typeof useEdgeDetails>[0]) => {
+  const { byId, icons } = props
   const { rows, sections, toEntry, defaultSections } = useEdgeDetails(props)
+  const renderEntries = (edges: GraphEdge[], shared?: Endpoint) => (
+    <ConnectionEntries edges={edges} byId={byId} icons={icons} shared={shared} toEntry={toEntry} />
+  )
   return (
     <>
       <Metadata rows={rows} />
@@ -19,10 +26,14 @@ export const EdgeDetails = (props: Parameters<typeof useEdgeDetails>[0]) => {
               {note}
             </Text>
             {kind === 'depends_on' && props.edges.length > 1 ? (
-              <DependencyGroups edges={edges} byId={props.byId} icons={props.icons}>
-                {(group) => <ConnectionEntries edges={group} toEntry={toEntry} />}
+              <DependencyGroups edges={edges} byId={byId} icons={icons}>
+                {renderEntries}
               </DependencyGroups>
-            ) : <ConnectionEntries edges={edges} toEntry={toEntry} />}
+            ) : kind === 'triggers' || kind === 'connects_to' ? (
+              <RelationGroups edges={edges} byId={byId} icons={icons}>
+                {renderEntries}
+              </RelationGroups>
+            ) : renderEntries(edges)}
           </DetailSection>
         ))}
       </Accordion>

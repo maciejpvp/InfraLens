@@ -12,7 +12,7 @@ import type { WorkflowPath } from '../lib/workflows'
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../lib/inspector.types'
 
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { activeEdges, buildHierarchy, isFlow, projectGraph, revealResource } from '../lib/graph-projection.ts'
+import { activeEdges, buildHierarchy, collapsedServiceAncestor, isFlow, projectGraph, revealResource } from '../lib/graph-projection.ts'
 import { useDiagramLayout } from './use-diagram-layout'
 import { useCamera } from './use-camera'
 import { useInspector } from './use-inspector'
@@ -46,9 +46,14 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   const findOpener = (origin: InspectorOrigin | null) => {
     if (typeof origin !== 'string')
       return origin && diagramElement(stage.current, 'edge-id', origin.edge)
-    const parent = tree.resourceItems.get(origin)?.parent
-    return diagramElement(stage.current, 'item', origin) ||
-      (parent && diagramElement(stage.current, 'item', parent.id))
+    const item = tree.resourceItems.get(origin) ?? tree.items.get(origin)
+    const collapsed = collapsedServiceAncestor(item, expanded)
+    const opener = diagramElement(stage.current, 'item', collapsed?.id ?? origin)
+    if (opener) return opener
+    for (let parent = collapsed?.parent ?? item?.parent; parent; parent = parent.parent) {
+      const card = diagramElement(stage.current, 'item', parent.id)
+      if (card) return card
+    }
   }
   const inspector = useInspector((origin) => {
     const element = findOpener(origin)
@@ -59,8 +64,8 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   const focusId = selection?.focusId
   const [isolatedId, setIsolatedId] = useState<string>()
   const onlyConnections = Boolean(focusId && isolatedId === focusId)
-  const serviceGroup = focusId ? tree.resourceItems.get(focusId)?.parent : undefined
-  const projectedFocusId = !activePath && (onlyConnections || (serviceGroup?.service && !expanded.has(serviceGroup.id)))
+  const serviceGroup = focusId ? collapsedServiceAncestor(tree.resourceItems.get(focusId), expanded) : undefined
+  const projectedFocusId = !activePath && (onlyConnections || serviceGroup)
     ? focusId
     : undefined
   const visibleKinds = useMemo(() => activePath
@@ -139,8 +144,8 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     const itemId = revealResource(target, id, next)
     if (!itemId) return
     const item = target.items.get(itemId)!
-    const group = item.parent
-    if (target === tree && group?.service && !next.has(group.id) && !current.items.has(itemId))
+    const group = collapsedServiceAncestor(item, next)
+    if (target === tree && group && !current.items.has(itemId))
       layoutAnchor.current = group.id
     reveal.current = center ? itemId : null
     if (target !== tree) setMode('infra')
