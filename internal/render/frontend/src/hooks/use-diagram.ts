@@ -15,6 +15,7 @@ import { relationNames } from '../lib/graph-view.config'
 import { flowDescriptions } from '../lib/graph-projection.ts'
 import { edgeKey } from '../lib/scene-motion.ts'
 import { CARD, GROUP_HEADER_HEIGHT } from '../lib/layout.config'
+import { isDenseScene } from '../lib/route-visibility'
 
 const routeContains = (route: Route, point: Point) =>
   route.points.slice(1).some((end, index) => {
@@ -31,7 +32,7 @@ const routeContains = (route: Route, point: Point) =>
   })
 
 export const useDiagram = ({
-  camera,
+  flow,
   scene,
   moveCard,
   byId,
@@ -44,6 +45,7 @@ export const useDiagram = ({
   toggle,
 }: DiagramProps) => {
   const { current, layout, routes, motion } = scene
+  const dense = isDenseScene(scene)
   const related = new Set(selection?.item ? selection.links : selection?.edges)
   const selectedNodes = new Set<string>()
   const selectedEndpoint = selection?.focusId && selection.edges.some(
@@ -91,9 +93,9 @@ export const useDiagram = ({
       event.type === 'click' &&
       'clientX' in event &&
       (event.clientX || event.clientY) &&
-      camera.flow.current
+      flow.current
     ) {
-      const point = camera.flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })
       const hits = current.edges.filter((_, i) => {
         const route = routes[i]
         return (!motion || i < motion.activeEdges) && route && routeContains(route, point)
@@ -137,7 +139,7 @@ export const useDiagram = ({
         workflowUsage: workflowUsage?.get(id),
         retiring,
         visual: { opacity: fading, clipPath },
-        drag: !retiring && !item.expanded && parentId ? { moveCard, camera } : undefined,
+        drag: !retiring && !item.expanded && parentId ? { moveCard, flow } : undefined,
         depth: position.depth,
         bounds: { width: position.width, height: position.height },
         byId,
@@ -192,6 +194,8 @@ export const useDiagram = ({
         },
         data: {
           index,
+          dense,
+          highlighted: relatedEdges[index],
           retiring,
           opacity: motion?.edgeOpacity.get(index),
           route,
@@ -206,5 +210,5 @@ export const useDiagram = ({
 
   const onEdgeClick: EdgeMouseHandler<DiagramRelation> = (event, edge) => { if (!edge.data.retiring) openEdge(event, edge.data.index) }
 
-  return { nodes, edges, onEdgeClick }
+  return { nodes, edges, onEdgeClick, dense }
 }

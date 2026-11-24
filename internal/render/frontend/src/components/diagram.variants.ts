@@ -2,7 +2,7 @@ export const diagramStyles = {
   root: 'size-full bg-transparent select-none',
   edge: 'group cursor-pointer outline-none motion-safe:transition-opacity',
   selected: 'selected',
-  mutedEdge: 'muted opacity-[0.08] grayscale focus-visible:opacity-75 focus-visible:grayscale-0',
+  mutedEdge: 'muted opacity-[0.08] focus-visible:opacity-75',
   wire: 'wire group-hover:brightness-115 group-focus-visible:brightness-115',
   selectedWire: 'brightness-125 drop-shadow-[0_0_2px_currentColor]',
   edgeLabel:
@@ -19,7 +19,7 @@ export const diagramStyles = {
   headerName: 'min-w-0 flex-1 truncate text-sm font-semibold',
   groupCount: 'shrink-0 pr-9 text-xs text-muted-foreground',
   node: 'node',
-  mutedItem: 'muted opacity-25 grayscale focus-visible:opacity-75 focus-visible:grayscale-0',
+  mutedItem: 'muted opacity-25 focus-visible:opacity-75',
   card: 'body flex h-full flex-col justify-center gap-1 rounded-[17px] bg-card px-3.5 hover:bg-accent/40 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
   supportCard: 'border-dashed',
   selectedCard: 'outline-solid outline-2 outline-offset-2 outline-ring',

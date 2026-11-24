@@ -22,6 +22,9 @@ type ToolbarOptions = {
   connectionScope?: { checked: boolean; change: (checked: boolean) => void }
 }
 
+const pageSize = 50
+const emptyFilters: SearchFilters = {}
+
 export const useToolbar = ({
   graph,
   icons,
@@ -39,15 +42,20 @@ export const useToolbar = ({
   const [query, setQuery] = useState('')
   const [panel, setPanel] = useState<'results' | 'searchFilters' | 'diagramFilters' | null>(null)
   const [selection, setSelection] = useState<{ graph: Graph; filters: SearchFilters }>()
-  const searchFilters = selection?.graph === graph ? selection.filters : {}
+  const [pagination, setPagination] = useState<{ graph: Graph; index: number }>()
+  const searchFilters = selection?.graph === graph ? selection.filters : emptyFilters
   const searchRoot = useRef<HTMLDivElement>(null)
   const { entries, facets } = useMemo(() => indexResources(graph.nodes), [graph.nodes])
   const activeCount = searchFacets.reduce((count, facet) => count + (searchFilters[facet]?.size ?? 0), 0)
   const searching = panel === 'results' && Boolean(query.trim() || activeCount)
-  const matches = searching ? searchResources(entries, query, searchFilters) : []
+  const matches = useMemo(() => searching ? searchResources(entries, query, searchFilters) : [],
+    [searching, entries, query, searchFilters])
+  const page = pagination?.graph === graph ? pagination.index : 0
+  const offset = page * pageSize
   const filtersOpen = panel === 'diagramFilters'
 
   const selectFilter = (facet: SearchFacet, value: string, checked: boolean) => {
+    setPagination(undefined)
     setSelection((previous) => {
       const filters = previous?.graph === graph ? previous.filters : {}
       const next = new Set(filters[facet])
@@ -113,14 +121,22 @@ export const useToolbar = ({
       searchFilters,
       activeCount,
       selectFilter,
-      clearFilters: () => setSelection(undefined),
+      clearFilters: () => {
+        setSelection(undefined)
+        setPagination(undefined)
+      },
       toggleFilters: () => setPanel((current) => current === 'searchFilters' ? 'results' : 'searchFilters'),
       showResults: () => setPanel('results'),
       changeQuery: (value: string) => {
         setQuery(value)
+        setPagination(undefined)
         setPanel('results')
       },
-      results: matches.map(({ node: { id, name, stack, type }, service }) => ({
+      page,
+      offset,
+      total: matches.length,
+      changePage: (index: number) => setPagination({ graph, index }),
+      results: matches.slice(offset, offset + pageSize).map(({ node: { id, name, stack, type }, service }) => ({
         id,
         name,
         service,

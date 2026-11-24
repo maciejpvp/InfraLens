@@ -10,7 +10,7 @@ export const DetailRow = ({
   children: ReactNode
   onClick: MouseEventHandler<HTMLButtonElement>
 }) => (
-  <Button variant="outline" onClick={onClick} className={styles.row}>
+  <Button variant="outline" onClick={onClick} className={`inspector-row ${styles.row}`}>
     {children}
   </Button>
 )

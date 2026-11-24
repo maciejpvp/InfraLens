@@ -8,7 +8,9 @@ import { routeLayers, routeVisibility } from '../lib/route-visibility'
 
 export const DiagramEdge = ({ id, data, style, markerEnd, interactionWidth }: EdgeProps<DiagramRelation>) => {
   const visible = useViewportStore(({ transform, width, height }) =>
-    data ? routeVisibility(data.route, transform, width, height) : 0,
+    data && (data.underlay || data.stream || data.route.label)
+      ? routeVisibility(data.route, transform, width, height, data.dense, data.highlighted)
+      : 0,
   )
   if (!data) return null
   const { route } = data

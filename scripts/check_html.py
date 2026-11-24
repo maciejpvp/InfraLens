@@ -78,7 +78,56 @@ try {
   }
   await waitForLayout();
   await wait(50);
-  if(location.search.includes('zoomed-drag')){
+  if(location.search.includes('dense-viewer')){
+    const lambdaToggle=document.querySelector('[data-toggle^="service:"][data-toggle$=":aws:lambda"]');
+    await click(lambdaToggle);
+    const eventsToggle=document.querySelector('[data-toggle^="connections:"]');
+    await click(eventsToggle);
+    assert(document.querySelectorAll('[data-node^="lambda-"]').length===graph.nodes.length-1,'Expansion lost Lambda cards');
+    assert(document.activeElement===eventsToggle,'Expansion lost keyboard focus');
+    await click($('fit'));
+    const edges=[...document.querySelectorAll('#diagram [data-edge]')];
+    assert(edges.length===graph.edges.length,'Simplified diagram lost connections');
+    assert(edges.every(edge=>edge.querySelector('.wire[marker-end]')&&edge.querySelector('.react-flow__edge-interaction')),'Simplified connections lost direction or hit area');
+    assert(!$('diagram').querySelector('.pipe-current,.pipe-wall,[data-edge-label]'),'Fit view still mounts decorative layers');
+    const zoom=()=>new DOMMatrix(view()).a;
+    for(let i=0;zoom()<.7&&i<30;i++)await click($('zoom-in'));
+    assert(zoom()>=.7&&$('diagram').querySelector('.pipe-current'),'Zoom did not restore visible details');
+    await click($('fit'));
+    const key=(target,key)=>dispatch(target,new KeyboardEvent('keydown',{key,bubbles:true,cancelable:true}));
+    edges[0].focus();
+    await key(edges[0],'Enter');
+    assert(inspector(),'Keyboard did not open simplified connection');
+    assert(getComputedStyle(dialog()).backdropFilter==='none','Inspector filters the diagram behind it');
+    assert(getComputedStyle(edges.find(edge=>edge.classList.contains('muted'))).filter==='none','Muted connections still use a graphics filter');
+    await click(close());
+    assert(document.activeElement===edges[0],'Closing the inspector lost connection focus');
+    await click(document.querySelector('[data-connection-group]'));
+    await click(trigger(accordionItems().find(item=>trigger(item).textContent.startsWith('Resources in group'))));
+    const member=activePage().querySelector('[data-member-id="lambda-150"]').closest('button');
+    member.scrollIntoView({block:'center'});
+    await wait(100);
+    const memberOffset=()=>member.getBoundingClientRect().top-$('details').getBoundingClientRect().top;
+    const previousOffset=memberOffset();
+    await click(member);
+    await click(back());
+    assert(document.activeElement===member&&Math.abs(memberOffset()-previousOffset)<2,'Back did not restore the visible row position');
+    await click(close());
+    const search=$('search'), results=$('results');
+    const rows=()=>[...results.querySelectorAll('[data-resource]')];
+    search.value='Benchmark Lambda';
+    await dispatch(search,new Event('input',{bubbles:true}));
+    assert(rows().length===50&&results.querySelector('[role=status]').textContent.includes(graph.edges.length+' results'),'First page does not show the full result count');
+    await key(rows().at(-1),'ArrowDown');
+    assert(document.activeElement.dataset.resource==='lambda-050','ArrowDown did not enter the next page');
+    await key(rows()[0],'ArrowUp');
+    assert(document.activeElement.dataset.resource==='lambda-049','ArrowUp did not return to the previous page');
+    await click([...results.querySelectorAll('button')].find(button=>button.textContent==='Next'));
+    assert(document.activeElement===rows()[0],'Next did not focus the first result of the new page');
+    await click(rows()[0]);
+    assert(inspector()&&title()==='Benchmark Lambda 050','A result beyond the first page could not be opened');
+    await click(close());
+  }else if(location.search.includes('zoomed-drag')){
     await clickAt(document.querySelector('[data-edge]'),0,0);
     assert(inspector(),'Connection did not open the inspector');
     document.documentElement.style.zoom='1.5';
@@ -420,7 +469,10 @@ try {
       const hit=document.elementFromPoint(x,y);
       assert(hit?.closest('[data-toggle]')===button,'Hover blocked the group −/+');
       await clickAt(hit,x,y);
-      assert(!inspector()&&getToggle().getAttribute('aria-expanded')!==isExpanded,'Group −/+ opened details or did not toggle');
+      for(let attempt=0;attempt<25&&getToggle().getAttribute('aria-expanded')===isExpanded&&!inspector();attempt++)await wait(20);
+      await waitForLayout();
+      assert(!inspector(),'Group −/+ opened details');
+      assert(getToggle().getAttribute('aria-expanded')!==isExpanded,'Group −/+ did not toggle');
     }
     for(const id of ['zoom-out','zoom-in']){
       const button=$(id),{target,x,y}=hitCenter(button),before=view();
@@ -560,6 +612,18 @@ try {
         assert(inspector()&&accordionItems().length===1&&trigger(accordionItems()[0]).textContent.startsWith(kindLabel(edge)),'Tip opened the wrong relationship');
         await click(close());
       }
+      const path=rendered[0].querySelector('.wire');
+      const start=path.getPointAtLength(path.getTotalLength()-6).matrixTransform(path.getScreenCTM());
+      const target=document.elementFromPoint(start.x,start.y),before=view();
+      const mouse=(element,type,offset,buttons)=>element.dispatchEvent(new MouseEvent(type,{
+        bubbles:true,view:window,button:0,buttons,clientX:start.x+offset,clientY:start.y+offset,
+      }));
+      mouse(target,'mousedown',0,1);
+      mouse(window,'mousemove',32,1);
+      mouse(window,'mouseup',32,0);
+      await wait(50);
+      assert(view()!==before&&!inspector(),'Dragging from a connection did not pan the diagram');
+      await click($('fit'));
     }
     shared: for(const edge of rendered){
       const path=edge.querySelector('.wire');
@@ -623,14 +687,15 @@ try {
       await click(action(filterPanel,'Show results'));
       const expected=graph.nodes.filter(node=>node.provider==='aws'&&node.service==='lambda'&&
         (node.stack||'')===(lambda.stack||'')&&(node.change||'unchanged')===(lambda.change||'unchanged'));
-      assert(!results.hidden&&resultButtons().length===expected.length,'Filters did not produce results with an empty query');
+      const pageCount=Math.min(expected.length,50);
+      assert(!results.hidden&&resultButtons().length===pageCount,'Filters did not produce results with an empty query');
       assert(resultButtons().every(button=>expected.some(node=>node.id===button.dataset.resource)),'Search results did not combine the three filters');
       await update('lamdba');
-      assert(resultButtons().length===expected.length&&resultButtons()[0]?.querySelector('img')?.src.startsWith('data:image/svg+xml;base64,'),'Fuzzy service query lost filtered or offline results');
+      assert(resultButtons().length===pageCount&&resultButtons()[0]?.querySelector('img')?.src.startsWith('data:image/svg+xml;base64,'),'Fuzzy service query lost filtered or offline results');
       await update('qqzzqqzz');
       assert(results.querySelector('[role="status"]').textContent==='No resources found.','Search has no empty state');
       await click(document.querySelector('[aria-label="Clear search"]'));
-      assert(search.value===''&&resultButtons().length===expected.length,'Clearing search did not retain filters');
+      assert(search.value===''&&resultButtons().length===pageCount,'Clearing search did not retain filters');
       assert(snapshot()===beforeSearch,'Search filters changed the diagram');
       await key(search,'ArrowDown');
       assert(document.activeElement===resultButtons()[0],'ArrowDown did not focus the first search result');
@@ -652,7 +717,14 @@ try {
     }
     for(const target of graph.nodes){
       $('search').value=target.name;await dispatch($('search'),new Event('input',{bubbles:true}));
-      const result=[...$('results').querySelectorAll('button')].find(b=>b.dataset.resource===target.id);
+      const searchButtons=()=>[...$('results').querySelectorAll('button')];
+      let result=searchButtons().find(button=>button.dataset.resource===target.id);
+      while(!result){
+        const next=searchButtons().find(button=>button.textContent==='Next'&&!button.disabled);
+        if(!next)break;
+        await click(next);
+        result=searchButtons().find(button=>button.dataset.resource===target.id);
+      }
       assert(result,'Resource not searchable: '+target.name);await click(result);
       assert(inspector()&&title()===target.name,'Search reveal failed: '+target.name);
       assert(!back(),'History leaked into a new modal');
@@ -750,7 +822,18 @@ def main():
                 proof['details'] = (proof.get('details') or '') + '\n' + '\n'.join(['Long configuration value'] * 50)
         empty_graph = {'schemaVersion': 1, 'nodes': [], 'edges': []}
         parallel_graph = {'schemaVersion': 1, 'nodes': [{'id': key, 'name': key, 'type': 'test:resource:Resource', 'stack': 'shared/dev', 'change': 'create' if key == 'source' else 'delete'} for key in ['source', 'target']], 'edges': [{'from': 'source', 'to': 'target', 'kind': kind, 'evidence': [{'source': 'test', 'property': kind}]} for kind in ['triggers', 'connects_to', 'depends_on']]}
-        scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False)]
+        queue = {'id': 'queue', 'name': 'Benchmark queue', 'stack': 'benchmark/dev', 'type': 'aws:sqs/queue:Queue', 'provider': 'aws', 'service': 'sqs'}
+        lambdas = [
+            {'id': f'lambda-{i:03}', 'name': f'Benchmark Lambda {i:03}', 'stack': queue['stack'],
+             'type': 'aws:lambda/function:Function', 'provider': 'aws', 'service': 'lambda'}
+            for i in range(220)
+        ]
+        dense_graph = {
+            'schemaVersion': 1, 'nodes': [queue, *lambdas],
+            'edges': [{'from': queue['id'], 'to': node['id'], 'kind': 'triggers',
+                       'evidence': [{'source': 'benchmark', 'property': 'EventSource'}]} for node in lambdas],
+        }
+        scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('dense-viewer', 1440, 1000, dense_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False)]
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)

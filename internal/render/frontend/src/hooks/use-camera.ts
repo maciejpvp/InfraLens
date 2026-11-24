@@ -3,7 +3,7 @@ import type { OnMove, ReactFlowInstance } from '@xyflow/react'
 import type { DiagramNode, DiagramRelation } from '../components/diagram.types'
 import type { Position, Scene } from '../lib/graph.types'
 
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { cameraConfig } from './camera.config'
 
 export const useCamera = (
@@ -17,12 +17,13 @@ export const useCamera = (
   const flow = useRef<ReactFlowInstance<DiagramNode, DiagramRelation> | null>(null)
   const fitZoom = useRef(1)
 
-  const showZoom: OnMove = (_, { zoom }) => {
+  const showZoom = useCallback<OnMove>((_, { zoom }) => {
     if (!zoomLabel.current) return
-    zoomLabel.current.textContent = `${Math.round((zoom / fitZoom.current) * 100)}%`
-  }
+    const label = `${Math.round((zoom / fitZoom.current) * 100)}%`
+    if (zoomLabel.current.textContent !== label) zoomLabel.current.textContent = label
+  }, [zoomLabel])
 
-  const fitViewport = (layout = scene?.layout) => {
+  const fitViewport = useCallback((layout = scene?.layout) => {
     if (!stage.current || !search.current || !layout) return
     const { clientWidth: width, clientHeight: height } = stage.current
     const top = search.current.getBoundingClientRect().bottom + cameraConfig.initialTopPadding
@@ -43,7 +44,7 @@ export const useCamera = (
       y: top + (usableHeight - layout.height * zoom) / 2 - (layout.top ?? 0) * zoom,
       zoom,
     }
-  }
+  }, [scene?.layout, stage, search, legend, workflowFocused])
 
   const fit = () => {
     const viewport = fitViewport()
@@ -54,7 +55,7 @@ export const useCamera = (
   }
 
 
-  const init = (instance: ReactFlowInstance<DiagramNode, DiagramRelation>) => {
+  const init = useCallback((instance: ReactFlowInstance<DiagramNode, DiagramRelation>) => {
     flow.current = instance
     const initial = fitViewport()
     if (!initial || !scene || !stage.current || !search.current) return
@@ -82,7 +83,7 @@ export const useCamera = (
     }
     instance.setViewport(viewport)
     showZoom(null, viewport)
-  }
+  }, [fitViewport, scene, stage, search, showZoom, workflowFocused])
 
   const frameWorkflow = () => {
     if (flow.current) init(flow.current)

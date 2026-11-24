@@ -51,3 +51,13 @@
 .react-flow__edge.muted .pipe-current {
   animation-play-state: paused;
 }
+
+.dense-diagram .group-header,
+.dense-diagram .node {
+  content-visibility: auto;
+}
+
+:has(> .inspector-row:nth-child(51)) > .inspector-row {
+  content-visibility: auto;
+  contain-intrinsic-block-size: auto 3rem;
+}

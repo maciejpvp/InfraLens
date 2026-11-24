@@ -4,6 +4,7 @@ type PageState = {
   edges: GraphEdge[]
   focusId?: string
   trigger?: HTMLButtonElement
+  triggerOffset?: number
   scroll?: number
 }
 

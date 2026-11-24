@@ -26,7 +26,7 @@ export type DiagramItemData = {
   muted: boolean
   visual?: CSSProperties
   retiring: boolean
-  drag?: { moveCard: MoveCard; camera: DiagramProps['camera'] }
+  drag?: { moveCard: MoveCard; flow: DiagramProps['flow'] }
   onItem: (id: string) => void
   toggle: (id: string) => void
 }
@@ -36,6 +36,8 @@ export type DiagramNode = Node<DiagramItemData, 'resource'>
 type RelationData = {
   index: number
   route: Route
+  dense: boolean
+  highlighted: boolean
   wireClassName: string
   underlay?: readonly FlowPaintLayer[]
   stream?: FlowPaintLayer
@@ -47,7 +49,9 @@ type RelationData = {
 export type DiagramRelation = Edge<RelationData, 'relation'> & { data: RelationData }
 
 export type DiagramProps = {
-  camera: ReturnType<typeof useCamera>
+  flow: ReturnType<typeof useCamera>['flow']
+  init: ReturnType<typeof useCamera>['init']
+  showZoom: ReturnType<typeof useCamera>['showZoom']
   scene: Scene
   moveCard: MoveCard
   byId: ResourcesById

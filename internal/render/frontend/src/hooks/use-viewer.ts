@@ -11,13 +11,20 @@ import { workflowGraph } from '../lib/workflows'
 import type { WorkflowPath } from '../lib/workflows'
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../lib/inspector.types'
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { activeEdges, buildHierarchy, collapsedServiceAncestor, isFlow, projectGraph, revealResource } from '../lib/graph-projection.ts'
 import { useDiagramLayout } from './use-diagram-layout'
 import { useCamera } from './use-camera'
 import { useInspector } from './use-inspector'
 import { diagramElement } from '../lib/graph-view'
 import { defaultTopology } from '../lib/layout.config'
+
+const resourcePage = (item: HierarchyItem, edges: GraphEdge[]): InspectorPage => ({
+  item,
+  links: edges.filter((edge) => item.members.has(edge.from) || item.members.has(edge.to)),
+  edges: [],
+  focusId: item.group ? undefined : item.id,
+})
 
 export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: WorkflowPath, usage?: ReadonlyMap<string, string[]>) => {
   const [topology, setTopology] = useState<Topology>(defaultTopology)
@@ -60,6 +67,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     restoreOrigin.current = origin
     return element || search.current
   })
+  const { open } = inspector
   const selection = inspector.pages.at(-1)
   const focusId = selection?.focusId
   const [isolatedId, setIsolatedId] = useState<string>()
@@ -111,7 +119,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     }
   }, [scene, current, selection, activePath])
 
-  const toggle = (id: string) => {
+  const toggle = useCallback((id: string) => {
     toggleFocus.current = id
     layoutAnchor.current = id
     setExpansions((previous) => {
@@ -120,21 +128,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
       else next.add(id)
       return { ...previous, [expansionKey]: next }
     })
-  }
-
-  const resourcePage = (item: HierarchyItem, edges = tree.edges): InspectorPage => {
-    const links = edges.filter((edge) => item.members.has(edge.from) || item.members.has(edge.to))
-    return {
-      item,
-      links,
-      edges: [],
-      focusId: item.group ? undefined : item.id,
-    }
-  }
-
-  const edgePage = (edges: GraphEdge[]): InspectorPage => {
-    return { edges, focusId }
-  }
+  }, [expansionKey, tree.initialExpanded])
 
   const revealOnDiagram = (id: string, center = true) => {
     const target = tree.resourceItems.has(id) ? tree : infra
@@ -158,19 +152,20 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     const item = revealOnDiagram(id)
     if (!item) return
     setIsolatedId(undefined)
-    const page = resourcePage(item)
+    const page = resourcePage(item, tree.edges)
     if (trigger) inspector.navigate(page, trigger)
     else inspector.open(page, item.id)
   }
 
-  const openItem = (id: string) => {
-    const item = scene?.tree.items.get(id)
-    if (scene && item) {
+  const sceneTree = scene?.tree
+  const openItem = useCallback((id: string) => {
+    const item = sceneTree?.items.get(id)
+    if (sceneTree && item) {
       setIsolatedId((previous) => previous === id ? previous : undefined)
-      inspector.open(resourcePage(item, scene.tree.edges), id)
+      open(resourcePage(item, sceneTree.edges), id)
     }
-  }
-  const openEdges = (edges: GraphEdge[], origin: InspectorOrigin) => inspector.open(edgePage(edges), origin)
+  }, [sceneTree, open])
+  const openEdges = useCallback((edges: GraphEdge[], origin: InspectorOrigin) => open({ edges, focusId }, origin), [open, focusId])
   const navigateEdges: OpenRelation = (edge, trigger) => {
     const dependent = edge.kind === 'depends_on' ? revealOnDiagram(edge.from, false) : undefined
     inspector.navigate({ edges: [edge], focusId: dependent ? edge.from : focusId }, trigger)
@@ -188,7 +183,9 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     isEmpty: graph.nodes.length === 0,
     noFlow: !activePath && graph.nodes.length > 0 && mode === 'flow' && !tree.flowIDs.size,
     diagramProps: scene && {
-      camera,
+      flow: camera.flow,
+      init: camera.init,
+      showZoom: camera.showZoom,
       scene,
       moveCard,
       byId,

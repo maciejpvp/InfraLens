@@ -1,6 +1,7 @@
 import type { RefObject } from 'react'
 import type { Point, Scene } from '../lib/graph.types'
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { isDenseScene } from '../lib/route-visibility'
 import { canPlace, motionFrame, moveCard, placementKey, positionScene, translateScene } from '../lib/scene-motion.ts'
 
 export const useSceneMotion = (
@@ -16,19 +17,20 @@ export const useSceneMotion = (
   const frame = useRef(0)
   const timeout = useRef(0)
   const drag = useRef<{ id: string; start: Scene; destination: Scene; point: Point } | undefined>(undefined)
-  const publish = (next: Scene) => {
+  const publish = useCallback((next: Scene) => {
     shown.current = next
     setScene(next)
-  }
-  const stop = () => {
+  }, [])
+  const stop = useCallback(() => {
     cancelAnimationFrame(frame.current)
     clearTimeout(timeout.current)
-  }
+  }, [])
 
-  const animate = (start: Scene, next: Scene, duration: number) => {
+  const animate = useCallback((start: Scene, next: Scene, duration: number, layoutTransition = false) => {
     stop()
     settled.current = next
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden) {
+    if ((layoutTransition && (isDenseScene(start) || isDenseScene(next))) ||
+        matchMedia('(prefers-reduced-motion: reduce)').matches || document.hidden) {
       publish(next)
       return
     }
@@ -52,7 +54,7 @@ export const useSceneMotion = (
     frame.current = requestAnimationFrame(tick)
     // A throttled or background tab may stop receiving animation frames.
     timeout.current = window.setTimeout(finish, duration + 40)
-  }
+  }, [publish, stop])
 
   useLayoutEffect(() => {
     if (!target) return
@@ -64,11 +66,11 @@ export const useSceneMotion = (
     const from = id ? current?.layout.positions.get(id) : undefined
     const to = id ? next.layout.positions.get(id) : undefined
     if (fixed && id && current?.tree === target.tree) {
-      animate(current, next, 150)
+      animate(current, next, 150, true)
     } else if (!fixed && from && to && current?.tree === target.tree) {
       next = translateScene(next, { x: from.x - to.x, y: from.y - to.y })
       const distance = Math.max(Math.abs(from.height - to.height), Math.abs(from.width - to.width))
-      animate(current, next, Math.max(150, Math.min(270, distance * 2)))
+      animate(current, next, Math.max(150, Math.min(270, distance * 2)), true)
     } else {
       stop()
       if (!fixed && previousTarget?.tree === target.tree && current) {
@@ -82,9 +84,9 @@ export const useSceneMotion = (
       publish(next)
     }
     return stop
-  }, [target, fixed])
+  }, [target, fixed, anchor, measure, animate, publish, stop])
 
-  const begin = (id: string) => {
+  const begin = useCallback((id: string) => {
     const current = shown.current
     const box = current?.layout.positions.get(id)
     const destination = settled.current
@@ -93,17 +95,17 @@ export const useSceneMotion = (
     stop()
     drag.current = { id, start: current, destination, point: box }
     return box
-  }
+  }, [stop])
 
-  const move = (id: string, point: Point) => {
+  const move = useCallback((id: string, point: Point) => {
     const moving = drag.current
     if (!moving || moving.id !== id) return
     moving.point = point
     cancelAnimationFrame(frame.current)
     frame.current = requestAnimationFrame(() => publish(moveCard(moving.start, id, moving.point)))
-  }
+  }, [publish])
 
-  const end = (id: string, accept: boolean) => {
+  const end = useCallback((id: string, accept: boolean) => {
     const moving = drag.current
     if (!moving || moving.id !== id) return
     stop()
@@ -128,9 +130,10 @@ export const useSceneMotion = (
     }
     if (live === destination) publish(destination)
     else animate(live, destination, 170)
-  }
+  }, [animate, measure, publish, stop])
 
-  return { scene, settled, moveCard: { begin, move, end } }
+  const actions = useMemo(() => ({ begin, move, end }), [begin, move, end])
+  return { scene, settled, moveCard: actions }
 }
 
 export type MoveCard = ReturnType<typeof useSceneMotion>['moveCard']

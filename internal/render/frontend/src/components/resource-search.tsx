@@ -31,16 +31,31 @@ export const ResourceSearch = ({
   toggleFilters,
   showResults,
   changeQuery,
+  page,
+  offset,
+  total,
+  changePage,
   results,
 }: ReturnType<typeof useToolbar>['searchProps']) => {
   const resultsRef = useRef<HTMLDivElement>(null)
   const pendingFocus = useRef<'ArrowDown' | 'ArrowUp' | null>(null)
+  const hasPrevious = page > 0
+  const hasNext = offset + results.length < total
+  const paged = hasPrevious || hasNext
+  const goToPage = (index: number, focus: 'ArrowDown' | 'ArrowUp') => {
+    pendingFocus.current = focus
+    changePage(index)
+  }
   const moveFocus = (key: 'ArrowDown' | 'ArrowUp', from?: EventTarget) => {
     const buttons = [...(resultsRef.current?.querySelectorAll<HTMLButtonElement>('button[data-resource]') ?? [])]
     const index = buttons.findIndex((button) => button === from)
-    if (key === 'ArrowDown') buttons[Math.min(index + 1, buttons.length - 1)]?.focus()
-    else if (index === 0) search.current?.focus()
-    else buttons.at(index === -1 ? -1 : index - 1)?.focus()
+    if (key === 'ArrowDown') {
+      if (from && index === buttons.length - 1 && hasNext) goToPage(page + 1, key)
+      else buttons[Math.min(index + 1, buttons.length - 1)]?.focus()
+    } else if (index === 0) {
+      if (hasPrevious) goToPage(page - 1, key)
+      else search.current?.focus()
+    } else buttons.at(index === -1 ? -1 : index - 1)?.focus()
   }
 
   useLayoutEffect(() => {
@@ -48,7 +63,7 @@ export const ResourceSearch = ({
       if (searching) moveFocus(pendingFocus.current)
       pendingFocus.current = null
     }
-  }, [searching])
+  }, [searching, page])
 
   const searchKeys = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return
@@ -130,15 +145,28 @@ export const ResourceSearch = ({
           </fieldset>
         ))}
       </Box>
-      <Box as="section" id="results" aria-label="Search results" ref={resultsRef} hidden={!searching} className={styles.searchPanel}
+      <Box as="section" id="results" aria-label="Search results" ref={resultsRef} hidden={!searching}
+        className={paged ? `${styles.searchPanel} scroll-pt-14` : styles.searchPanel}
         onKeyDown={(event) => {
           if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+          if (!(event.target instanceof HTMLButtonElement) || !event.target.hasAttribute('data-resource')) return
           event.preventDefault()
           moveFocus(event.key, event.target)
         }}>
-        {searching && <Text as="p" role="status" className={styles.resultCount}>
-          {results.length ? countLabel(results.length, 'result') : 'No resources found.'}
-        </Text>}
+        {searching && (
+          <Box className={paged ? styles.searchFilterHeader : undefined}>
+            <Text as="p" role="status" className={paged ? 'text-xs text-muted-foreground' : styles.resultCount}>
+              {paged ? `${offset + 1}–${offset + results.length} of ${countLabel(total, 'result')}`
+                : total ? countLabel(total, 'result') : 'No resources found.'}
+            </Text>
+            {paged && <Box className="flex gap-1">
+              <Button type="button" variant="ghost" size="sm" disabled={!hasPrevious}
+                onClick={() => goToPage(page - 1, 'ArrowDown')}>Previous</Button>
+              <Button type="button" variant="ghost" size="sm" disabled={!hasNext}
+                onClick={() => goToPage(page + 1, 'ArrowDown')}>Next</Button>
+            </Box>}
+          </Box>
+        )}
         {results.map(({ id, name, description, service, onClick }) => (
           <Button type="button" key={id} data-resource={id} variant="ghost" className={styles.result} onClick={onClick}>
             <ServiceIcon icon={serviceIconSrc(service, icons)} />

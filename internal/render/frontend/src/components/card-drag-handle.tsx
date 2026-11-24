@@ -13,7 +13,7 @@ const direction: Record<string, Point> = {
   ArrowUp: { x: 0, y: -12 }, ArrowDown: { x: 0, y: 12 },
 }
 
-export const CardDragHandle = ({ id, name, camera, moveCard }: Props) => {
+export const CardDragHandle = ({ id, name, flow, moveCard }: Props) => {
   const pointer = useRef<{ id: number; origin: Point; box?: Point } | null>(null)
   const keyboard = useRef<Point | undefined>(undefined)
   const [pickedUp, setPickedUp] = useState(false)
@@ -24,14 +24,14 @@ export const CardDragHandle = ({ id, name, camera, moveCard }: Props) => {
   }
   const pointerMove = (event: PointerEvent<HTMLButtonElement>) => {
     const drag = pointer.current
-    const flow = camera.flow.current
-    if (!drag || drag.id !== event.pointerId || !flow) return
+    const instance = flow.current
+    if (!drag || drag.id !== event.pointerId || !instance) return
     const position = { x: event.clientX, y: event.clientY }
     if (!drag.box && Math.hypot(position.x - drag.origin.x, position.y - drag.origin.y) < 4) return
     drag.box ??= moveCard.begin(id)
     if (!drag.box) return
-    const from = flow.screenToFlowPosition(drag.origin)
-    const to = flow.screenToFlowPosition(position)
+    const from = instance.screenToFlowPosition(drag.origin)
+    const to = instance.screenToFlowPosition(position)
     moveCard.move(id, { x: drag.box.x + to.x - from.x, y: drag.box.y + to.y - from.y })
   }
   const pointerEnd = (event: PointerEvent<HTMLButtonElement>, accept: boolean) => {
