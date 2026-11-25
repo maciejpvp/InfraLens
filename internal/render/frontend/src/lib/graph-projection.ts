@@ -358,8 +358,8 @@ export const projectGraph = (
 ): GraphView => {
   const items = new Map<string, ProjectedItem>(),
     representatives = new Map<string, string>()
-  const focus = resourceId ? tree.resourceItems.get(resourceId) : undefined
-  const restrict = onlyConnections && Boolean(focus)
+  const focus = resourceId ? tree.resourceItems.get(resourceId) ?? tree.items.get(resourceId) : undefined
+  const scope = onlyConnections ? focus?.members : undefined
   const collapsedService = collapsedServiceAncestor(focus, expanded)
   const visit = (item: HierarchyItem, parent = item.parent) => {
     const open = item.group && expanded.has(item.id)
@@ -396,7 +396,7 @@ export const projectGraph = (
     if (
       original.kind === 'contains' ||
       hiddenKinds.has(original.kind) ||
-      (restrict && original.from !== resourceId && original.to !== resourceId) ||
+      (scope && !scope.has(original.from) && !scope.has(original.to)) ||
       (mode === 'flow' && !isFlow(original))
     )
       continue
@@ -416,13 +416,14 @@ export const projectGraph = (
       JSON.stringify([b.from, b.to, b.kind, b.state]),
     ),
   )
-  if (restrict && resourceId) {
+  if (scope && focus) {
     const keep = new Set<string>()
     const retain = (id?: string) => {
       for (let item = id ? items.get(id) : undefined; item && !keep.has(item.id); item = item.parent ? items.get(item.parent.id) : undefined)
         keep.add(item.id)
     }
-    retain(representatives.get(resourceId))
+    retain(focus.id)
+    for (const id of scope) retain(representatives.get(id))
     for (const edge of edges) {
       retain(edge.from)
       retain(edge.to)

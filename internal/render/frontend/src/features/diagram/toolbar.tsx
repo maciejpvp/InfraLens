@@ -43,7 +43,10 @@ const topologyOptions = [
   { value: 'before', label: topologyNames.before },
 ]
 
-export function Toolbar({ onClearWorkflow, ...props }: ToolbarOptions & { onClearWorkflow?: () => void }) {
+export function Toolbar({ onClearWorkflow, onExitDetailsView, ...props }: ToolbarOptions & {
+  onClearWorkflow?: () => void
+  onExitDetailsView?: () => void
+}) {
   const { simulated, provenance, modes, filtersOpen, toggleFilters, filterProps, searchProps } =
     useToolbar(props)
 
@@ -63,9 +66,9 @@ export function Toolbar({ onClearWorkflow, ...props }: ToolbarOptions & { onClea
         <ResourceSearch {...searchProps} />
         <Box className={styles.actions}>
           <Box role="group" aria-label="View" className={segmentedControlClass}>
-            {onClearWorkflow ? (
-              <Button type="button" size="sm" variant="ghost" className={segmentButtonClass} onClick={onClearWorkflow}>
-                Exit workflow
+            {onClearWorkflow || onExitDetailsView ? (
+              <Button id={onClearWorkflow ? undefined : 'exit-details-view'} type="button" size="sm" variant="ghost" className={segmentButtonClass} onClick={onClearWorkflow ?? onExitDetailsView}>
+                {onClearWorkflow ? 'Exit workflow' : 'Exit Details View'}
               </Button>
             ) : modes.map(({ id, label, pressed, variant, onClick }) => (
               <Button
@@ -95,7 +98,7 @@ export function Toolbar({ onClearWorkflow, ...props }: ToolbarOptions & { onClea
           </Button>
         </Box>
       </Box>
-      <DiagramFilters {...filterProps} />
+      <DiagramFilters {...filterProps} showTopology={filterProps.showTopology && !onExitDetailsView} />
     </>
   )
 }
@@ -138,7 +141,7 @@ function DiagramFilters({
             checked={connectionScope.checked}
             onCheckedChange={(checked) => connectionScope.change(checked === true)}
           />
-          <Label htmlFor="resource-connections">Show only this resource’s connections</Label>
+          <Label htmlFor="resource-connections">Show only connections to this selection</Label>
         </Box>
       )}
       <Box id="topology-label" hidden={!showTopology} className={styles.topology}>

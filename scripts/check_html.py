@@ -78,7 +78,43 @@ try {
   }
   await waitForLayout();
   await wait(50);
-  if(location.search.includes('mixed-changes')){
+  if(location.search.includes('connection-scope')){
+    const item=id=>[...document.querySelectorAll('[data-item]')].find(card=>card.dataset.item===id);
+    const press=(id,type,detail)=>dispatch(item(id),new MouseEvent(type,{bubbles:true,detail}));
+    const exit=()=>$('exit-details-view');
+    const expectReduced=()=>{
+      assert(exit()?.textContent.trim()==='Exit Details View','Details view has no exit button');
+      assert(item('source')&&item('target'),'Direct connection missing from isolated view');
+      assert(!item('unrelated')&&!item('indirect'),'Unrelated or indirect cards survived isolation');
+      assert(document.querySelectorAll('[data-edge]').length===1,'Isolated view contains an unrelated edge');
+    };
+    const leave=async()=>{
+      await click(exit());
+      assert(!exit()&&item('unrelated')&&item('indirect'),'Exiting did not restore the full graph');
+    };
+    const expectScope=async(id)=>{
+      await press(id,'click',1);
+      assert(item('unrelated')?.classList.contains('muted'),'Single click should dim unrelated cards');
+      await press(id,'click',2);
+      await press(id,'dblclick',2);
+      expectReduced();
+      assert(!document.querySelector('#diagram .muted'),'Isolated view dimmed retained items');
+    };
+    await expectScope('source');
+    await click(close());
+    expectReduced();
+    await click(item('target'));
+    assert(inspector()&&title()==='target','Neighbor details did not open');
+    expectReduced();
+    await leave();
+    await expectScope('stack:app');
+    await clickAt(document.querySelector('[data-edge]'),0,0);
+    assert(inspector()&&title()==='source → target','Connection details did not open');
+    expectReduced();
+    await click(close());
+    expectReduced();
+    await leave();
+  }else if(location.search.includes('mixed-changes')){
     for(const mode of ['flow-view','infra-view']){
       await click($(mode));
       for(const resource of graph.nodes){
@@ -391,7 +427,7 @@ try {
     assert(!document.querySelector('#diagram .selected, #diagram .muted'),'Closing left diagram items highlighted');
 
     const group=document.querySelector('[data-group]');
-    await clickAt(group,0,0);
+    await click(group);
     const groupTitle=title();
     assert(!back(),'Back is available on the initial details');
     const members=accordionItems()[0];
@@ -867,6 +903,14 @@ def main():
                 proof['details'] = (proof.get('details') or '') + '\n' + '\n'.join(['Long configuration value'] * 50)
         empty_graph = {'schemaVersion': 1, 'nodes': [], 'edges': []}
         parallel_graph = {'schemaVersion': 1, 'nodes': [{'id': key, 'name': key, 'type': 'test:resource:Resource', 'stack': 'shared/dev', 'change': 'create' if key == 'source' else 'delete'} for key in ['source', 'target']], 'edges': [{'from': 'source', 'to': 'target', 'kind': kind, 'evidence': [{'source': 'test', 'property': kind}]} for kind in ['triggers', 'connects_to', 'depends_on']]}
+        scope_graph = {
+            'schemaVersion': 1,
+            'nodes': [{'id': key, 'name': key, 'type': 'test:resource:Resource',
+                       'stack': 'app' if key == 'source' else 'other'}
+                      for key in ['source', 'target', 'indirect', 'unrelated']],
+            'edges': [{'from': source, 'to': target, 'kind': 'triggers', 'evidence': []}
+                      for source, target in [('source', 'target'), ('target', 'indirect'), ('unrelated', 'indirect')]],
+        }
         queue = {'id': 'queue', 'name': 'Benchmark queue', 'stack': 'benchmark/dev', 'type': 'aws:sqs/queue:Queue', 'provider': 'aws', 'service': 'sqs'}
         lambdas = [
             {'id': f'lambda-{i:03}', 'name': f'Benchmark Lambda {i:03}', 'stack': queue['stack'],
@@ -887,6 +931,8 @@ def main():
                        'evidence': [{'source': 'test', 'property': 'EventSource'}]} for node in queues],
         }
         scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('dense-viewer', 1440, 1000, dense_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False), ('mixed-changes-desktop', 1440, 1000, mixed_graph, False), ('mixed-changes-mobile', 390, 844, mixed_graph, False)]
+        scenarios.extend([('connection-scope-desktop', 1440, 1000, scope_graph, False),
+                          ('connection-scope-mobile', 390, 844, scope_graph, False)])
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)

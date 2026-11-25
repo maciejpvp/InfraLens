@@ -133,6 +133,7 @@ const getCardPresentation = ({
   selected,
   muted,
   onItem,
+  canIsolate,
   toggle,
   workflowUsage,
 }: DiagramItemData) => {
@@ -151,7 +152,10 @@ const getCardPresentation = ({
   else if (item.service) type = 'SERVICE'
   else if (item.group) type = 'GROUP'
   else type = item.node.type.split(':').at(-1)
-  const open = activationProps<HTMLButtonElement>(() => onItem(item.id))
+  const open = activationProps<HTMLButtonElement>((event) => {
+    const pointer = canIsolate && event.type === 'click' && event.detail > 0
+    onItem(item.id, pointer ? 'pointer' : undefined)
+  })
 
   return {
     buttonProps: {
@@ -187,6 +191,7 @@ const getCardPresentation = ({
       ),
       style: item.expanded ? { height: GROUP_HEADER_HEIGHT } : undefined,
       ...open,
+      onDoubleClick: canIsolate ? () => onItem(item.id, 'connections') : undefined,
     },
     groupClassName: cn(
       styles.groupBounds,

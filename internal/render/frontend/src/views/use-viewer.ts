@@ -82,13 +82,26 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   })
   const { open } = inspector
   const selection = inspector.pages.at(-1)
+  const [detailsViewId, setDetailsViewId] = useState<string>()
+  const [pendingItem, setPendingItem] = useState<InspectorPage>()
+  const pointerTimer = useRef<number>(undefined)
+  const cancelPointerOpen = useCallback(() => {
+    window.clearTimeout(pointerTimer.current)
+    setPendingItem(undefined)
+  }, [])
+  useLayoutEffect(() => {
+    cancelPointerOpen()
+    return () => window.clearTimeout(pointerTimer.current)
+  }, [tree, cancelPointerOpen])
   const focusId = selection?.focusId
+  const scopeId = selection?.item?.id ?? focusId
   const [isolatedId, setIsolatedId] = useState<string>()
-  const onlyConnections = Boolean(focusId && isolatedId === focusId)
+  const detailsScope = activePath ? undefined : detailsViewId
+  const isolatedScope = detailsScope ?? (!activePath && isolatedId === scopeId ? scopeId : undefined)
+  const onlyConnections = Boolean(isolatedScope)
+  const fittedScope = useRef<string>(undefined)
   const serviceGroup = focusId ? collapsedServiceAncestor(tree.resourceItems.get(focusId), expanded) : undefined
-  const projectedFocusId = !activePath && (onlyConnections || serviceGroup)
-    ? focusId
-    : undefined
+  const projectedFocusId = isolatedScope ?? (!activePath && serviceGroup ? focusId : undefined)
   const visibleKinds = useMemo(() => activePath
     ? new Set([...hiddenKinds].filter((kind) => kind !== 'connects_to' && kind !== 'triggers')) : hiddenKinds,
   [activePath, hiddenKinds])
@@ -100,6 +113,9 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     () => projectedFocusId ? projectGraph(tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections) : context,
     [tree, mode, hiddenKinds, expanded, projectedFocusId, onlyConnections, context],
   )
+  const scopedGraph = useMemo(() => detailsScope
+    ? { ...graph, nodes: graph.nodes.filter(({ id }) => current.representatives.has(id)) }
+    : graph, [detailsScope, graph, current])
   const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(
     tree, current, context, onlyConnections ? undefined : projectedFocusId, layoutAnchor, Boolean(activePath),
   )
@@ -111,13 +127,14 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   useLayoutEffect(() => {
     if (!scene || scene.motion || scene.current !== current) return
     layoutAnchor.current = null
-    if (activePath !== fittedPath.current || fitAfterLayout.current) {
+    if (activePath !== fittedPath.current || fitAfterLayout.current || isolatedScope !== fittedScope.current) {
       fitAfterLayout.current = false
       if (activePath !== fittedPath.current) reveal.current = null
       if (activePath) camera.frameWorkflow()
       else camera.fit()
     }
     fittedPath.current = activePath
+    fittedScope.current = isolatedScope
     if (reveal.current) {
       const id = reveal.current
       reveal.current = null
@@ -133,9 +150,10 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         findOpener(restoreOrigin.current)?.focus({ preventScroll: true })
       restoreOrigin.current = null
     }
-  }, [scene, current, selection, activePath])
+  }, [scene, current, selection, activePath, isolatedScope])
 
   const toggle = useCallback((id: string) => {
+    cancelPointerOpen()
     toggleFocus.current = id
     layoutAnchor.current = id
     setExpansions((previous) => {
@@ -144,7 +162,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
       else next.add(id)
       return { ...previous, [expansionKey]: next }
     })
-  }, [expansionKey, tree.initialExpanded])
+  }, [expansionKey, tree.initialExpanded, cancelPointerOpen])
 
   const revealOnDiagram = (id: string, center = true) => {
     const target = tree.resourceItems.has(id) ? tree : infra
@@ -165,7 +183,10 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   }
 
   const showResource: OpenResource = (id, trigger) => {
-    const item = revealOnDiagram(id)
+    cancelPointerOpen()
+    const item = detailsScope
+      ? tree.resourceItems.get(id) ?? infra.resourceItems.get(id)
+      : revealOnDiagram(id)
     if (!item) return
     setIsolatedId(undefined)
     const page = resourcePage(item, tree.edges)
@@ -174,17 +195,41 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   }
 
   const sceneTree = scene?.tree
-  const openItem = useCallback((id: string) => {
+  const openItem = useCallback((id: string, action?: 'pointer' | 'connections') => {
     const item = sceneTree?.items.get(id)
-    if (sceneTree && item) {
-      setIsolatedId((previous) => previous === id ? previous : undefined)
-      open(resourcePage(item, sceneTree.edges), id)
+    if (!sceneTree || !item) return
+    cancelPointerOpen()
+    const page = resourcePage(item, sceneTree.edges)
+    const inspect = () => {
+      if (action === 'connections') setDetailsViewId(id)
+      setIsolatedId(action !== 'connections' && !detailsScope && isolatedScope === id ? id : undefined)
+      open(page, id)
     }
-  }, [sceneTree, open])
-  const openEdges = useCallback((edges: GraphEdge[], edgeId: string) => open({ edges, focusId }, { edge: edgeId }), [open, focusId])
+    if (action === 'pointer') {
+      // Opening the panel could cover the card before the browser delivers the second click.
+      setPendingItem(page)
+      pointerTimer.current = window.setTimeout(() => {
+        setPendingItem(undefined)
+        inspect()
+      }, 500)
+    } else {
+      inspect()
+    }
+  }, [sceneTree, open, detailsScope, isolatedScope, cancelPointerOpen])
+  const openEdges = useCallback((edges: GraphEdge[], edgeId: string) => {
+    cancelPointerOpen()
+    open({ edges, focusId: detailsScope ? focusId : isolatedScope ?? focusId }, { edge: edgeId })
+  }, [open, focusId, detailsScope, isolatedScope, cancelPointerOpen])
   const navigateEdges: OpenRelation = (edge, trigger) => {
-    const dependent = edge.kind === 'depends_on' ? revealOnDiagram(edge.from, false) : undefined
-    inspector.navigate({ edges: [edge], focusId: dependent ? edge.from : focusId }, trigger)
+    cancelPointerOpen()
+    const dependent = !isolatedScope && edge.kind === 'depends_on' ? revealOnDiagram(edge.from, false) : undefined
+    inspector.navigate({ edges: [edge], focusId: detailsScope ? focusId : isolatedScope ?? (dependent ? edge.from : focusId) }, trigger)
+  }
+  const exitDetailsView = () => {
+    cancelPointerOpen()
+    setDetailsViewId(undefined)
+    setIsolatedId(undefined)
+    inspector.close()
   }
 
   return {
@@ -207,15 +252,17 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         moveCard,
         byId,
         icons,
-        selection,
+        selection: pendingItem ?? selection,
+        onlyConnections,
         workflowPath: activePath,
         workflowUsage: usage,
         toggle,
         onItem: openItem,
+        canIsolate: !activePath,
         onEdges: openEdges,
       },
       toolbar: {
-        graph,
+        graph: scopedGraph,
         icons,
         search,
         mode,
@@ -228,19 +275,23 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         dependencies: !hiddenKinds.has('depends_on'),
         setDependencies: (visible: boolean) => setKindVisible('depends_on', visible),
         topology,
-        connectionScope: !activePath && focusId && tree.resourceItems.has(focusId) ? {
+        onExitDetailsView: detailsScope ? () => {
+          exitDetailsView()
+          search.current?.focus()
+        } : undefined,
+        connectionScope: !activePath && !detailsScope && scopeId && tree.items.has(scopeId) ? {
           checked: onlyConnections,
           change: (checked: boolean) => {
-            fitAfterLayout.current = true
-            setIsolatedId(checked ? focusId : undefined)
+            cancelPointerOpen()
+            setIsolatedId(checked ? scopeId : undefined)
           },
         } : undefined,
         onResource: showResource,
         inspecting: Boolean(selection),
       },
       mapControls: scene && {
-        graph,
-        flowCount: mode === 'flow' ? tree.flowIDs.size : undefined,
+        graph: scopedGraph,
+        flowCount: !detailsScope && mode === 'flow' ? tree.flowIDs.size : undefined,
         routes: scene.routes,
         zoomLabel,
         zoom: camera.zoom,
@@ -249,9 +300,20 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     },
     setTopology: (value: Topology) => {
       if (value === topology) return
+      setDetailsViewId(undefined)
       setIsolatedId(undefined)
       setTopology(value)
     },
-    detailsProps: { inspector, byId, icons, onResource: showResource, onEdges: navigateEdges },
+    exitDetailsView,
+    detailsProps: {
+      inspector: {
+        ...inspector,
+        close: () => {
+          cancelPointerOpen()
+          inspector.close()
+        },
+      },
+      byId, icons, onResource: showResource, onEdges: navigateEdges,
+    },
   }
 }

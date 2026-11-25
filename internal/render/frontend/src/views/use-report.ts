@@ -11,7 +11,7 @@ export const useReport = (graph: Graph, icons: ServiceIcons, costs?: CostReport)
   const [costOpen, setCostOpen] = useState(false)
   const [costTab, setCostTab] = useState<CostTab>('services')
   const { selection, setSelection, edits, edit, path, usage } = useWorkflowSelection(graph, costs?.workflows)
-  const { diagramProps, detailsProps, setTopology: setDiagramTopology } = useViewer(graph, icons, path, usage)
+  const { diagramProps, detailsProps, setTopology: setDiagramTopology, exitDetailsView } = useViewer(graph, icons, path, usage)
   const { topology } = diagramProps.toolbar
 
   const setTopology = (side: Topology) => {
@@ -19,7 +19,7 @@ export const useReport = (graph: Graph, icons: ServiceIcons, costs?: CostReport)
     setSelection((current) => current ? { ...current, side } : undefined)
   }
   const selectWorkflow = (next: WorkflowSelection) => {
-    detailsProps.inspector.close()
+    exitDetailsView()
     setDiagramTopology(next.side)
     setSelection(next)
     setCostTab('workflows')

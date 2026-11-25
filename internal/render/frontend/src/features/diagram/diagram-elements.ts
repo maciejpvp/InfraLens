@@ -47,7 +47,8 @@ export type DiagramItemData = {
   visual?: CSSProperties
   retiring: boolean
   drag?: { moveCard: MoveCard; flow: DiagramFlowRef }
-  onItem: (id: string) => void
+  onItem: (id: string, action?: 'pointer' | 'connections') => void
+  canIsolate: boolean
   toggle: (id: string) => void
 }
 
@@ -84,8 +85,10 @@ export type DiagramElementsOptions = {
     | { item?: undefined }
   )
   workflowPath?: { nodes: ReadonlySet<string>; edges: ReadonlySet<GraphEdge> }
+  onlyConnections: boolean
   workflowUsage?: ReadonlyMap<string, string[]>
-  onItem: (id: string) => void
+  onItem: DiagramItemData['onItem']
+  canIsolate: boolean
   onEdges: (edges: GraphEdge[], edgeId: string) => void
   toggle: (id: string) => void
 }
@@ -97,9 +100,11 @@ export const buildDiagramElements = ({
   byId,
   icons,
   selection,
+  onlyConnections,
   workflowPath,
   workflowUsage,
   onItem,
+  canIsolate,
   onEdges,
   toggle,
 }: DiagramElementsOptions) => {
@@ -214,9 +219,10 @@ export const buildDiagramElements = ({
         byId,
         icons,
         onItem,
+        canIsolate,
         toggle,
         selected: selectedNodes.has(id),
-        muted: Boolean((selection || workflowPath) && !visible.has(id)),
+        muted: !onlyConnections && Boolean((selection || workflowPath) && !visible.has(id)),
       },
     }
   })
@@ -226,7 +232,7 @@ export const buildDiagramElements = ({
     if (!route) return []
     const { from, to, kind, originals } = edge
     const selected = (workflowPath || !selection?.item) && relatedEdges[index]
-    const muted = (selection || workflowPath) && !relatedEdges[index]
+    const muted = !onlyConnections && (selection || workflowPath) && !relatedEdges[index]
     const inferred = originals.some((original) => original.evidence.some(({ source }) => source === 'cost-workflow'))
     const title = `${current.items.get(from)!.name} → ${current.items.get(to)!.name}`
     const description = flowDescriptions([edge])
