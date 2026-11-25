@@ -53,8 +53,14 @@ const styles = {
     'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-full border border-input bg-accent p-0 text-lg font-medium text-foreground hover:bg-[#456070] focus-visible:ring-ring motion-safe:active:scale-95',
 }
 
+const costPercent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 })
+
 export function DiagramItem({ data }: NodeProps<DiagramNode>) {
-  const { item, bounds } = data
+  const { item, bounds, workflowHeat } = data
+  const percent = workflowHeat && (workflowHeat.share < 0.001 ? '<0.1%' : costPercent.format(workflowHeat.share))
+  const costLabel = workflowHeat && `${percent} of ${workflowHeat.partial ? 'known ' : ''}workflow cost`
+  const heatColor = workflowHeat && `color-mix(in srgb, #f59e0b ${5 + 26 * workflowHeat.intensity}%, transparent)`
+  const name = <Text className={cn(styles.nodeName, data.drag && 'pr-8')}>{item.name}</Text>
   const usage = data.workflowUsage?.join(' · ')
   const usageClass = 'line-clamp-2 text-xs leading-tight text-muted-foreground'
   const {
@@ -74,7 +80,9 @@ export function DiagramItem({ data }: NodeProps<DiagramNode>) {
   return (
     <Box className={styles.item} style={{ ...bounds, ...data.visual }} inert={data.retiring} data-diagram-card>
       {item.expanded && <Box className={groupClassName} />}
-      <Button unstyled type="button" {...buttonProps}>
+      <Button unstyled type="button" {...buttonProps}
+        aria-label={costLabel ? `${buttonProps['aria-label']}, ${costLabel}` : buttonProps['aria-label']}
+        style={heatColor ? { ...buttonProps.style, backgroundImage: `linear-gradient(${heatColor}, ${heatColor})` } : buttonProps.style}>
         {item.expanded ? (
           <>
             {showHeaderIcon && <ServiceIcon icon={icon} />}
@@ -89,7 +97,14 @@ export function DiagramItem({ data }: NodeProps<DiagramNode>) {
               <Text className={styles.nodeType}>{type}</Text>
               {changeBadge && <Text className={changeBadge.className}>{changeBadge.text}</Text>}
             </Text>
-            <Text className={cn(styles.nodeName, data.drag && 'pr-8')}>{item.name}</Text>
+            {workflowHeat ? (
+              <Text className="flex items-center gap-2">
+                {name}
+                <Text className="ml-auto shrink-0 text-xs text-amber-200 tabular-nums" title={costLabel}>
+                  {percent}{workflowHeat.partial ? ' known' : ''}
+                </Text>
+              </Text>
+            ) : name}
             <Text className={cn(usage ? usageClass : styles.nodeMeta, data.drag && 'pr-8')} title={usage}>{usage ?? meta}</Text>
           </>
         )}

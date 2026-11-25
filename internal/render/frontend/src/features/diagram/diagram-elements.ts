@@ -3,6 +3,7 @@ import type { Edge, EdgeMarker, EdgeMouseHandler, Node, ReactFlowInstance } from
 import { clsx } from 'clsx'
 import type { CSSProperties, KeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { GraphEdge, ProjectedItem, ResourcesById, ServiceIcons } from '../../lib/graph.types'
+import type { WorkflowCostShare } from '../costs/workflow-table'
 import type { Route, Scene, Size } from './layout/layout-model'
 import { flowDescriptions } from '../../lib/graph-projection.ts'
 import { countLabel, relationNames } from '../../lib/graph-view'
@@ -37,6 +38,7 @@ const styles = {
 
 export type DiagramItemData = {
   workflowUsage?: string[]
+  workflowHeat?: WorkflowCostShare
   item: ProjectedItem
   depth: number
   bounds: Size
@@ -87,6 +89,7 @@ export type DiagramElementsOptions = {
   workflowPath?: { nodes: ReadonlySet<string>; edges: ReadonlySet<GraphEdge> }
   onlyConnections: boolean
   workflowUsage?: ReadonlyMap<string, string[]>
+  workflowHeat?: ReadonlyMap<string, WorkflowCostShare>
   onItem: DiagramItemData['onItem']
   canIsolate: boolean
   onEdges: (edges: GraphEdge[], edgeId: string) => void
@@ -103,6 +106,7 @@ export const buildDiagramElements = ({
   onlyConnections,
   workflowPath,
   workflowUsage,
+  workflowHeat,
   onItem,
   canIsolate,
   onEdges,
@@ -211,6 +215,7 @@ export const buildDiagramElements = ({
       data: {
         item,
         workflowUsage: workflowUsage?.get(id),
+        workflowHeat: workflowHeat?.get(id),
         retiring,
         visual: { opacity: fading, clipPath },
         drag: !retiring && !item.expanded && parentId ? { moveCard, flow } : undefined,

@@ -6,6 +6,7 @@ import { buildHierarchy, projectGraph } from '../src/lib/graph-projection.ts'
 import type { Graph, GraphEdge } from '../src/lib/graph.types.ts'
 import type { WorkflowMeter, WorkflowState } from '../src/features/costs/workflows.ts'
 import { buildWorkflowSide, workflowKey, workflowPath, workflowsForResource, workflowGraph, workflowUsage, workflowUserPresets } from '../src/features/costs/workflows.ts'
+import { filterCostEntries, workflowBreakdown, workflowCostShares, workflowOperations } from '../src/features/costs/workflow-table.ts'
 
 const meter = (label: string, rate: string, value: number | null): WorkflowMeter => ({
   label, factors: [{ label, value }], pricing: { charges: [{ rate, quantity: 1 }] },
@@ -43,6 +44,49 @@ const report: CostReport = {
     ],
   },
 }
+
+test('filters fuzzy matches and pricing status, then sorts priced rows before unknown costs', () => {
+  const rows = [
+    { id: 'unknown', labels: ['Unknown'], estimate: { amount: 0, priced: false, missing: ['Rate'] } },
+    { id: 'partial', labels: ['PlaySong'], estimate: { amount: 0.0019, priced: true, missing: ['Rate'] } },
+    { id: 'absent', labels: ['Absent'], estimate: { amount: 0, priced: true, missing: [] }, absent: true },
+    { id: 'full', labels: ['Edit song'], estimate: { amount: 0.0011, priced: true, missing: [] } },
+    { id: 'tie', labels: ['Another song'], estimate: { amount: 0.0019, priced: true, missing: [] } },
+  ]
+  assert.deepEqual(filterCostEntries(rows, 'nonexistent', 'all', 'report'), [])
+  assert.deepEqual(filterCostEntries(rows, 'palY song', 'partial', 'report').map(({ id }) => id), ['partial'])
+  assert.deepEqual(filterCostEntries(rows, '', 'full', 'report').map(({ id }) => id), ['full', 'tie'])
+  assert.deepEqual(filterCostEntries(rows, '', 'unpriced', 'report').map(({ id }) => id), ['unknown'])
+  assert.deepEqual(filterCostEntries(rows, '', 'absent', 'report').map(({ id }) => id), ['absent'])
+  assert.deepEqual(filterCostEntries(rows, '', 'all', 'ascending').map(({ id }) => id), ['full', 'partial', 'tie', 'unknown', 'absent'])
+  assert.deepEqual(filterCostEntries(rows, '', 'all', 'descending').map(({ id }) => id), ['partial', 'tie', 'full', 'unknown', 'absent'])
+})
+
+test('sorts operations across steps and maps their known costs to visible workflow resources', () => {
+  const workflow = report.workflows!.items[0]
+  const after = { ...workflow.after!, steps: [...workflow.after!.steps,
+    { id: 'copy', label: 'CopySong', resourceId: 'bucket', meters: [meter('Copy', 'get', 1)] },
+    { id: 'submit', label: 'Submit job', resourceId: 'lambda', meters: [meter('Submit', 'put', 1)] },
+    { id: 'external', label: 'External', meters: [meter('Upload', 'put', 1)] },
+  ] }
+  const modified = { ...report, workflows: { ...report.workflows!, items: [{ ...workflow, after }] } }
+  const current = buildWorkflowSide(modified, 'after', {})
+  const row = current.workflows.get('play')!
+  const operations = workflowOperations(row, workflowBreakdown(row, current, 'one'))
+  assert.deepEqual(filterCostEntries(operations, 'cpoy song', 'all', 'report').map(({ fee }) => fee.label), ['Copy'])
+  assert.deepEqual(filterCostEntries(operations, '', 'all', 'descending').map(({ fee }) => fee.label),
+    ['GET', 'Submit', 'Upload', 'Copy', 'Egress GB'])
+  const visible = new Set(['bucket', 'lambda', 'database'])
+  assert.deepEqual([...workflowCostShares(row, current, 'one', visible)], [
+    ['bucket', { intensity: 1, share: 0.5, partial: true }],
+    ['lambda', { intensity: 0.5, share: 0.25, partial: true }],
+  ])
+  assert.deepEqual(workflowCostShares(row, current, 'one', new Set(['lambda'])).get('lambda'),
+    { intensity: 1, share: 0.25, partial: true })
+  assert.notEqual(workflowCostShares(row, current, 'month', visible).get('bucket')?.share, 0.5)
+  const zeroUsage = buildWorkflowSide(modified, 'after', { users: '0' })
+  assert.equal(workflowCostShares(zeroUsage.workflows.get('play')!, zeroUsage, 'month', visible).size, 0)
+})
 
 test('prices workflow traffic, pools monthly tiers and counts shared storage once', () => {
   const before = buildWorkflowSide(report, 'before', {})

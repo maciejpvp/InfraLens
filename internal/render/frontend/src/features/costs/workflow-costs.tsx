@@ -1,5 +1,5 @@
 import { ArrowLeft, ChevronRight } from 'lucide-react'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { DetailSection, DetailSections } from '../../components/detail-sections'
 import { serviceFor } from '../../lib/graph-projection'
@@ -10,10 +10,14 @@ import { Icon } from '../../ui/icon'
 import { Input } from '../../ui/input'
 import type { CostReport, Estimate } from './costs'
 import { CatalogRates } from './estimate-details'
-import { type WorkflowEdits, type WorkflowSelection, type WorkflowSide, buildWorkflowSide, maxWorkflowInput, workflowUserPresets } from './workflows'
+import { type WorkflowSelection, type WorkflowSide, maxWorkflowInput, workflowUserPresets } from './workflows'
 
 import { WorkflowDetail } from './workflow-detail'
 import { EstimateCell, FeeDetails, Issues, Sources, leftCellClass, rightCellClass } from './workflow-estimate'
+import { filterCostEntries, workflowEstimate } from './workflow-table'
+import type { WorkflowBasis } from './workflow-table'
+import { WorkflowBasisSelect, WorkflowTableControls } from './workflow-table-controls'
+import type { WorkflowTableFilter } from './workflow-table-controls'
 
 export type CostTab = 'services' | 'workflows'
 
@@ -97,11 +101,14 @@ function WorkflowServices({ current, other, previous, report, icons, onEdit, sid
 }
 
 export function WorkflowCosts({
-  report, icons, edits, onEdit, tab, setTab, selection, side, onSide, onSelect, onClear, onGraph, bodyRef,
+  report, icons, after, before, onEdit, tab, setTab, selection, side, onSide, onSelect, onClear, onGraph, bodyRef,
+  basis, setBasis, colorByCost, setColorByCost,
+  listFilter, setListFilter, listBasis, setListBasis,
 }: {
   report: CostReport
   icons: ServiceIcons
-  edits: WorkflowEdits
+  after: WorkflowSide
+  before?: WorkflowSide
   onEdit: (key: string, value: string) => void
   tab: CostTab
   setTab: (tab: CostTab) => void
@@ -112,9 +119,15 @@ export function WorkflowCosts({
   onClear: () => void
   onGraph: () => void
   bodyRef: RefObject<HTMLDivElement | null>
+  basis: WorkflowBasis
+  setBasis: (basis: WorkflowBasis) => void
+  colorByCost: boolean
+  setColorByCost: (checked: boolean) => void
+  listFilter: WorkflowTableFilter
+  setListFilter: (filter: WorkflowTableFilter) => void
+  listBasis: WorkflowBasis
+  setListBasis: (basis: WorkflowBasis) => void
 }) {
-  const after = useMemo(() => buildWorkflowSide(report, 'after', edits), [report, edits])
-  const before = useMemo(() => report.before ? buildWorkflowSide(report, 'before', edits) : undefined, [report, edits])
   const current = side === 'before' && before ? before : after
   const previous = side === 'after' ? before : undefined
   const row = tab === 'workflows' && selection ? current.workflows.get(selection.id) : undefined
@@ -129,7 +142,8 @@ export function WorkflowCosts({
     } else if (previousId.current) {
       const button = [...(list.current?.querySelectorAll<HTMLButtonElement>('button[data-workflow]') ?? [])]
         .find((element) => element.getAttribute('data-workflow') === previousId.current)
-      button?.focus()
+      const target = button ?? bodyRef.current?.querySelector<HTMLInputElement>('input[type="search"]')
+      target?.focus()
     }
     previousId.current = selectedId
   }, [selectedId, bodyRef])
@@ -161,6 +175,10 @@ export function WorkflowCosts({
           side={side}
           onEdit={onEdit}
           onGraph={onGraph}
+          basis={basis}
+          setBasis={setBasis}
+          colorByCost={colorByCost}
+          setColorByCost={setColorByCost}
         />
       </>
     )
@@ -170,6 +188,10 @@ export function WorkflowCosts({
         current={current}
         previous={previous}
         tableRef={list}
+        filter={listFilter}
+        setFilter={setListFilter}
+        basis={listBasis}
+        setBasis={setListBasis}
         onSelect={(id) => onSelect({ id, side })}
       />
     )
@@ -218,39 +240,51 @@ export function WorkflowCosts({
   )
 }
 
-function WorkflowList({ current, previous, tableRef, onSelect }: {
+function WorkflowList({ current, previous, tableRef, onSelect, filter, setFilter, basis, setBasis }: {
   current: WorkflowSide
   previous?: WorkflowSide
   tableRef: RefObject<HTMLTableElement | null>
   onSelect: (id: string) => void
+  filter: WorkflowTableFilter
+  setFilter: (filter: WorkflowTableFilter) => void
+  basis: WorkflowBasis
+  setBasis: (basis: WorkflowBasis) => void
 }) {
+  const rows = filterCostEntries([...current.workflows.values()].map((entry) => ({
+    entry, labels: [entry.workflow.label], estimate: workflowEstimate(entry, basis), absent: !entry.state,
+  })), filter.query, filter.pricing, filter.order)
   return (
-    <div className="overflow-x-auto" role="region" aria-label="Workflow costs" tabIndex={0}>
-      <table ref={tableRef} className="w-full">
-        <thead className="border-y text-xs text-muted-foreground">
-          <tr>
-            <th scope="col" className={leftCellClass}>Workflow</th>
-            <th scope="col" className={rightCellClass}>Per run</th>
-            <th scope="col" className={rightCellClass}>Per 1M</th>
-            <th scope="col" className={rightCellClass}>Monthly</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...current.workflows.values()].map((entry) => <tr key={entry.workflow.id} className="cursor-pointer border-b hover:bg-white/5"
-            onClick={() => onSelect(entry.workflow.id)}>
-            <th scope="row" className="p-0 text-left">
-              <Button data-workflow={entry.workflow.id} type="button" variant="ghost" size="sm"
-                className="h-auto min-h-9 w-full justify-between whitespace-normal px-1.5 text-left wrap-anywhere sm:px-2">
-                {entry.workflow.label}<Icon icon={ChevronRight} size={13} className="shrink-0 text-muted-foreground" />
-              </Button>
-            </th>
-            <EstimateCell value={entry.state ? entry.one.total : { ...zero, priced: false }} precise />
-            <EstimateCell value={entry.state ? entry.million.total : { ...zero, priced: false }} />
-            <EstimateCell value={entry.month} before={previous?.workflows.get(entry.workflow.id)?.month} />
-          </tr>)}
-          {!current.workflows.size && <tr><td colSpan={4} className={leftCellClass}>No workflows found.</td></tr>}
-        </tbody>
-      </table>
+    <div className="space-y-3 pt-3">
+      <WorkflowTableControls list filter={filter} onChange={setFilter}>
+        <WorkflowBasisSelect label="Workflow cost basis" value={basis} onChange={setBasis} />
+      </WorkflowTableControls>
+      <div className="overflow-x-auto" role="region" aria-label="Workflow costs" tabIndex={0}>
+        <table ref={tableRef} className="w-full">
+          <thead className="border-y text-xs text-muted-foreground">
+            <tr>
+              <th scope="col" className={leftCellClass}>Workflow</th>
+              <th scope="col" className={rightCellClass}>Per run</th>
+              <th scope="col" className={rightCellClass}>Per 1M</th>
+              <th scope="col" className={rightCellClass}>Monthly</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ entry }) => <tr key={entry.workflow.id} className="cursor-pointer border-b hover:bg-white/5"
+              onClick={() => onSelect(entry.workflow.id)}>
+              <th scope="row" className="p-0 text-left">
+                <Button data-workflow={entry.workflow.id} type="button" variant="ghost" size="sm"
+                  className="h-auto min-h-9 w-full justify-between whitespace-normal px-1.5 text-left wrap-anywhere sm:px-2">
+                  {entry.workflow.label}<Icon icon={ChevronRight} size={13} className="shrink-0 text-muted-foreground" />
+                </Button>
+              </th>
+              <EstimateCell value={entry.state ? entry.one.total : { ...zero, priced: false }} precise />
+              <EstimateCell value={entry.state ? entry.million.total : { ...zero, priced: false }} />
+              <EstimateCell value={entry.month} before={previous?.workflows.get(entry.workflow.id)?.month} />
+            </tr>)}
+            {!rows.length && <tr><td colSpan={4} className={leftCellClass}>No workflows found.</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

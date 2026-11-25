@@ -1,4 +1,5 @@
 import type { WorkflowPath } from '../features/costs/workflows'
+import type { WorkflowCostShare } from '../features/costs/workflow-table'
 import { workflowGraph } from '../features/costs/workflows'
 import { useConnectionLegend } from '../features/diagram/connection-legend'
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../features/inspector/use-inspector'
@@ -39,7 +40,9 @@ const resourcePage = (item: HierarchyItem, edges: GraphEdge[]): InspectorPage =>
   focusId: item.group ? undefined : item.id,
 })
 
-export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: WorkflowPath, usage?: ReadonlyMap<string, string[]>) => {
+export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: WorkflowPath, usage?: ReadonlyMap<string, string[]>,
+  heat?: ReadonlyMap<string, WorkflowCostShare>,
+) => {
   const [topology, setTopology] = useState<Topology>(defaultTopology)
   const activePath = path?.side === topology ? path : undefined
   const graph = useMemo(() => activePath ? workflowGraph(baseGraph, activePath) : baseGraph, [baseGraph, activePath])
@@ -256,6 +259,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         onlyConnections,
         workflowPath: activePath,
         workflowUsage: usage,
+        workflowHeat: activePath ? heat : undefined,
         toggle,
         onItem: openItem,
         canIsolate: !activePath,

@@ -16,7 +16,9 @@ import type { CostComparisonMode } from './resource-costs'
 import { ResourceCosts } from './resource-costs'
 import { WorkflowCosts } from './workflow-costs'
 import type { CostTab } from './workflow-costs'
-import type { WorkflowEdits, WorkflowSelection } from './workflows'
+import type { WorkflowSelection, WorkflowSide } from './workflows'
+import type { WorkflowBasis } from './workflow-table'
+import { defaultWorkflowTableFilter } from './workflow-table-controls'
 
 function EstimateInfo({ report }: { report: CostReport }) {
   const [open, setOpen] = useState(false)
@@ -49,7 +51,8 @@ function EstimateInfo({ report }: { report: CostReport }) {
 }
 
 export function CostWindow({
-  report, icons, open, setOpen, tab, setTab, topology, selection, onSelect, onSide, onClear, workflowEdits, onEditWorkflow,
+  report, icons, open, setOpen, tab, setTab, topology, selection, onSelect, onSide, onClear, pricing, onEditWorkflow,
+  workflowBasis, setWorkflowBasis, colorByCost, setColorByCost,
 }: {
   report: CostReport
   icons: ServiceIcons
@@ -57,7 +60,12 @@ export function CostWindow({
   setOpen: (open: boolean) => void
   tab: CostTab
   setTab: (tab: CostTab) => void
-  workflowEdits: WorkflowEdits; onEditWorkflow: (key: string, value: string) => void
+  pricing?: { after: WorkflowSide; before?: WorkflowSide }
+  onEditWorkflow: (key: string, value: string) => void
+  workflowBasis: WorkflowBasis
+  setWorkflowBasis: (basis: WorkflowBasis) => void
+  colorByCost: boolean
+  setColorByCost: (checked: boolean) => void
   topology: Topology
   selection?: WorkflowSelection
   onSelect: (selection: WorkflowSelection) => void
@@ -66,6 +74,8 @@ export function CostWindow({
 }) {
   const [mode, setMode] = useState<CostComparisonMode>(report.before ? 'Compare' : 'After')
   const [scenario, setScenario] = useState<Scenario>({})
+  const [listFilter, setListFilter] = useState(defaultWorkflowTableFilter)
+  const [listBasis, setListBasis] = useState<WorkflowBasis>('month')
   const bodyRef = useRef<HTMLDivElement>(null)
   const { windowRef, moveWithKeys, dragEvents } = useFloatingWindow(open)
 
@@ -105,8 +115,10 @@ export function CostWindow({
           <div className={cn('min-h-0', report.workflows
             ? 'flex w-[37rem] max-w-full flex-col' : 'overflow-auto overscroll-contain px-3 py-3')}>
             {report.workflows ? (
-              <WorkflowCosts report={report} icons={icons} edits={workflowEdits} onEdit={onEditWorkflow}
+              pricing && <WorkflowCosts report={report} icons={icons} {...pricing} onEdit={onEditWorkflow}
                 tab={tab} setTab={setTab} side={topology} selection={selection} onSelect={onSelect}
+                basis={workflowBasis} setBasis={setWorkflowBasis} colorByCost={colorByCost} setColorByCost={setColorByCost}
+                listFilter={listFilter} setListFilter={setListFilter} listBasis={listBasis} setListBasis={setListBasis}
                 onSide={onSide} onClear={onClear} onGraph={() => setOpen(false)} bodyRef={bodyRef} />
             ) : (
               <ResourceCosts report={report} icons={icons} mode={mode} setMode={setMode} scenario={scenario} setScenario={setScenario} />
