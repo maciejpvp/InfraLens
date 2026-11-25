@@ -12,6 +12,8 @@ import type {
   Topology,
   ViewMode,
 } from './graph.types.ts'
+import { flowStages } from './flow-stages.ts'
+import type { FlowStage } from './flow-stages.ts'
 
 
 export const defaultTopology = 'after'
@@ -37,7 +39,8 @@ const services: Record<string, readonly [string, string]> = {
 
 const compare = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id)
 const minimumGroupSize = 4
-export const isFlow = (e: GraphEdge) => e.kind === 'triggers' || e.kind === 'connects_to'
+export const isFlow = ({ kind }: Pick<GraphEdge, 'kind'>) => kind === 'triggers' || kind === 'connects_to'
+const stageKey = ({ rank, input, output }: FlowStage) => `${rank}:${Number(input)}:${Number(output)}`
 export const activeEdges = (graph: Graph, state: Topology) =>
   graph.edges.filter((e) => !e.state || e.state === state)
 
@@ -119,7 +122,8 @@ export const buildHierarchy = (
 ): Hierarchy => {
   const edges = activeEdges(graph, state),
     nodes = new Map(graph.nodes.map((n) => [n.id, n]))
-  const flowIDs = new Set(edges.filter(isFlow).flatMap((e) => [e.from, e.to]))
+  const flowEdges = edges.filter(isFlow)
+  const flowIDs = new Set(flowEdges.flatMap((e) => [e.from, e.to]))
   if (mode === 'workflow') {
     const roots: HierarchyItem[] = [...nodes.values()].sort(compare).map((node) => ({
       id: node.id, name: node.name, stack: node.stack || 'No stack', node, group: false,
@@ -225,6 +229,21 @@ export const buildHierarchy = (
     attach(item, cycle ? stack : parent)
   }
   const { neighbors, eventSources } = connectedServices(edges, nodes)
+  const stages = flowStages(flowEdges)
+  // A supporting resource can follow its service's stage if the linked peers agree.
+  const supportStages = new Map<string, string | null>()
+  for (const { from, to, kind } of edges) {
+    if (kind !== 'depends_on') continue
+    for (const [support, peer] of [[from, to], [to, from]]) {
+      if (stages.has(support)) continue
+      const stage = stages.get(peer), a = resourceItems.get(support), b = resourceItems.get(peer)
+      if (!stage || stage.cyclic || !a?.node || !b?.node || a.parent !== b.parent ||
+        a.node.provider !== b.node.provider || a.node.service !== b.node.service) continue
+      const key = stageKey(stage)
+      const previous = supportStages.get(support)
+      supportStages.set(support, previous === undefined || previous === key ? key : null)
+    }
+  }
   const addConnectionGroup = (parent: Group, key: string, name: string, members: HierarchyItem[]) => {
     const subgroup = makeGroup(`connections:${JSON.stringify([parent.id, key])}`, name, parent.stack, null, true)
     subgroup.service = parent.service
@@ -260,7 +279,10 @@ export const buildHierarchy = (
         (isAppSyncAPI(parent.node) && item.node.service === 'appsync')) continue
       const service = serviceFor(item.node)
       const change = item.node.change ?? 'unchanged'
-      const id = `service:${JSON.stringify([parent.id, service.id, change])}`
+      const stage = stages.get(item.id)
+      if (stage?.cyclic) continue
+      const key = stage ? stageKey(stage) : supportStages.get(item.id)
+      const id = `service:${JSON.stringify([parent.id, service.id, change, key])}`
       const bucket = services.get(id)
       if (bucket) bucket.leaves.push(item)
       else services.set(id, { service, leaves: [item] })

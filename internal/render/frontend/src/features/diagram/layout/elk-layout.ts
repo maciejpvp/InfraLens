@@ -4,25 +4,33 @@ import type { DiagramLayout, Position, Route } from './layout-model.ts'
 
 import { CARD, GROUP_HEADER_HEIGHT, edgeCaptionHeight, edgeCaptionPadding } from './dimensions.ts'
 import ELK from 'elkjs/lib/elk.bundled.js'
-import { edgeCaption } from '../../../lib/graph-projection.ts'
+import { edgeCaption, isFlow } from '../../../lib/graph-projection.ts'
+import { flowStages } from '../../../lib/flow-stages.ts'
+import { routeEdges } from './positioned-routing.mjs'
+import { labelRoutes } from './scene-motion.ts'
+
+const elkSpacing = {
+  'elk.spacing.nodeNode': '20',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '28',
+  'elk.spacing.edgeEdge': '8',
+  'elk.layered.spacing.edgeEdgeBetweenLayers': '8',
+  'elk.spacing.edgeNode': '8',
+  'elk.spacing.portPort': '14',
+}
 
 const elkOptions = {
+  ...elkSpacing,
   'elk.algorithm': 'layered',
-  'elk.direction': 'RIGHT',
   'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
   'elk.json.shapeCoords': 'ROOT',
   'elk.json.edgeCoords': 'ROOT',
   'elk.edgeRouting': 'ORTHOGONAL',
-  'elk.spacing.nodeNode': '28',
-  'elk.layered.spacing.nodeNodeBetweenLayers': '48',
-  'elk.spacing.edgeEdge': '18',
-  'elk.layered.spacing.edgeEdgeBetweenLayers': '18',
-  'elk.spacing.portPort': '18',
   'elk.layered.mergeEdges': 'false',
   'elk.layered.mergeHierarchyEdges': 'false',
 }
 
 const elkGroupOptions = {
+  ...elkSpacing,
   'elk.padding': `[top=${GROUP_HEADER_HEIGHT + 20},left=20,bottom=20,right=20]`,
 }
 
@@ -42,7 +50,7 @@ const round = (value: number) => Math.round(value * 1e5) / 1e5
 const toPoint = ({ x, y }: ElkPoint) => ({ x: round(x), y: round(y) })
 const samePoint = (a: ElkPoint, b: ElkPoint) => a.x === b.x && a.y === b.y
 
-const toRoute = (edge: ElkExtendedEdge, text: string): Route | null => {
+const toRoute = (edge: ElkExtendedEdge, text: string, reversed: boolean): Route | null => {
   const sections = edge.sections ?? []
   let section = sections.find((entry) => !entry.incomingSections?.length)
   if (!section) return null
@@ -64,6 +72,7 @@ const toRoute = (edge: ElkExtendedEdge, text: string): Route | null => {
   )
     return null
 
+  if (reversed) points.reverse()
   const d = points
     .map((point, index) => {
       if (index === 0) return `M${point.x} ${point.y}`
@@ -81,23 +90,59 @@ const toRoute = (edge: ElkExtendedEdge, text: string): Route | null => {
   return { points, d, label }
 }
 
+// Assign supporting cards to the nearest flow participant in the dependency graph.
+const dependencyRanks = (view: GraphView) => {
+  const ranks = new Map([...flowStages(view.edges.filter(isFlow))].map(([id, stage]) => [id, stage.rank]))
+  const neighbors = new Map<string, { id: string; offset: number }[]>()
+  for (const edge of view.edges) {
+    if (edge.kind !== 'depends_on') continue
+    for (const [from, to, offset] of [[edge.from, edge.to, -1], [edge.to, edge.from, 1]] as const) {
+      if (!neighbors.has(from)) neighbors.set(from, [])
+      neighbors.get(from)!.push({ id: to, offset })
+    }
+  }
+  const pending = [...ranks.keys()].sort()
+  for (const id of pending) {
+    for (const { id: neighbor, offset } of neighbors.get(id) ?? []) {
+      if (ranks.has(neighbor)) continue
+      ranks.set(neighbor, ranks.get(id)! + offset)
+      pending.push(neighbor)
+    }
+  }
+  return ranks
+}
+
 export const layoutDiagram = async (
   view: GraphView,
   measureText: (text: string) => number,
   direction: 'DOWN' | 'RIGHT' = 'RIGHT',
 ): Promise<DiagramLayout> => {
   const captions = view.edges.map(edgeCaption)
+  const deferredLabels = direction === 'RIGHT' && view.edges.some((edge, index) => edge.kind === 'depends_on' && captions[index])
+  const ranks = direction === 'RIGHT' ? dependencyRanks(view) : new Map<string, number>()
+  const reversed = new Set<number>()
   const result = await elk.layout<ElkNode>({
     id: 'root',
     layoutOptions: { ...elkOptions, 'elk.direction': direction },
     children: view.roots.map((id) => toElkNode(view, id)),
-    edges: view.edges.map(({ from, to }, index) => {
+    edges: view.edges.flatMap<ElkExtendedEdge>(({ from, to, kind }, index) => {
+      const fromRank = ranks.get(from), toRank = ranks.get(to)
+      const auxiliary = kind === 'depends_on' && fromRank !== undefined && toRank !== undefined
+      if (auxiliary && fromRank === toRank) return []
+      const reverse = auxiliary && fromRank > toRank
+      if (reverse) reversed.add(index)
       const caption = captions[index]
-      return {
+      const priority = kind === 'triggers' ? '8' : kind === 'connects_to' ? '4' : '0'
+      return [{
         id: String(index),
-        sources: [nodeId(from)],
-        targets: [nodeId(to)],
-        labels: caption
+        sources: [nodeId(reverse ? to : from)],
+        targets: [nodeId(reverse ? from : to)],
+        layoutOptions: direction === 'RIGHT' ? {
+          'elk.layered.priority.direction': priority,
+          'elk.layered.priority.shortness': priority,
+          'elk.layered.priority.straightness': priority,
+        } : undefined,
+        labels: caption && !(deferredLabels && kind === 'depends_on')
           ? [
               {
                 text: caption,
@@ -106,7 +151,7 @@ export const layoutDiagram = async (
               },
             ]
           : [],
-      }
+      }]
     }),
   })
 
@@ -122,10 +167,14 @@ export const layoutDiagram = async (
   }
   result.children?.forEach((node) => place(node, 0))
 
-  const routes = Array<Route | null>(view.edges.length).fill(null)
+  let routes = Array<Route | null>(view.edges.length).fill(null)
   for (const edge of result.edges ?? []) {
     const index = Number(edge.id)
-    routes[index] = toRoute(edge, captions[index])
+    routes[index] = toRoute(edge, captions[index], reversed.has(index))
   }
-  return { layout: { positions, width: result.width ?? 0, height: result.height ?? 0 }, routes }
+  const layout = { positions, width: result.width ?? 0, height: result.height ?? 0 }
+  const missing = routes.some((route) => !route)
+  if (missing) routes = routeEdges(view, layout, routes, true)
+  if (missing || deferredLabels) routes = labelRoutes(view, layout, routes, measureText)
+  return { layout, routes }
 }

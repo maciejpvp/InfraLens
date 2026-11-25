@@ -1,4 +1,4 @@
-const ROUTE_GAP = 8, PORT_LENGTH = 14, PORT_SPACING = 14, PORT_INSET = 12, BEND_COST = 24;
+const ROUTE_GAP = 8, PORT_LENGTH = 10, PORT_SPACING = 14, PORT_INSET = 12, BEND_COST = 24, CROSSING_COST = 384;
 function crosses(a, b, box) {
     if (a.y === b.y)
         return a.y > box.y && a.y < box.y + box.height && Math.max(a.x, b.x) > box.x && Math.min(a.x, b.x) < box.x + box.width;
@@ -104,7 +104,7 @@ function simplify(points) { const result = []; for (const p of points) {
 function svgRoute(points) {
     return { points, d: points.map((p, i) => i === 0 ? `M${p.x} ${p.y}` : p.x === points[i - 1].x ? `V${p.y}` : `H${p.x}`).join(' ') };
 }
-function straightRoute(obstacles, starts, goals) {
+function straightRoute(obstacles, starts, goals, trafficCost) {
     let lowerBound = Infinity;
     const straight = [];
     for (const start of starts)
@@ -119,13 +119,14 @@ function straightRoute(obstacles, starts, goals) {
             straight.push({ start, goal, distance });
         }
     for (const { start, goal, distance } of straight) {
-        if (distance === lowerBound && !obstacles.some(box => crosses(start.stub, goal.stub, box))) {
+        if (distance === lowerBound && !trafficCost?.(start.point, goal.point) &&
+            !obstacles.some(box => crosses(start.stub, goal.stub, box))) {
             return svgRoute([start.point, goal.point]);
         }
     }
     return null;
 }
-function routeEdge(obstacles, starts, goals) {
+function routeEdge(obstacles, starts, goals, trafficCost) {
     if (!starts.length || !goals.length)
         return null;
     const coordinates = axis => [...new Set([
@@ -143,9 +144,10 @@ function routeEdge(obstacles, starts, goals) {
     }
     for (const port of starts) {
         const state = index(port.stub) * 2 + port.axis;
-        distance[state] = PORT_LENGTH;
+        const cost = PORT_LENGTH + (trafficCost?.(port.point, port.stub) ?? 0);
+        distance[state] = cost;
         roots.set(state, port);
-        queue.push({ state, cost: PORT_LENGTH, score: PORT_LENGTH + heuristic(port.stub) });
+        queue.push({ state, cost, score: cost + heuristic(port.stub) });
     }
     let best = null, bestCost = Infinity;
     while (queue.values.length) {
@@ -156,7 +158,8 @@ function routeEdge(obstacles, starts, goals) {
             continue;
         const state = entry.state, i = state >> 1, axis = state % 2, p = point(i), goal = goalAt.get(i);
         if (goal) {
-            const cost = entry.cost + PORT_LENGTH + (axis === goal.axis ? 0 : BEND_COST);
+            const cost = entry.cost + PORT_LENGTH + (axis === goal.axis ? 0 : BEND_COST) +
+                (trafficCost?.(goal.stub, goal.point) ?? 0);
             if (cost < bestCost) {
                 best = { state, goal };
                 bestCost = cost;
@@ -171,10 +174,9 @@ function routeEdge(obstacles, starts, goals) {
                 continue;
             const key = Math.min(i, next) * size + Math.max(i, next);
             if (!visibility.has(key))
-                visibility.set(key, !obstacles.crossesSegment(p, q));
-            if (!visibility.get(key))
-                continue;
-            const cost = entry.cost + Math.abs(p.x - q.x) + Math.abs(p.y - q.y) + (axis === nextAxis ? 0 : BEND_COST);
+                visibility.set(key, obstacles.crossesSegment(p, q) ? Infinity : trafficCost?.(p, q) ?? 0);
+            const cost = entry.cost + Math.abs(p.x - q.x) + Math.abs(p.y - q.y) +
+                (axis === nextAxis ? 0 : BEND_COST) + visibility.get(key);
             if (cost >= distance[nextState])
                 continue;
             distance[nextState] = cost;
@@ -194,11 +196,38 @@ function routeEdge(obstacles, starts, goals) {
     reverse.push(start.stub);
     return svgRoute(simplify([start.point, ...reverse.reverse(), best.goal.point]));
 }
+function routingTraffic() {
+    const lines = { x: [], y: [] };
+    const shared = { x: new Map(), y: new Map() };
+    const add = ({ points }) => {
+        for (let i = 1; i < points.length; i++) {
+            const a = points[i - 1], b = points[i], axis = a.x === b.x ? 'x' : 'y';
+            const normal = axis === 'x' ? 'y' : 'x';
+            const line = { position: a[axis], low: Math.min(a[normal], b[normal]), high: Math.max(a[normal], b[normal]) };
+            lines[axis].push(line);
+            if (!shared[axis].has(line.position)) shared[axis].set(line.position, []);
+            shared[axis].get(line.position).push(line);
+        }
+    };
+    const cost = (a, b) => {
+        const axis = a.x === b.x ? 'x' : 'y', normal = axis === 'x' ? 'y' : 'x';
+        const position = a[axis], low = Math.min(a[normal], b[normal]), high = Math.max(a[normal], b[normal]);
+        let total = 0;
+        for (const line of shared[axis].get(position) ?? [])
+            total += 3 * Math.max(0, Math.min(high, line.high) - Math.max(low, line.low));
+        for (const line of lines[normal])
+            if (line.position >= low && line.position < high && position > line.low && position < line.high)
+                total += CROSSING_COST;
+        return total;
+    };
+    return { add, cost };
+}
 // Reserve both ends so arrowheads never share a landing point with another wire.
-export function routeEdges(view, layout, retained = []) {
+export function routeEdges(view, layout, retained = [], avoidTraffic = false) {
     if (!view.edges.length)
         return [];
     const geometry = obstacleGeometry(view, layout), endpoints = new Map();
+    const traffic = avoidTraffic ? routingTraffic() : null;
     for (const { from, to } of view.edges)
         for (const id of [from, to]) {
             if (!endpoints.has(id))
@@ -209,6 +238,7 @@ export function routeEdges(view, layout, retained = []) {
         if (!route)
             continue;
         const { from, to } = view.edges[index];
+        traffic?.add(route);
         endpoints.get(from).occupied.add(portKey(route.points[0]));
         endpoints.get(to).occupied.add(portKey(route.points.at(-1)));
     }
@@ -226,12 +256,18 @@ export function routeEdges(view, layout, retained = []) {
         }
         const startSides = portsFor(view, layout, edge.from, obstacles.boxes, from.occupied, from.degree);
         const goalSides = portsFor(view, layout, edge.to, obstacles.boxes, to.occupied, to.degree);
-        const firstStarts = startSides.map(side => side.next().value), firstGoals = goalSides.map(side => side.next().value);
-        const starts = firstStarts.filter(Boolean), goals = firstGoals.filter(Boolean);
-        const remaining = (sides, first) => sides.flatMap((side, i) => first[i] ? [first[i], ...side] : []);
-        const route = straightRoute(obstacles.boxes, starts, goals) || routeEdge(obstacles, starts, goals)
-            || routeEdge(obstacles, remaining(startSides, firstStarts), remaining(goalSides, firstGoals));
+        const preferred = sides => sides.map(side => {
+            const first = side.next().value;
+            const second = traffic && first ? side.next().value : undefined;
+            return second ? [first, second] : first ? [first] : [];
+        });
+        const firstStarts = preferred(startSides), firstGoals = preferred(goalSides);
+        const starts = firstStarts.flat(), goals = firstGoals.flat();
+        const remaining = (sides, first) => sides.flatMap((side, i) => [...first[i], ...side]);
+        const route = straightRoute(obstacles.boxes, starts, goals, traffic?.cost) || routeEdge(obstacles, starts, goals, traffic?.cost)
+            || routeEdge(obstacles, remaining(startSides, firstStarts), remaining(goalSides, firstGoals), traffic?.cost);
         if (route) {
+            traffic?.add(route);
             from.occupied.add(portKey(route.points[0]));
             to.occupied.add(portKey(route.points.at(-1)));
         }

@@ -93,6 +93,7 @@ try {
     assert(toggle().getAttribute('aria-expanded')==='true','Stack no longer opens by default');
     checkStatusBorder(getComputedStyle(card(stack()).firstElementChild),'unchanged');
     await click(toggle());
+    for(let attempt=0;toggle().getAttribute('aria-expanded')!=='false'&&attempt<40;attempt++)await wait(10);
     assert(toggle().getAttribute('aria-expanded')==='false','Stack did not collapse');
     checkCardChange(stack(),'unchanged');
     const summary=stack().querySelector('.node-meta');
@@ -189,13 +190,32 @@ try {
     assertInViewport();
   }else{
   const initial=view();
-  function checkRoutes(){
+  async function checkRoutes(){
+    // An in-flight transition can briefly move cards across the previous routes.
+    await wait(320);
     const boxes=[...document.querySelectorAll('[data-item]')].map(item=>{const node=item.closest('.react-flow__node'),matrix=new DOMMatrix(node.style.transform);return {id:item.dataset.item,x:matrix.e,y:matrix.f,w:item.offsetWidth,h:item.offsetHeight};});
     const ports=new Set();
     for(const edge of document.querySelectorAll('[data-edge]')){
-      const wire=edge.querySelector('.wire'),d=wire.getAttribute('d');assert(!/[CQ]/.test(d),'Curved connection');
-      const points=[];for(const command of d.match(/[MHV][^MHV]*/g)){const numbers=command.slice(1).trim().split(/\s+/).map(Number),previous=points.at(-1);points.push(command[0]==='M'?{x:numbers[0],y:numbers[1]}:command[0]==='H'?{x:numbers[0],y:previous.y}:{x:previous.x,y:numbers[0]});}
-      const end=points.at(-1),lead=points.at(-2),marker=document.getElementById(wire.getAttribute('marker-end').replace(/^url\(['"]?#|['"]?\)$/g,''));
+      const wire=edge.querySelector('.wire'),d=wire.getAttribute('d');
+      if(edge.getAttribute('aria-hidden')!=='true')
+        assert(edge.querySelector('.react-flow__edge-interaction')?.getAttribute('d')===d,'Visible and clickable paths diverged');
+      const points=[];let curveExit;
+      const commands=d.match(/[MLHVQ][^MLHVQ]*/g);
+      for(const [index,command] of commands.entries()){
+        const numbers=command.slice(1).trim().split(/\s+/).map(Number),previous=points.at(-1);
+        const [x,y,exitX,exitY]=numbers;
+        if(command[0]==='Q'){
+          const entry=commands[index-1].slice(1).trim().split(/\s+/).map(Number);
+          const radius=Math.abs(x-entry[0])+Math.abs(y-entry[1]);
+          assert(radius>0&&radius<=5.001&&Math.abs(radius-Math.abs(x-exitX)-Math.abs(y-exitY))<.001,'Invalid corner radius');
+          points.push({x,y});
+          curveExit={x:exitX,y:exitY};
+        }else if(!commands[index+1]?.startsWith('Q')){
+          points.push(command[0]==='H'?{x,y:previous.y}:command[0]==='V'?{x:previous.x,y:x}:{x,y});
+          if(index!==commands.length-1)curveExit=undefined;
+        }
+      }
+      const end=points.at(-1),lead=curveExit??points.at(-2),marker=document.getElementById(wire.getAttribute('marker-end').replace(/^url\(['"]?#|['"]?\)$/g,''));
       assert(marker?.getAttribute('markerUnits')==='userSpaceOnUse','Missing fixed-size arrowhead');
       const arrow=marker.querySelector('polyline').getBBox();
       const arrowLength=arrow.width/marker.viewBox.baseVal.width*marker.markerWidth.baseVal.value;
@@ -203,7 +223,7 @@ try {
       for(const [id,point] of [[edge.dataset.from,points[0]],[edge.dataset.to,end]]){
         const key=JSON.stringify([id,point.x,point.y]);assert(!ports.has(key),'Two wires share a port on '+id);ports.add(key);
       }
-      for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];assert(a.x===b.x||a.y===b.y,'Diagonal connection');for(const box of boxes){if(box.id===edge.dataset.from&&i===1||box.id===edge.dataset.to&&i===points.length-1)continue;const hit=a.y===b.y?a.y>box.y&&a.y<box.y+box.h&&Math.max(a.x,b.x)>box.x&&Math.min(a.x,b.x)<box.x+box.w:a.x>box.x&&a.x<box.x+box.w&&Math.max(a.y,b.y)>box.y&&Math.min(a.y,b.y)<box.y+box.h;assert(!hit,'Connection crosses an element: '+box.id);}}
+      for(let i=1;i<points.length;i++){const a=points[i-1],b=points[i];assert(a.x===b.x||a.y===b.y,'Diagonal connection');for(const box of boxes){if(box.id===edge.dataset.from&&i===1||box.id===edge.dataset.to&&i===points.length-1)continue;const hit=a.y===b.y?a.y>box.y&&a.y<box.y+box.h&&Math.max(a.x,b.x)>box.x&&Math.min(a.x,b.x)<box.x+box.w:a.x>box.x&&a.x<box.x+box.w&&Math.max(a.y,b.y)>box.y&&Math.min(a.y,b.y)<box.y+box.h;assert(!hit,'Connection '+edge.dataset.from+' → '+edge.dataset.to+' crosses an element: '+box.id);}}
     }
     const labelBoxes=[];
     for(const edge of document.querySelectorAll('[data-edge]')){
@@ -246,7 +266,7 @@ try {
     await new Promise((resolve,reject)=>{const image=new Image();image.onload=()=>image.naturalWidth?resolve():reject(Error('Empty AWS icon'));image.onerror=()=>reject(Error('AWS icon did not load offline'));image.src=uri;});
   }
   if(graph.nodes.some(n=>/^aws:(s3|lambda|iam|ecs|apigatewayv2|ec2|cloudwatch|sqs|sns|dynamodb|sfn|opensearch)\//.test(n.type)))assert(icons.length,'Missing AWS service icons');
-  checkRoutes();
+  await checkRoutes();
   if(innerWidth>620)for(const label of document.querySelectorAll('.edge-label')){
     const box=label.getBoundingClientRect();
     assert(box.left>=0&&box.right<=innerWidth&&box.top>=0&&box.bottom<=innerHeight,'Initial flow label outside viewport');
@@ -300,7 +320,7 @@ try {
         pointer('pointerdown',0);pointer('pointermove',12*zoom);pointer('pointerup',12*zoom);
         await waitForLayout();
         assert(Math.abs(shift().left-initialCard.left)<.5,'Valid pointer drop did not follow the pointer');
-        checkRoutes();
+        await checkRoutes();
       }
     }
     const flowEdges=[...document.querySelectorAll('[data-edge]')];
@@ -353,7 +373,7 @@ try {
     assert(document.querySelectorAll('[data-item]').length>0,'Diagram did not render');
     const toggle=document.querySelector('[data-toggle]');
     const open=toggle.getAttribute('aria-expanded');await dispatch(toggle,new MouseEvent('click',{bubbles:true}));
-    assert(view()===initial,'Expansion changed camera');checkRoutes();
+    assert(view()===initial,'Expansion changed camera');await checkRoutes();
     const replacement=[...document.querySelectorAll('[data-toggle]')].find(e=>e.dataset.toggle===toggle.dataset.toggle);
     assert(replacement.getAttribute('aria-expanded')!==open,'Group did not toggle');
     await dispatch(replacement,new MouseEvent('click',{bubbles:true}));
@@ -567,11 +587,11 @@ try {
           for(const node of lambdaNodes)assert(document.querySelectorAll('[data-node="'+node.id+'"]').length===1,'Lambda resource missing or duplicated');
         }
       }
-      assert(view()===infraViewport,'Service expansion changed camera');checkRoutes();
+      assert(view()===infraViewport,'Service expansion changed camera');await checkRoutes();
       await dispatch(card(expanded).querySelector('[data-toggle]'),new MouseEvent('click',{bubbles:true}));
     }
     const beforeMode=view();
-    checkRoutes();
+    await checkRoutes();
     await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');
     if(location.search.includes('parallel')){
@@ -654,12 +674,14 @@ try {
         const p=path.getPointAtLength(path.getTotalLength()*fraction),screen=p.matrixTransform(path.getScreenCTM());
         const target=document.elementFromPoint(screen.x,screen.y);
         if(!target?.closest('[data-edge]'))continue;
-        const matches=rendered.filter(g=>g.querySelector('.react-flow__edge-interaction').isPointInStroke(p));
+        const event=new MouseEvent('click',{bubbles:true,clientX:screen.x,clientY:screen.y});
+        const eventPoint=new DOMPoint(event.clientX,event.clientY).matrixTransform(path.getScreenCTM().inverse());
+        const matches=rendered.filter(g=>g===target.closest('[data-edge]')||g.querySelector('.react-flow__edge-interaction').isPointInStroke(eventPoint));
         const expected=new Set(matches.map(kindLabel));
         if(expected.size<2)continue;
         const expectedCount=matches.reduce((count,g)=>count+(+g.dataset.count),0);
-        await clickAt(target,screen.x,screen.y);
-        assert(inspector()&&title()==='Connections at this point ('+expectedCount+')','Shared route lost original connections');
+        await dispatch(target,event);
+        assert(inspector()&&title()==='Connections at this point ('+expectedCount+')','Shared route lost original connections: expected '+expectedCount+', got '+title());
         for(const kind of expected){
           const section=accordionItems().find(section=>trigger(section).textContent.startsWith(kind));
           assert(section&&!opened(section),'Shared route lost a collapsed relationship type');
@@ -757,7 +779,7 @@ try {
       const body=document.activeElement.matches('.body')&&document.activeElement;
       if(body){body.blur();checkCardChange(body,body.dataset.group?body.dataset.change:target.change);}
     }
-    checkRoutes();
+    await checkRoutes();
     const beforePan=view(),pane=$('diagram').querySelector('.react-flow__pane');
     const mouse=(target,type,x,y,buttons)=>target.dispatchEvent(new MouseEvent(type,{bubbles:true,view:window,button:0,buttons,clientX:x,clientY:y}));
     mouse(pane,'mousedown',300,400,1);mouse(window,'mousemove',330,430,1);mouse(window,'mouseup',330,430,0);
@@ -800,7 +822,7 @@ try {
   const output=document.createElement('output');output.id='qa-result';output.hidden=true;
   output.textContent=JSON.stringify({ok:true,resources:graph.nodes.length,visible:document.querySelectorAll('[data-item]').length,connections:graph.edges.filter(e=>['triggers','connects_to'].includes(e.kind)).length,width:innerWidth});document.body.append(output);
 } catch(error) {
-  const output=document.createElement('output');output.id='qa-result';output.hidden=true;output.textContent=JSON.stringify({ok:false,error:error.message});document.body.append(output);
+  const output=document.createElement('output');output.id='qa-result';output.hidden=true;output.textContent=JSON.stringify({ok:false,error:error.message,location:error.stack?.split('\n').at(-1)});document.body.append(output);
 }
 </script>
 """

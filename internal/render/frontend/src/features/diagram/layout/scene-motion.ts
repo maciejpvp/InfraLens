@@ -86,7 +86,7 @@ export const positionScene = (scene: Scene, saved: ReadonlyMap<string, Point>, m
   return { ...scene, layout, routes: labelRoutes(scene.current, layout, routes, measure) }
 }
 
-const labelRoutes = (view: GraphView, layout: Layout, routes: (Route | null)[], measure: (text: string) => number) => {
+export const labelRoutes = (view: GraphView, layout: Layout, routes: (Route | null)[], measure: (text: string) => number) => {
   const obstacles = [...layout.positions].map(([id, box]) =>
     view.items.get(id)?.expanded ? { ...box, height: GROUP_HEADER_HEIGHT } : box,
   )

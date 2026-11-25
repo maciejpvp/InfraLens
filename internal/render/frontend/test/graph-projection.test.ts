@@ -156,11 +156,12 @@ test('reveals one Lambda while keeping sibling edges aggregated and isolates dir
   const aws = (id: string, service: string) => ({ ...node(id), provider: 'aws', service })
   const graph = {
     nodes: [aws('picked', 'lambda'), aws('sibling', 'lambda'), aws('lonely', 'lambda'), aws('fourth', 'lambda'), aws('table', 'dynamodb'),
-      aws('queue', 'sqs'), aws('unrelated', 's3')],
+      aws('queue', 'sqs'), aws('unrelated', 's3'), aws('orphan', 's3'), node('external')],
     edges: [
       edge('picked', 'table', 'depends_on'),
       edge('sibling', 'table', 'depends_on'),
       edge('queue', 'picked', 'triggers'),
+      ...['sibling', 'lonely', 'fourth'].map((id) => edge('external', id, 'triggers')),
       edge('unrelated', 'table', 'depends_on'),
     ],
   }
@@ -183,10 +184,10 @@ test('reveals one Lambda while keeping sibling edges aggregated and isolates dir
   assert.deepEqual(isolated.edges.flatMap(({ originals }) => originals).map(({ from, to }) => [from, to]).sort(),
     [['picked', 'table'], ['queue', 'picked']])
   assert.equal(projectGraph(tree, 'infra', new Set(['depends_on']), expanded, 'picked', true).edges.length, 1)
-  const alone = projectGraph(tree, 'infra', new Set(), expanded, 'lonely', true)
+  const alone = projectGraph(tree, 'infra', new Set(), expanded, 'orphan', true)
   assert.equal(alone.items.size, 2)
   assert.equal(alone.edges.length, 0)
-  assert.ok(alone.items.has('lonely'))
+  assert.ok(alone.items.has('orphan'))
 
   assert.ok(!projectGraph(tree, 'infra', new Set(), expanded).items.has('picked'))
   expanded.add(service.id)
@@ -311,7 +312,7 @@ test('AppSync API cards retain expandable infrastructure and direct GraphQL flow
   assert.deepEqual(flowDescriptions([grouped.edges[0]]).map(({ label }) => label), ['Mutation.setItem', 'Query.getItem'])
 })
 
-test('infrastructure groups each service once per owner and stack; flow retains only its endpoints', () => {
+test('infrastructure groups compatible resources per owner and stack; flow retains only its endpoints', () => {
   const graph = {
     nodes: [
       { ...node('root'), stackRoot: true },
@@ -326,6 +327,8 @@ test('infrastructure groups each service once per owner and stack; flow retains 
       { ...node('second-lambda'), provider: 'aws', service: 'lambda' },
       { ...node('permission'), provider: 'aws', service: 'lambda' },
       { ...node('second-permission'), provider: 'aws', service: 'lambda' },
+      { ...node('unused-permission'), provider: 'aws', service: 'lambda' },
+      { ...node('last-permission'), provider: 'aws', service: 'lambda' },
       { ...node('same-name-role'), name: 'lambda', provider: 'aws', service: 'iam' },
     ],
     edges: [
@@ -346,8 +349,9 @@ test('infrastructure groups each service once per owner and stack; flow retains 
   assert.notEqual(role.parent, tree.resourceItems.get('other-role')?.parent)
   assert.equal(tree.resourceItems.get('component-role')?.parent?.id, 'group:component')
   assert.equal(tree.resourceItems.get('opensearch-on-ec2')?.parent?.id, 'stack:stack')
-  const lambda = tree.resourceItems.get('lambda')?.parent
-  assert.deepEqual([...lambda!.members].sort(), ['lambda', 'permission', 'second-lambda', 'second-permission'])
+  const lambda = tree.resourceItems.get('permission')?.parent
+  assert.deepEqual([...lambda!.members].sort(), ['last-permission', 'permission', 'second-permission', 'unused-permission'])
+  assert.equal(tree.resourceItems.get('lambda')?.parent?.id, 'stack:stack')
   assert.equal(role.parent, tree.resourceItems.get('same-name-role')?.parent)
   const flow = buildHierarchy(graph, 'after', 'flow')
   const visible = projectGraph(flow, 'flow', new Set(), flow.initialExpanded)
@@ -416,13 +420,14 @@ test('nests groups of four by their exact connected service sets', () => {
   const both = ['b1', 'b2', 'b3', 'b4']
   const s3 = ['s1', 's2', 's3']
   const graph = {
-    nodes: [aws('table', 'dynamodb'), aws('other-table', 'dynamodb'), aws('bucket', 's3'), aws('role', 'iam'),
+    nodes: [aws('table', 'dynamodb'), aws('other-table', 'dynamodb'), aws('bucket', 's3'), aws('other-bucket', 's3'), aws('role', 'iam'),
       ...[...dynamo, ...both, ...s3, 'unlinked'].map((id) => aws(id, 'lambda'))],
     edges: [
       ...[...dynamo, ...both].map((id) => edge(id, 'table', 'connects_to')),
       ...both.map((id) => edge('bucket', id, 'triggers', 'after')),
-      ...s3.map((id) => edge(id, 'bucket', 'connects_to')),
-      edge('other-table', 'd1', 'triggers'),
+      ...s3.map((id) => edge(id, 'other-bucket', 'connects_to')),
+      ...dynamo.map((id) => edge('other-table', id, 'connects_to')),
+      ...s3.map((id) => edge('role', id, 'connects_to')),
       edge('d1', 'role', 'depends_on'),
     ],
   }
@@ -434,8 +439,7 @@ test('nests groups of four by their exact connected service sets', () => {
     assert.deepEqual(groups.map((item) => item.name).sort(), ['DynamoDB', 'S3 events'])
     const dynamoGroup = groups.find((item) => item.name === 'DynamoDB')!
     assert.deepEqual([...dynamoGroup.members].sort(), dynamo)
-    assert.deepEqual(service.children.filter((item) => !item.group).map((item) => item.id),
-      mode === 'flow' ? s3 : [...s3, 'unlinked'])
+    assert.deepEqual(service.children.filter((item) => !item.group).map((item) => item.id), s3)
 
     const expanded = new Set(tree.initialExpanded)
     revealResource(tree, 'd1', expanded)
@@ -461,8 +465,8 @@ test('nests groups of four by their exact connected service sets', () => {
     assert.equal(opened.representatives.size, tree.roots[0].members.size)
 
     const before = buildHierarchy(graph, 'before', mode)
-    assert.deepEqual([...before.resourceItems.get('b1')!.parent!.members].sort(), [...both, ...dynamo])
-    assert.equal(before.resourceItems.get('b1')?.parent?.name, 'DynamoDB')
+    assert.deepEqual([...before.resourceItems.get('b1')!.parent!.members].sort(), both)
+    assert.notEqual(before.resourceItems.get('b1')?.parent, before.resourceItems.get('d1')?.parent?.parent)
   }
 })
 
@@ -471,14 +475,14 @@ test('a shared incoming event source groups resources with different configurati
   const triggers = Array.from({ length: 8 }, (_, index) => `triggered${index}`)
   const references = Array.from({ length: 4 }, (_, index) => `reference${index}`)
   const graph = {
-    nodes: [aws('bucket', 's3'), aws('other-bucket', 's3'), aws('queue', 'sqs'), aws('table', 'dynamodb'),
+    nodes: [aws('bucket', 's3'), aws('other-bucket', 's3'), aws('output-bucket', 's3'), aws('queue', 'sqs'), aws('table', 'dynamodb'),
       ...[...triggers, ...references].map((id) => aws(id, 'lambda'))],
     edges: [
       ...triggers.map((id, index) => edge(index < 4 ? 'bucket' : 'other-bucket', id, 'triggers')),
       ...triggers.slice(0, 4).map((id) => edge('queue', id, 'triggers')),
       ...triggers.slice(0, 4).map((id) => edge(id, 'table', 'connects_to')),
-      ...references.map((id) => edge(id, 'bucket', 'connects_to')),
-      edge(references[0], 'bucket', 'triggers'),
+      ...triggers.slice(4).map((id) => edge(id, 'output-bucket', 'connects_to')),
+      ...references.flatMap((id) => [edge('bucket', id, 'connects_to'), edge(id, 'output-bucket', 'connects_to')]),
     ],
   }
   for (const mode of ['infra', 'flow'] as const) {

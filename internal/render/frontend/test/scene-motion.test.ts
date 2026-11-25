@@ -11,7 +11,9 @@ const graph: Graph = {
     id, name: id, type: 'test:resource:Resource', stack: 'app/dev',
     provider: id === 'a' ? 'one' : 'two',
   })),
-  edges: [{ from: 'a', to: 'b', kind: 'triggers', evidence: [{ source: 'test', label: 'event' }] }],
+  edges: ['b', 'permission', 'log', 'version'].map((to) => ({
+    from: 'a', to, kind: 'triggers', evidence: [{ source: 'test', label: 'event' }],
+  })),
 }
 const measure = (text: string) => text.length * 7
 const tree = buildHierarchy(graph)
@@ -54,7 +56,7 @@ test('the same snapshot moves the group frame, entering children and both ends o
   assert.equal(box.y, before.y)
   assert.equal(box.height, (before.height + after.height) / 2)
   assert.equal(midway.motion?.fading.get('b'), 0.5)
-  assert.equal(midway.motion?.activeEdges, 1)
+  assert.equal(midway.motion?.activeEdges, target.current.edges.length)
   for (const route of midway.routes) {
     assert.ok(route)
     for (const [i, point] of route.points.slice(1).entries())

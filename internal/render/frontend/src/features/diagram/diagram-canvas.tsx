@@ -5,6 +5,7 @@ import { Text } from '../../ui/text'
 import type { DiagramElementsOptions, DiagramNode, DiagramRelation } from './diagram-elements'
 import { buildDiagramElements } from './diagram-elements'
 import { FlowPath } from './flow-path'
+import { roundedRoute } from './layout/layout-model.ts'
 import { routeLayers, routeVisibility } from './layout/route-visibility'
 import { DiagramItem } from './resource-card'
 import { cameraConfig } from './use-camera'
@@ -65,7 +66,7 @@ function DiagramEdge({ id, data, style, markerEnd, interactionWidth }: EdgeProps
     <g opacity={data.opacity} pointerEvents={data.retiring ? 'none' : undefined}>
       <FlowPath
         id={id}
-        path={route.d}
+        path={roundedRoute(route)}
         markerEnd={markerEnd}
         interactionWidth={interactionWidth}
         style={style}

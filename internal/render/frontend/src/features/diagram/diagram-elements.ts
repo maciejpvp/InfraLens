@@ -3,7 +3,7 @@ import type { Edge, EdgeMarker, EdgeMouseHandler, Node, ReactFlowInstance } from
 import { clsx } from 'clsx'
 import type { CSSProperties, KeyboardEvent, MouseEvent, RefObject } from 'react'
 import type { GraphEdge, ProjectedItem, ResourcesById, ServiceIcons } from '../../lib/graph.types'
-import type { Point, Route, Scene, Size } from './layout/layout-model'
+import type { Route, Scene, Size } from './layout/layout-model'
 import { flowDescriptions } from '../../lib/graph-projection.ts'
 import { countLabel, relationNames } from '../../lib/graph-view'
 import { activationProps } from './activation-props'
@@ -90,20 +90,6 @@ export type DiagramElementsOptions = {
   toggle: (id: string) => void
 }
 
-const routeContains = (route: Route, point: Point) =>
-  route.points.slice(1).some((end, index) => {
-    const start = route.points[index]
-    const radius = edgeInteractionWidth / 2
-    const horizontal = start.y === end.y
-    const along = horizontal ? 'x' : 'y'
-    const across = horizontal ? 'y' : 'x'
-    return (
-      point[along] >= Math.min(start[along], end[along]) &&
-      point[along] <= Math.max(start[along], end[along]) &&
-      Math.abs(point[across] - start[across]) <= radius
-    )
-  })
-
 export const buildDiagramElements = ({
   flow,
   scene,
@@ -167,15 +153,19 @@ export const buildDiagramElements = ({
     if (
       event.type === 'click' &&
       'clientX' in event &&
-      (event.clientX || event.clientY) &&
-      flow.current
+      (event.clientX || event.clientY)
     ) {
-      const point = flow.current.screenToFlowPosition({ x: event.clientX, y: event.clientY })
-      const hits = current.edges.filter((_, i) => {
-        const route = routes[i]
-        return (!motion || i < motion.activeEdges) && route && routeContains(route, point)
-      })
-      if (hits.length) matches = hits
+      const paths = event.currentTarget.closest('.react-flow')?.querySelectorAll<SVGPathElement>(
+        '[data-edge] .react-flow__edge-interaction',
+      )
+      const transform = paths?.[0]?.getScreenCTM()
+      if (transform && paths) {
+        const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(transform.inverse())
+        matches = [...paths].flatMap((path) => {
+          const edgeIndex = Number(path.closest('[data-edge]')!.getAttribute('data-edge'))
+          return edgeIndex === index || path.isPointInStroke(point) ? [current.edges[edgeIndex]] : []
+        })
+      }
     }
     onEdges([...new Set(matches.flatMap((edge) => edge.originals))], edgeKey(current.edges[index]))
   }
