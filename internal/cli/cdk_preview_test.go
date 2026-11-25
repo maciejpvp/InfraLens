@@ -2,13 +2,16 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
 
+	"infralens/internal/cost"
 	"infralens/internal/graph"
 	"infralens/internal/graph/awscdk"
 )
@@ -29,7 +32,8 @@ func TestCDKPreview(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write(filepath.Join(project, "cdk.json"), "{}")
+	const projectConfig = `{"app":"test-cdk-app"}`
+	write(filepath.Join(project, "cdk.json"), projectConfig)
 	write(filepath.Join(bin, "cdk"), `#!/bin/sh
 set -eu
 test -f cdk.json
@@ -69,8 +73,14 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 	t.Setenv("PATH", "")
 	t.Chdir(project)
 	var logs bytes.Buffer
-	cli := New(&logs, &logs, map[string]Provider{"aws-cdk": {Preview: awscdk.Preview}})
-	args := []string{"preview", "--provider=aws-cdk", "--no-open"}
+	cli := New(&logs, &logs, map[string]Provider{"aws-cdk": {
+		Preview: awscdk.Preview,
+		PreviewCosts: func(context.Context, func(), *cost.Inventory) (graph.Graph, error) {
+			t.Fatal("CDK preview ran before checking the cost output")
+			return graph.Graph{}, nil
+		},
+	}})
+	args := []string{"preview", "--provider=aws-cdk", "--no-open", "--graph-output", "preview.json"}
 	const output = "infralens.html"
 	run := func() ([]byte, graph.Graph) {
 		t.Helper()
@@ -91,9 +101,41 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 		if err := json.Unmarshal(data, &g); err != nil {
 			t.Fatal(err)
 		}
+		sidecar, err := os.ReadFile("preview.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var saved graph.Graph
+		if err := json.Unmarshal(sidecar, &saved); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(g, saved) || saved.PreviewProvider != "aws-cdk" || bytes.Contains(sidecar, []byte("CANARY_SECRET")) {
+			t.Fatal("saved preview graph differs from the HTML data or leaks raw output")
+		}
 		return report, g
 	}
 	_, fresh := run()
+	for _, test := range []struct {
+		flags []string
+		kind  string
+	}{
+		{[]string{"--graph-output", "./cdk.json"}, "graph"},
+		{[]string{"--costs", "--cost-output", "./cdk.json"}, "cost"},
+	} {
+		logs.Reset()
+		conflict := append([]string{"preview", "--provider=aws-cdk", "--no-open", "--output", "blocked.html"}, test.flags...)
+		if cli.Run(conflict) == 0 || !strings.Contains(logs.String(), "not an InfraLens "+test.kind+" report") ||
+			strings.Contains(logs.String(), "Generating an infrastructure preview") {
+			t.Fatalf("CDK preview accepted its configuration as %s output: %s", test.kind, logs.String())
+		}
+		config, err := os.ReadFile("cdk.json")
+		if err != nil || string(config) != projectConfig {
+			t.Fatalf("output conflict changed project configuration: %v", err)
+		}
+		if _, err := os.Stat("blocked.html"); !os.IsNotExist(err) {
+			t.Fatalf("output conflict created a report: %v", err)
+		}
+	}
 	if len(fresh.Nodes) != 6 {
 		t.Fatalf("expected six resources from manifest templates, got %d", len(fresh.Nodes))
 	}
@@ -104,6 +146,10 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 	}
 	t.Setenv("TEST_CDK_DIFF", "mixed")
 	initial, mixed := run()
+	savedGraph, err := os.ReadFile("preview.json")
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := map[string]graph.Change{
 		"Main/Queue": graph.Update, "Main/Bucket": graph.Replace, "Main/Worker": graph.Update,
 		"Main/Table": graph.Create, "Main/Stable": graph.Unchanged, "Main/LegacyQueue": graph.Delete,
@@ -114,10 +160,38 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 		if node.Change != want[key] {
 			t.Errorf("%s change = %q, want %q", key, node.Change, want[key])
 		}
+		if node.MayReplace != (key == "Main/Worker") {
+			t.Errorf("%s mayReplace = %v", key, node.MayReplace)
+		}
 		delete(want, key)
 	}
 	if len(want) != 0 {
 		t.Fatalf("missing resources: %v", want)
+	}
+	logs.Reset()
+	if cli.Run([]string{"query", "--input", "preview.json", "--change", "replace"}) != 0 {
+		t.Fatal(logs.String())
+	}
+	var result graph.QueryResult
+	if err := json.Unmarshal(logs.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 2 || result.ChangeCounts["replace"] != 1 || result.PossibleReplacements != 1 {
+		t.Fatalf("expected one planned and one possible replacement: %+v", result)
+	}
+	for _, resource := range result.Resources {
+		switch resource.Name {
+		case "Worker":
+			if resource.Change != graph.Update || !resource.MayReplace {
+				t.Fatalf("lost possible replacement: %+v", resource)
+			}
+		case "Bucket":
+			if resource.Change != graph.Replace || resource.MayReplace {
+				t.Fatalf("lost planned replacement: %+v", resource)
+			}
+		default:
+			t.Fatalf("unexpected resource: %+v", resource)
+		}
 	}
 	for mode, message := range map[string]string{
 		"failure": "CDK diff failed", "incomplete": "unexpected or incomplete CDK diff output",
@@ -131,6 +205,10 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 		current, err := os.ReadFile(output)
 		if err != nil || !bytes.Equal(current, initial) {
 			t.Fatalf("%s: failed diff changed existing report: %v", mode, err)
+		}
+		current, err = os.ReadFile("preview.json")
+		if err != nil || !bytes.Equal(current, savedGraph) {
+			t.Fatalf("%s: failed diff changed existing graph: %v", mode, err)
 		}
 	}
 	if files, err := os.ReadDir(scratch); err != nil || len(files) != 0 {

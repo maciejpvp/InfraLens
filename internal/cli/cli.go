@@ -87,9 +87,11 @@ func (c *CLI) dispatch(args []string) error {
 	case "preview":
 		return c.preview(args[1:])
 	case "graph":
-		return c.graphOrRender(args[0], args[1:], app.Graph)
+		return c.graphOrRender(args[0], args[1:])
 	case "render":
-		return c.graphOrRender(args[0], args[1:], app.Render)
+		return c.graphOrRender(args[0], args[1:])
+	case "query":
+		return c.query(args[1:])
 	case "mock-topology":
 		return c.mockTopology(args[1:])
 	default:
@@ -98,8 +100,8 @@ func (c *CLI) dispatch(args []string) error {
 }
 
 func (c *CLI) help() {
-	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       infralens graph"+graphUsage+"\n       infralens render"+graphUsage+costUsage+
-		"\n       "+mockTopologyUsage+" (deprecated)\n"+c.providerHelp())
+	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       infralens graph"+graphUsage+"\n       infralens render"+graphUsage+sidecarUsage+costUsage+
+		"\n       "+queryUsage+"\n       "+mockTopologyUsage+" (deprecated)\n"+c.providerHelp())
 }
 
 func newFlagSet(command string) *flag.FlagSet {

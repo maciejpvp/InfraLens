@@ -33,6 +33,16 @@ InfraLens --help
 
 The script builds the viewer and installs `InfraLens` in `~/.local/bin`. Add that directory to your `PATH`, or set `INFRALENS_BIN_DIR` to an installation directory of your choice. Run the script again after updating your checkout.
 
+### Install agent skills
+
+From the InfraLens checkout, install all bundled skills for Codex and Claude Code:
+
+```sh
+./scripts/install-skills.sh
+```
+
+The script copies the full skill directories to `~/.agents/skills` and `~/.claude/skills`. Rerun it after updating the checkout. Use `codex` or `claude` to select one client, `--dir DIRECTORY` for a custom or project-local destination, and `--dry-run` to preview the install. The script prints backup paths for replaced skills. If a conflicting skill blocks installation, `--replace` backs it up before replacing it. Use `--help` for all options.
+
 ## Try the sample
 
 From the InfraLens checkout, generate the report shown above and open `image-pipeline.html` in your browser. This example uses a [synthetic Pulumi preview](docs/examples/image-pipeline.preview.json) and needs no cloud credentials or provider CLI.
@@ -61,12 +71,34 @@ InfraLens preview --provider=pulumi
 InfraLens preview --provider=aws-cdk
 ```
 
-By default, `preview` writes `infralens.html` and opens it in your browser. Use `--no-open` to save it without launching a browser, or `--output review.html` to choose the destination. If preview or report generation fails, an existing report stays in place.
+By default, `preview` writes `infralens.html` and opens it in your browser. Use `--no-open` to save it without launching a browser, or `--output review.html` to choose the destination. Each output is replaced only after its write succeeds. If a requested JSON output fails after HTML is saved, the command returns an error and prints the paths it saved.
 
 - **Pulumi** uses the active stack and runs `pulumi preview --json --show-sames --non-interactive`. Install the Pulumi CLI, select a stack with `pulumi stack select`, and configure the backend access, dependencies, and provider credentials your project needs. The comparison uses the saved stack state.
 - **AWS CDK** uses the project-local CDK CLI when available and otherwise looks for `cdk` on your `PATH`. It synthesizes and compares templates with context lookups disabled. Preview requires CloudFormation read access in the target AWS account and region, as well as any tools required by your app's bundling step. Replacement estimates come from a template comparison.
 
 Both preview workflows execute your IaC project code without deploying resources. Saved-file workflows run locally without invoking Pulumi or CDK.
+
+### Use InfraLens with a coding agent
+
+Copy the contents of [AGENT_GUIDE.md](AGENT_GUIDE.md) into your IaC project's `AGENTS.md` alongside any existing instructions. If the project has no `AGENTS.md`, save the guide there under that name.
+
+Try “Add a dead-letter queue to UploadsQueue and show me the InfraLens report.” The `infra-report` skill generates a local HTML report after the edit, then links it and summarizes the plan.
+
+Use the CLI to generate a report and ask for specific changes or relationships.
+
+```bash
+InfraLens preview --provider=pulumi --no-open \
+  --output review.html --graph-output review.json
+InfraLens query --input review.json --summary
+InfraLens query --input review.json --changed
+InfraLens query --input review.json --name UploadsQueue
+```
+
+Both `preview` and `render` can produce HTML and graph JSON in one run. Add `--costs --cost-output costs.json` to export the same cost inputs and rates that the report uses. Use a new file or a previous InfraLens report of the matching type for each JSON output. `query` prints JSON and exits. A single match includes direct relationships and evidence. CDK preview relationships describe the target template, and results identify graph coverage and omitted references. [Query options](AGENT_GUIDE.md#query-a-graph)
+
+`query --change replace` includes possible CDK replacements. A possible replacement has `change: "update"` and `mayReplace: true`.
+
+Report generation, queries, and rendering use no LLM calls inside InfraLens.
 
 ### Estimate AWS costs
 
@@ -108,8 +140,7 @@ resource configuration and usage that IaC may not describe.
 Use the portable [cost-estimate skill](skills/cost-estimate/SKILL.md) to analyze a repository
 and generate `cost-assumptions.json`. Invoke `$cost-estimate --diff HEAD` in Codex or
 `/cost-estimate --diff HEAD` in Claude Code to compare the working tree with HEAD.
-The same folder can be installed globally at `~/.agents/skills/cost-estimate` for
-Codex or `~/.claude/skills/cost-estimate` for Claude Code.
+Install it along with the other bundled skills using `./scripts/install-skills.sh`.
 
 ```bash
 InfraLens preview --provider=aws-cdk --costs --cost-assumptions cost-assumptions.json

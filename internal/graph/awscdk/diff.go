@@ -29,6 +29,7 @@ func applyDiff(g *graph.Graph, sources []source, output string) error {
 	for i := range g.Nodes {
 		node := &g.Nodes[i]
 		node.Change = graph.Unchanged
+		node.MayReplace = false
 		nodes[resourceKey{node.Stack, node.Name}] = i
 	}
 	compared := make(map[string]bool, len(sources))
@@ -62,7 +63,7 @@ func applyDiff(g *graph.Graph, sources []source, output string) error {
 			continue
 		}
 
-		id, kind, change, err := parseDiffResource(line)
+		id, kind, change, mayReplace, err := parseDiffResource(line)
 		if err != nil {
 			return err
 		}
@@ -81,6 +82,7 @@ func applyDiff(g *graph.Graph, sources []source, output string) error {
 				return errDiffFormat
 			}
 			g.Nodes[index].Change = change
+			g.Nodes[index].MayReplace = mayReplace
 		}
 		compared[stack] = true
 	}
@@ -91,7 +93,7 @@ func applyDiff(g *graph.Graph, sources []source, output string) error {
 	return g.Validate()
 }
 
-func parseDiffResource(line string) (id, kind string, change graph.Change, err error) {
+func parseDiffResource(line string) (id, kind string, change graph.Change, mayReplace bool, err error) {
 	switch {
 	case strings.HasPrefix(line, "[+] "):
 		change = graph.Create
@@ -101,18 +103,18 @@ func parseDiffResource(line string) (id, kind string, change graph.Change, err e
 			change = graph.Replace
 			line = strings.TrimSuffix(line, " replace")
 		} else {
-			line = strings.TrimSuffix(line, " may be replaced")
+			line, mayReplace = strings.CutSuffix(line, " may be replaced")
 		}
 	case strings.HasPrefix(line, "[-] "):
 		change = graph.Delete
 		line = strings.TrimSuffix(strings.TrimSuffix(line, " destroy"), " orphan")
 	default:
-		return "", "", "", errDiffFormat
+		return "", "", "", false, errDiffFormat
 	}
 	fields := strings.Fields(line)
 	if len(fields) < 3 || !resourceType.MatchString(fields[1]) || !logicalID.MatchString(fields[len(fields)-1]) {
-		return "", "", "", errDiffFormat
+		return "", "", "", false, errDiffFormat
 	}
 	// CDK inserts the optional construct path before the logical ID.
-	return fields[len(fields)-1], fields[1], change, nil
+	return fields[len(fields)-1], fields[1], change, mayReplace, nil
 }

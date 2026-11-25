@@ -9,13 +9,14 @@ import (
 	"infralens/internal/app"
 )
 
-const previewUsage = "InfraLens preview --provider NAME [--output infralens.html] [--no-open]" + costUsage
+const previewUsage = "InfraLens preview --provider NAME [--output infralens.html] [--no-open]" + sidecarUsage + costUsage
 
 func (c *CLI) preview(args []string) error {
 	flags := newFlagSet("preview")
 	costs := costFlags(flags)
 	providerName := flags.String("provider", "", "IaC provider")
 	output := flags.String("output", "infralens.html", "destination HTML file")
+	sidecars := sidecarFlags(flags)
 	noOpen := flags.Bool("no-open", false, "save without opening the browser")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -27,7 +28,10 @@ func (c *CLI) preview(args []string) error {
 	if *output == "" || flags.NArg() != 0 {
 		return errors.New("output must not be empty; positional arguments are unsupported")
 	}
-	if err := costs.load(*output); err != nil {
+	if sidecars.Cost != "" && !costs.enabled {
+		return errors.New("--cost-output requires --costs")
+	}
+	if err := costs.load(*output, sidecars.Graph, sidecars.Cost); err != nil {
 		return err
 	}
 	provider, err := c.provider(*providerName)
@@ -44,14 +48,16 @@ func (c *CLI) preview(args []string) error {
 		}
 		preview = c.costPreview(provider, *costs)
 	}
-	report, err := app.Preview(context.Background(), *output, preview, func() {
+	report, err := app.Preview(context.Background(), *output, *providerName, *sidecars, preview, func() {
 		fmt.Fprintln(c.stderr, "Generating an infrastructure preview for the current project.")
 	})
+	if report.Path != "" {
+		c.reportOmittedRelations(report)
+	}
+	c.reportSaved(report)
 	if err != nil {
 		return err
 	}
-	c.reportOmittedRelations(report)
-	fmt.Fprintln(c.stdout, "Saved HTML:", report.Path)
 	if !*noOpen && openHTML(report.Path) != nil {
 		fmt.Fprintln(c.stderr, "Could not open the browser; open the saved HTML manually.")
 	}

@@ -72,6 +72,9 @@ func readSources(inventory *cost.Inventory, sources ...Source) (graph.Graph, err
 		b.linkResource(entry)
 	}
 	b.linkAWSRelations()
+	if b.preview {
+		b.graph.PreviewProvider = "pulumi"
+	}
 	if inventory != nil {
 		b.collectCosts(inventory)
 	}

@@ -13,7 +13,7 @@ import (
 // Readers obtained through open are valid until the function returns.
 type ReadInputsFunc func(inputs []string, open func(path string) (io.Reader, error)) (graph.Graph, error)
 
-func readInputs(inputs []string, outputInfo os.FileInfo, read ReadInputsFunc) (graph.Graph, error) {
+func readInputs(inputs []string, outputs []os.FileInfo, read ReadInputsFunc) (graph.Graph, error) {
 	var opened []*os.File
 	defer func() {
 		for _, in := range opened {
@@ -29,8 +29,10 @@ func readInputs(inputs []string, outputInfo os.FileInfo, read ReadInputsFunc) (g
 			return nil, errors.New("cannot open input file")
 		}
 		opened = append(opened, in)
-		if fileio.SameFile(info, outputInfo) {
-			return nil, errors.New("input and output must be different files")
+		for _, output := range outputs {
+			if fileio.SameFile(info, output) {
+				return nil, errors.New("input and output must be different files")
+			}
 		}
 		return in, nil
 	})

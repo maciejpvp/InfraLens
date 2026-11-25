@@ -2,13 +2,60 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
+
+	"infralens/internal/graph"
 )
+
+func TestPreviewGraphOutputErrors(t *testing.T) {
+	dir := t.TempDir()
+	report := filepath.Join(dir, "report.html")
+	sidecar := filepath.Join(dir, "graph.json")
+	if err := os.WriteFile(report, []byte("existing report"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Link(report, sidecar); err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	calls := 0
+	cli := New(&logs, &logs, map[string]Provider{"pulumi": {Preview: func(context.Context, func()) (graph.Graph, error) {
+		calls++
+		return graph.Graph{SchemaVersion: 1}, nil
+	}}})
+	args := []string{"preview", "--provider=pulumi", "--no-open", "--output", report, "--graph-output"}
+	if cli.Run(append(args, sidecar)) == 0 || calls != 0 || !strings.Contains(logs.String(), "must be different files") {
+		t.Fatal("preview did not reject aliased output paths:", logs.String())
+	}
+	data, err := os.ReadFile(report)
+	if err != nil || string(data) != "existing report" {
+		t.Fatal("collision changed existing report:", err)
+	}
+	rules := filepath.Join(dir, "rules.json")
+	if err := os.WriteFile(rules, []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	logs.Reset()
+	if cli.Run(append(args, rules, "--costs", "--cost-rules", rules)) == 0 ||
+		calls != 0 || !strings.Contains(logs.String(), "cost rules and output must be different files") {
+		t.Fatal("preview did not protect the pricing input:", logs.String())
+	}
+	logs.Reset()
+	if cli.Run(append(args, filepath.Join(dir, "missing", "graph.json"))) == 0 ||
+		!strings.Contains(logs.String(), "Saved HTML:") || !strings.Contains(logs.String(), "cannot save graph") || calls != 1 {
+		t.Fatal("preview did not identify the partial result:", logs.String())
+	}
+	data, err = os.ReadFile(report)
+	if err != nil || !bytes.Contains(data, []byte(`"previewProvider":"pulumi"`)) {
+		t.Fatal("partial result did not include the HTML:", err)
+	}
+}
 
 func TestPreview(t *testing.T) {
 	if runtime.GOOS != "linux" {

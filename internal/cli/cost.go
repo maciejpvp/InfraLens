@@ -34,7 +34,7 @@ func costFlags(flags *flag.FlagSet) *costOptions {
 	return options
 }
 
-func (o *costOptions) load(output string) error {
+func (o *costOptions) load(outputs ...string) error {
 	if o.region != "" && (!o.enabled || !cost.ValidRegion(o.region)) {
 		return errors.New("--cost-region requires --costs and a valid AWS region")
 	}
@@ -42,7 +42,7 @@ func (o *costOptions) load(output string) error {
 		if !o.enabled {
 			return errors.New("--cost-rules requires --costs")
 		}
-		file, err := openCostInput(o.rulesPath, output, "cost rules")
+		file, err := openCostInput(o.rulesPath, "cost rules", outputs...)
 		if err != nil {
 			return err
 		}
@@ -56,7 +56,7 @@ func (o *costOptions) load(output string) error {
 		if !o.enabled {
 			return errors.New("--cost-assumptions requires --costs")
 		}
-		file, err := openCostInput(o.usagePath, output, "cost assumptions")
+		file, err := openCostInput(o.usagePath, "cost assumptions", outputs...)
 		if err != nil {
 			return err
 		}
@@ -69,15 +69,17 @@ func (o *costOptions) load(output string) error {
 	return nil
 }
 
-func openCostInput(path, output, label string) (io.ReadCloser, error) {
+func openCostInput(path, label string, outputs ...string) (io.ReadCloser, error) {
 	file, info, err := fileio.OpenRegular(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open %s file", label)
 	}
-	outputInfo, _ := fileio.StatRegular(output)
-	if fileio.SameFile(info, outputInfo) {
-		file.Close()
-		return nil, fmt.Errorf("%s and output must be different files", label)
+	for _, output := range outputs {
+		outputInfo, _ := fileio.StatRegular(output)
+		if fileio.SameFile(info, outputInfo) {
+			file.Close()
+			return nil, fmt.Errorf("%s and output must be different files", label)
+		}
 	}
 	return file, nil
 }

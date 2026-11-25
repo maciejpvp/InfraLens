@@ -31,20 +31,22 @@ type Graph struct {
 	Costs            *cost.Report `json:"-"`
 	SchemaVersion    int          `json:"schemaVersion"`
 	Simulated        bool         `json:"simulated,omitempty"`
+	PreviewProvider  string       `json:"previewProvider,omitempty"`
 	Nodes            []Node       `json:"nodes"`
 	Edges            []Edge       `json:"edges"`
 	OmittedRelations int          `json:"omittedRelations"`
 }
 
 type Node struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Provider  string `json:"provider"`
-	Service   string `json:"service,omitempty"`
-	Change    Change `json:"change,omitempty"`
-	Stack     string `json:"stack,omitempty"`
-	StackRoot bool   `json:"stackRoot,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Type       string `json:"type"`
+	Provider   string `json:"provider"`
+	Service    string `json:"service,omitempty"`
+	Change     Change `json:"change,omitempty"`
+	MayReplace bool   `json:"mayReplace,omitempty"`
+	Stack      string `json:"stack,omitempty"`
+	StackRoot  bool   `json:"stackRoot,omitempty"`
 }
 
 type Evidence struct {
@@ -113,6 +115,9 @@ func (g Graph) Validate() error {
 		case "", Unchanged, Create, Update, Delete, Replace:
 		default:
 			return errors.New("invalid change status")
+		}
+		if n.MayReplace && n.Change != Update {
+			return errors.New("possible replacement requires update status")
 		}
 		nodes[n.ID] = true
 	}
