@@ -78,8 +78,31 @@ try {
   }
   await waitForLayout();
   await wait(50);
-  if(location.search.includes('dense-viewer')){
-    const lambdaToggle=document.querySelector('[data-toggle^="service:"][data-toggle$=":aws:lambda"]');
+  if(location.search.includes('mixed-changes')){
+    for(const mode of ['flow-view','infra-view']){
+      await click($(mode));
+      for(const resource of graph.nodes){
+        const item=document.querySelector(`[data-node="${resource.id}"]`);
+        assert(item?.dataset.change===resource.change,'Resource status lost in '+mode+': '+resource.id);
+        checkCardChange(item,resource.change);
+      }
+      assert(document.querySelectorAll('[data-edge]').length===graph.edges.length,'Mixed statuses lost connections');
+    }
+    const stack=()=>document.querySelector('[data-item="stack:preview"]');
+    const toggle=()=>card(stack()).querySelector('[data-toggle]');
+    assert(toggle().getAttribute('aria-expanded')==='true','Stack no longer opens by default');
+    checkStatusBorder(getComputedStyle(card(stack()).firstElementChild),'unchanged');
+    await click(toggle());
+    assert(toggle().getAttribute('aria-expanded')==='false','Stack did not collapse');
+    checkCardChange(stack(),'unchanged');
+    const summary=stack().querySelector('.node-meta');
+    assert(summary.scrollWidth<=summary.clientWidth,'Mixed change counts are clipped');
+    for(const [short, label] of [['~ 2','~ update 2'],['− 1','− delete 1'],['+ 1','+ create 1'],['↻ 1','↻ replace 1']]){
+      assert(summary.textContent.includes(short),'Missing visible count: '+label);
+      assert(stack().title.includes(label)&&stack().getAttribute('aria-label').includes(label),'Missing full count: '+label);
+    }
+  }else if(location.search.includes('dense-viewer')){
+    const lambdaToggle=card(document.querySelector('[data-service="aws:lambda"]')).querySelector('[data-toggle]');
     await click(lambdaToggle);
     const eventsToggle=document.querySelector('[data-toggle^="connections:"]');
     await click(eventsToggle);
@@ -535,8 +558,8 @@ try {
       checkStatusBorder(getComputedStyle(card(expanded).firstElementChild),expanded.dataset.change);
       await expandConnectionGroups(visibleSubgroups);
       const members=[...document.querySelectorAll('[data-node]')].filter(n=>!visibleNodes.has(n.dataset.node));
-      const status=['delete','replace','update','create'].find(change=>members.some(n=>n.dataset.change===change))??'';
-      assert(members.length>0&&group.dataset.change===status,'Collapsed service group did not inherit its members’ change status');
+      const statuses=new Set(members.map(node=>node.dataset.change||'unchanged'));
+      assert(statuses.size===1&&statuses.has(group.dataset.change||'unchanged'),'Service group members have inconsistent change statuses');
       if(group.dataset.service==='aws:lambda'&&graph.nodes.filter(n=>n.service==='lambda').length===4){
         const lambdaNodes=graph.nodes.filter(n=>n.service==='lambda');
         if(lambdaNodes.filter(n=>n.type.endsWith(':Function')).length===2&&lambdaNodes.filter(n=>n.type.endsWith(':Permission')).length===2){
@@ -833,7 +856,15 @@ def main():
             'edges': [{'from': queue['id'], 'to': node['id'], 'kind': 'triggers',
                        'evidence': [{'source': 'benchmark', 'property': 'EventSource'}]} for node in lambdas],
         }
-        scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('dense-viewer', 1440, 1000, dense_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False)]
+        queues = [dict(queue, id=f'queue-{i}', stack='preview', change=change)
+                  for i, change in enumerate(('update', 'update', 'delete', 'create'))]
+        mixed_graph = {
+            'schemaVersion': 1,
+            'nodes': [*queues, dict(lambdas[0], stack='preview', change='replace')],
+            'edges': [{'from': node['id'], 'to': lambdas[0]['id'], 'kind': 'triggers',
+                       'evidence': [{'source': 'test', 'property': 'EventSource'}]} for node in queues],
+        }
+        scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('dense-viewer', 1440, 1000, dense_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False), ('mixed-changes-desktop', 1440, 1000, mixed_graph, False), ('mixed-changes-mobile', 390, 844, mixed_graph, False)]
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)

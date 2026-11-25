@@ -2,7 +2,7 @@ import type { NodeProps } from '@xyflow/react'
 import { Handle, Position } from '@xyflow/react'
 import { ServiceIcon } from '../../components/service-icon'
 import { isAppSyncAPI, serviceFor } from '../../lib/graph-projection.ts'
-import { changeLabels, changeSummary, countLabel, serviceIconSrc } from '../../lib/graph-view'
+import { changeLabels, countLabel, groupChanges, serviceIconSrc } from '../../lib/graph-view'
 import { cn } from '../../lib/utils'
 import { Box } from '../../ui/box'
 import { Button } from '../../ui/button'
@@ -125,8 +125,6 @@ function GroupToggle({
   )
 }
 
-const changePriority = ['delete', 'replace', 'update', 'create'] as const
-
 const getCardPresentation = ({
   item,
   depth,
@@ -140,15 +138,12 @@ const getCardPresentation = ({
 }: DiagramItemData) => {
   const service = item.service || (item.node && serviceFor(item.node))
   const icon = serviceIconSrc(service, icons)
-  const change = item.group
-    ? changePriority.find((status) => {
-        for (const id of item.members) if (byId.get(id)?.change === status) return true
-        return false
-      })
-    : item.node.change
+  const groupStatus = item.group ? groupChanges(item.members, byId) : undefined
+  const change = item.group ? groupStatus?.change : item.node.change
   const hasChange = change && change !== 'unchanged'
   const statusColor = styles.changeColor[change ?? 'unchanged']
-  const count = countLabel(item.members.size, 'resource')
+  const resourceCount = countLabel(item.members.size, 'resource')
+  const groupLabel = groupStatus ? `${resourceCount} · ${groupStatus.summary}` : undefined
   const connectionGroup = item.group && item.connectionGroup
   let type: string | undefined
   if (isAppSyncAPI(item.node)) type = 'AppSync · GraphQL API'
@@ -165,10 +160,10 @@ const getCardPresentation = ({
       'data-service': connectionGroup ? undefined : item.service?.id,
       'data-connection-group': connectionGroup ? '' : undefined,
       'data-node': item.group ? undefined : item.id,
-      'data-change': change ?? '',
-      'aria-label': `${item.name}, ${item.group ? count : item.node.type}${workflowUsage?.length ? ', per run: ' + workflowUsage.join(', ') : ''}`,
+      'data-change': (item.group && change === 'unchanged' ? undefined : change) ?? '',
+      'aria-label': `${item.name}, ${item.group ? groupLabel : item.node.type}${workflowUsage?.length ? ', per run: ' + workflowUsage.join(', ') : ''}`,
       'aria-haspopup': 'dialog' as const,
-      title: connectionGroup ? item.name : undefined,
+      title: groupLabel ? `${item.name}\n${groupLabel}` : undefined,
       className: cn(
         styles.button,
         item.expanded
@@ -201,11 +196,11 @@ const getCardPresentation = ({
       muted && styles.mutedItem,
     ),
     cardTopClassName: cn(styles.cardTop, item.group && styles.reserveToggle),
-    count,
+    count: item.service && hasChange ? `${resourceCount} · ${changeLabels[change]}` : resourceCount,
     showHeaderIcon: Boolean(service),
     type: !item.group && service?.icon ? `${service.name} · ${type}` : type,
     accent: { backgroundColor: service?.color || '#8ba6be' },
-    meta: item.group ? `${count} · ${changeSummary(item, byId)}` : item.stack,
+    meta: groupStatus ? `${resourceCount} · ${groupStatus.compactSummary}` : item.stack,
     changeBadge: !item.group && hasChange
       ? { text: changeLabels[change], className: styles.change }
       : null,

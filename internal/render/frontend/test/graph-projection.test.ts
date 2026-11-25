@@ -377,6 +377,39 @@ test('infrastructure groups each service once per owner and stack; flow retains 
   assert.deepEqual(structure(tree), structure(reverse))
 })
 
+test('service groups keep change statuses separate without losing resources or connections', () => {
+  const changeGroups: Record<string, Resource['change'][]> = {
+    sqs: ['update', 'update', 'delete', 'create'],
+    lambda: ['update', 'update', 'update', 'update', 'replace', 'replace', 'replace', 'replace'],
+    s3: [undefined, 'unchanged', undefined, 'unchanged'],
+  }
+  const resources = Object.entries(changeGroups).flatMap(([service, changes]) => changes.map((change, index) => ({
+    ...node(`${service}-${index}`), provider: 'aws', service, change,
+  })))
+  const graph = { nodes: [node('target'), ...resources], edges: resources.map(({ id }) => edge(id, 'target', 'connects_to')) }
+  for (const mode of ['infra', 'flow'] as const) {
+    for (const topology of ['before', 'after'] as const) {
+      const tree = buildHierarchy(graph, topology, mode)
+      const view = projectGraph(tree, mode, new Set(), tree.initialExpanded)
+      const representatives = (service: string) => resources.filter((item) => item.service === service)
+        .map(({ id }) => view.representatives.get(id))
+      assert.deepEqual(representatives('sqs'), ['sqs-0', 'sqs-1', 'sqs-2', 'sqs-3'])
+      const [updates, ...remaining] = representatives('lambda')
+      const [replacements] = remaining.slice(3)
+      assert.notEqual(updates, replacements)
+      assert.deepEqual(remaining, [updates, updates, updates, replacements, replacements, replacements, replacements])
+      const [unchanged] = representatives('s3')
+      assert.deepEqual(representatives('s3'), Array(4).fill(unchanged))
+      for (const group of [updates, replacements, unchanged]) {
+        assert.ok(group && view.items.get(group)?.group)
+        assert.equal(view.items.get(group)?.members.size, 4)
+      }
+      assert.deepEqual(view.edges.flatMap(({ originals }) => originals.map(({ from }) => from)).sort(),
+        resources.map(({ id }) => id).sort())
+    }
+  }
+})
+
 test('nests groups of four by their exact connected service sets', () => {
   const aws = (id: string, service: string) => ({ ...node(id), provider: 'aws', service })
   const dynamo = ['d1', 'd2', 'd3', 'd4']
@@ -395,8 +428,8 @@ test('nests groups of four by their exact connected service sets', () => {
   }
   for (const mode of ['infra', 'flow'] as const) {
     const tree = buildHierarchy(graph, 'after', mode)
-    const service = tree.items.get('service:stack:stack:aws:lambda')!
-    assert.ok(service.group)
+    const service = tree.resourceItems.get('d1')?.parent?.parent
+    assert.ok(service?.group)
     const groups = service.children.filter((item) => item.group && item.connectionGroup)
     assert.deepEqual(groups.map((item) => item.name).sort(), ['DynamoDB', 'S3 events'])
     const dynamoGroup = groups.find((item) => item.name === 'DynamoDB')!
@@ -450,8 +483,8 @@ test('a shared incoming event source groups resources with different configurati
   }
   for (const mode of ['infra', 'flow'] as const) {
     const tree = buildHierarchy(graph, 'after', mode)
-    const lambda = tree.items.get('service:stack:stack:aws:lambda')!
-    assert.ok(lambda.group)
+    const lambda = tree.roots.find((item) => item.group)?.children.find((item) => item.service?.id === 'aws:lambda')
+    assert.ok(lambda?.group)
     const events = lambda.children.find(({ name }) => name === 'S3 events')
     assert.ok(events?.group)
     assert.deepEqual([...events.members].sort(), triggers)

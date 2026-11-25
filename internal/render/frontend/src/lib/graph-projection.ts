@@ -259,13 +259,15 @@ export const buildHierarchy = (
       if (item.group || isAppSyncAPI(item.node) || (mode === 'flow' && !item.node.service) ||
         (isAppSyncAPI(parent.node) && item.node.service === 'appsync')) continue
       const service = serviceFor(item.node)
-      const bucket = services.get(service.id)
+      const change = item.node.change ?? 'unchanged'
+      const id = `service:${JSON.stringify([parent.id, service.id, change])}`
+      const bucket = services.get(id)
       if (bucket) bucket.leaves.push(item)
-      else services.set(service.id, { service, leaves: [item] })
+      else services.set(id, { service, leaves: [item] })
     }
-    for (const { service, leaves } of services.values()) {
+    for (const [id, { service, leaves }] of services) {
       if (leaves.length < minimumGroupSize) continue
-      const group = makeGroup('service:' + parent.id + ':' + service.id, service.name, parent.stack, null, true)
+      const group = makeGroup(id, service.name, parent.stack, null, true)
       group.service = service
       items.set(group.id, group)
       attach(group, parent)
