@@ -1,8 +1,10 @@
-# InfraLens
+# InfraLens — Pulumi and AWS CDK preview visualizer
 
-InfraLens is a local CLI that turns Pulumi and AWS CDK infrastructure into an interactive HTML report. Use it to explore an unfamiliar stack, trace how services are wired together, or review planned changes before deployment.
+InfraLens is an open-source CLI that turns Pulumi previews and AWS CDK changes into interactive HTML reports. See what will change before deployment, trace connections between services, or explore an unfamiliar stack from a saved export or template.
 
-Each report is a single file with the diagram, search, filters, and a details inspector. Open it directly in a browser, even offline.
+Each report is a single file with a searchable diagram, change filters, and a resource inspector. Open it directly in a browser, even offline.
+
+[Project site](https://maciejpvp.github.io/InfraLens/) · [Try the live demo](https://maciejpvp.github.io/InfraLens/demo.html) · [Agent guide](https://maciejpvp.github.io/InfraLens/AGENT_GUIDE.md)
 
 ## See it in action
 
