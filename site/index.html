@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>InfraLens — Pulumi and AWS CDK preview visualizer</title>
-  <meta name="description" content="Visualize Pulumi previews and AWS CDK changes in interactive, offline HTML reports. Explore an AWS demo in your browser.">
+  <meta name="description" content="Review Pulumi and AWS CDK changes before deploying. Explore AWS connections and estimate costs by service and workflow with InfraLens.">
   <link rel="canonical" href="https://maciejpvp.github.io/InfraLens/">
   <link rel="stylesheet" href="site.css">
 </head>
@@ -20,19 +20,19 @@
   </header>
   <main class="frame">
     <div class="intro">
-      <h1>Visualize Pulumi and <span class="provider-name">AWS CDK</span> changes</h1>
-      <p>InfraLens is an open-source CLI that turns infrastructure previews into interactive HTML reports. Review changes and trace connections in a single file you can open offline.</p>
+      <h1>See what changes before you deploy</h1>
+      <p>InfraLens turns a Pulumi or AWS CDK preview into a report you can explore in your browser. See what will be added, updated, or removed, follow connections between services, and estimate what your changes could cost.</p>
     </div>
 
     <figure class="panel preview">
       <figcaption>
         <div>
-          <h2>Flow view</h2>
-          <p>S3 image-processing example. The interactive demo uses a separate AWS CDK stack.</p>
+          <h2>Explore an AWS CDK report</h2>
+          <p>Follow connections between AWS services or select a resource to see its details.</p>
         </div>
         <a class="button primary" href="demo.html">Open interactive demo</a>
       </figcaption>
-      <img src="flow.png" width="1440" height="650" alt="InfraLens Flow view showing how uploads to S3 reach a Lambda function through SQS">
+      <img src="demo-flow.png" width="1440" height="760" alt="InfraLens demo diagram showing connected AWS services, including AppSync, Lambda, and DynamoDB">
     </figure>
 
     <div class="project-guide">
@@ -41,7 +41,7 @@
           <h2 id="quickstart-title">Run it in your project</h2>
           <a class="button" href="https://github.com/maciejpvp/InfraLens#install">Install from GitHub</a>
         </div>
-        <p>Run the command for your provider from the project directory. It writes <code>infralens.html</code> and opens it in your browser.</p>
+        <p>Run one of these commands from your project directory. It opens the report in your browser without deploying anything. You can share the HTML file or open it offline.</p>
         <div class="command">
           <h3>Pulumi preview</h3>
           <pre><code>InfraLens preview --provider=pulumi</code></pre>
@@ -54,14 +54,15 @@
       </section>
 
       <section class="report-notes" aria-labelledby="review-title">
-        <h2 id="review-title">In the report</h2>
+        <h2 id="review-title">What you can learn</h2>
         <div>
           <h3>Check what changes</h3>
-          <p>Compare before and after views. Filter additions, updates and removals.</p>
+          <p>See what gets added, updated, or removed and how it fits into the rest of the stack.</p>
         </div>
         <div>
-          <h3>Trace a connection</h3>
-          <p>Follow events and configuration references. Select a connection to inspect its evidence.</p>
+          <h3>See what drives AWS costs</h3>
+          <p>Break down the monthly estimate by service, with fixed and usage charges shown separately. Estimate what a workflow like uploading a photo costs per run, per million runs, or per month at your expected traffic.</p>
+          <p>Compare costs before and after a change at the same traffic level. Estimates use public AWS prices and flag missing usage. <a href="https://github.com/maciejpvp/InfraLens#estimate-aws-costs">How to enable cost estimates</a></p>
         </div>
         <div>
           <h3>Use a coding agent</h3>
