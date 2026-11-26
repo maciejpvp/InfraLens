@@ -19,58 +19,56 @@
     </nav>
   </header>
   <main class="frame">
-    <section class="hero" aria-labelledby="headline">
-      <div class="intro">
-        <h1 id="headline">Visualize Pulumi and <span class="provider-name">AWS CDK</span> changes</h1>
-        <p>See what will change before deployment and trace how AWS services are connected. InfraLens generates a single interactive HTML report you can open offline.</p>
-        <div class="actions">
-          <a class="button primary" href="demo.html">Open interactive demo</a>
+    <div class="intro">
+      <h1>Visualize Pulumi and <span class="provider-name">AWS CDK</span> changes</h1>
+      <p>InfraLens is an open-source CLI that turns infrastructure previews into interactive HTML reports. Review changes and trace connections in a single file you can open offline.</p>
+    </div>
+
+    <figure class="panel preview">
+      <figcaption>
+        <div>
+          <h2>Flow view</h2>
+          <p>S3 image-processing example. The interactive demo uses a separate AWS CDK stack.</p>
+        </div>
+        <a class="button primary" href="demo.html">Open interactive demo</a>
+      </figcaption>
+      <img src="flow.png" width="1440" height="650" alt="InfraLens Flow view showing how uploads to S3 reach a Lambda function through SQS">
+    </figure>
+
+    <div class="project-guide">
+      <section id="quickstart" class="panel card" aria-labelledby="quickstart-title">
+        <div class="quickstart-heading">
+          <h2 id="quickstart-title">Run it in your project</h2>
           <a class="button" href="https://github.com/maciejpvp/InfraLens#install">Install from GitHub</a>
         </div>
-        <p class="demo-note">The demo opens in your browser and uses anonymized AWS CDK example data.</p>
-      </div>
-      <figure class="panel preview">
-        <a href="demo.html" aria-label="Open the interactive AWS CDK demo">
-          <img src="flow.png" width="1440" height="650" alt="InfraLens Flow view showing how uploads to S3 reach a Lambda function through SQS">
-        </a>
-        <figcaption>Flow view of the sample S3 image-processing pipeline</figcaption>
-      </figure>
-    </section>
-
-    <section class="review" aria-labelledby="review-title">
-      <h2 id="review-title">Review changes before deployment</h2>
-      <div class="cards">
-        <article class="panel card">
-          <h3>Check what changes</h3>
-          <p>Filter additions, updates and removals. Compare before and after views to see where each change fits.</p>
-        </article>
-        <article class="panel card">
-          <h3>Trace a connection</h3>
-          <p>Follow events and configuration references. Select a connection to inspect the evidence behind it.</p>
-        </article>
-        <article class="panel card">
-          <h3>Ask a coding agent</h3>
-          <p>Give your agent the Markdown guide so it can generate a report and query specific resources or changes.</p>
-          <a href="AGENT_GUIDE.md">Read the agent guide</a>
-        </article>
-      </div>
-    </section>
-
-    <section id="quickstart" aria-labelledby="quickstart-title">
-      <h2 id="quickstart-title">Generate a report in your project</h2>
-      <p>Run the command for your provider from the project directory. It writes <code>infralens.html</code> and opens it in your browser.</p>
-      <div class="commands">
-        <article class="panel card">
+        <p>Run the command for your provider from the project directory. It writes <code>infralens.html</code> and opens it in your browser.</p>
+        <div class="command">
           <h3>Pulumi preview</h3>
           <pre><code>InfraLens preview --provider=pulumi</code></pre>
-        </article>
-        <article class="panel card">
+        </div>
+        <div class="command">
           <h3>AWS CDK changes</h3>
           <pre><code>InfraLens preview --provider=aws-cdk</code></pre>
-        </article>
-      </div>
-      <p>Already have a Pulumi export or a synthesized CloudFormation template? <a href="https://github.com/maciejpvp/InfraLens#render-saved-infrastructure-data">Render your saved infrastructure data</a>.</p>
-    </section>
+        </div>
+        <p>Already have an export or a synthesized template? <a href="https://github.com/maciejpvp/InfraLens#render-saved-infrastructure-data">Render saved infrastructure data</a>.</p>
+      </section>
+
+      <section class="report-notes" aria-labelledby="review-title">
+        <h2 id="review-title">In the report</h2>
+        <div>
+          <h3>Check what changes</h3>
+          <p>Compare before and after views. Filter additions, updates and removals.</p>
+        </div>
+        <div>
+          <h3>Trace a connection</h3>
+          <p>Follow events and configuration references. Select a connection to inspect its evidence.</p>
+        </div>
+        <div>
+          <h3>Use a coding agent</h3>
+          <p>Share the <a href="AGENT_GUIDE.md">Markdown guide</a> so an agent can generate a report and query specific resources or changes.</p>
+        </div>
+      </section>
+    </div>
   </main>
   <footer class="frame footer">
     <span>InfraLens</span>
