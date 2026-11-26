@@ -25,9 +25,10 @@ jobs:
           mkdir _site
           cp site/index.html site/site.css docs/images/flow.png AGENT_GUIDE.md _site/
           go run ./site/render site/demo.graph.json > _site/demo.html
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
+          retention-days: 7
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
