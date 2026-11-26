@@ -1,24 +1,16 @@
-# InfraLens
+# InfraLens — Pulumi and AWS CDK preview visualizer
 
-InfraLens is a local CLI that turns Pulumi and AWS CDK infrastructure into an interactive HTML report. Use it to explore an unfamiliar stack, trace how services are wired together, or review planned changes before deployment.
+InfraLens is an open-source CLI that turns Pulumi previews and AWS CDK changes into interactive HTML reports. Review what will change before deployment, trace connections between services, and estimate AWS costs for individual services and application workflows.
 
-Each report is a single file with the diagram, search, filters, and a details inspector. Open it directly in a browser, even offline.
+Each report is a single file with a searchable diagram, change filters, and a resource inspector. Open it directly in a browser, even offline. You can also generate a report from a saved export or template.
+
+[Project site](https://maciejpvp.github.io/InfraLens/) · [Try the live demo](https://maciejpvp.github.io/InfraLens/demo.html) · [AWS cost estimates](#estimate-aws-costs) · [Agent guide](https://maciejpvp.github.io/InfraLens/AGENT_GUIDE.md)
 
 ## See it in action
 
-Both screenshots show the same synthetic AWS image-processing stack.
+The screenshot shows the public AWS CDK demo, with AppSync, Lambda, S3, SQS, and DynamoDB connections. In **Flow**, select a connection to inspect the event or configuration behind it. Switch to **Infrastructure** for the full resource inventory, deployment dependencies, and preview changes.
 
-### Flow
-
-Follow recognized service connections. Uploads to S3 send events to an SQS queue, which triggers a Lambda function. The function's environment references a DynamoDB table. Select a connection to see the configuration InfraLens used to identify it.
-
-![InfraLens Flow view showing S3 upload events, an SQS queue, a Lambda function, and a DynamoDB configuration reference](docs/images/flow.png)
-
-### Infrastructure
-
-Browse the full resource inventory, including IAM roles, log groups, and event configuration. Preview reports highlight additions, updates, replacements, and removals. Enable deployment dependencies when you want to see which resources depend on one another.
-
-![InfraLens Infrastructure view showing grouped AWS resources and planned additions and updates](docs/images/infrastructure.png)
+[![Flow view of the AWS CDK demo with connected AWS resources](docs/images/demo-flow.png)](https://maciejpvp.github.io/InfraLens/demo.html)
 
 ## Install
 
@@ -45,7 +37,7 @@ The script copies the full skill directories to `~/.agents/skills` and `~/.claud
 
 ## Try the sample
 
-From the InfraLens checkout, generate the report shown above and open `image-pipeline.html` in your browser. This example uses a [synthetic Pulumi preview](docs/examples/image-pipeline.preview.json) and needs no cloud credentials or provider CLI.
+From the InfraLens checkout, generate a small image-processing pipeline report and open `image-pipeline.html` in your browser. This example uses a [synthetic Pulumi preview](docs/examples/image-pipeline.preview.json) and needs no cloud credentials or provider CLI.
 
 ```bash
 InfraLens render --provider=pulumi \
@@ -102,26 +94,30 @@ Report generation, queries, and rendering use no LLM calls inside InfraLens.
 
 ### Estimate AWS costs
 
-Add `--costs` to a preview or HTML report to include public AWS on-demand prices.
+Add `--costs` to a preview or HTML report to fetch regional AWS on-demand prices. Open **Costs** in the report to see how much each service and modeled workflow contributes to the estimate. The public diagram demo shows topology and planned changes.
+
+| View | What you can inspect |
+| --- | --- |
+| **Services** | Fixed charges, usage charges, and an estimated monthly total per AWS service with [workload assumptions](#import-workload-assumptions). |
+| **Workflows** | Cost per run, per million runs, or per month at your expected traffic. Open a modeled workflow to see its resource steps, billable operations, and pricing assumptions. |
+| **Compare** | Before and After estimates for previews with both states. Use the same rates and traffic to see how a change affects costs. |
+| **AWS catalog rates** | Published unit prices for detected services, including prices for charges whose usage is unknown. |
 
 ```bash
 InfraLens preview --provider=aws-cdk --costs
 InfraLens render --provider=pulumi --input stack.json --output report.html --costs --cost-region eu-west-1
 ```
 
-Open **Costs** above the zoom controls. **Monthly** shows provisioned charges
+In the resource cost view, **Monthly** shows provisioned charges
 for a 730-hour month. **Per 1M** shows additional usage charges for one million
 incoming requests. Adjust operations per request and Lambda duration under
 **Usage assumptions**. **Compare** uses the same workload and prices for both
 states. Partial totals include the charges InfraLens could estimate. Open the
 info icon in a cell to see what is missing.
 
-`--costs` discovers service offers in the AWS Price List index and fetches
-regional prices automatically. Open **AWS catalog rates** to see published
-unit prices for the detected services, including services whose usage
-quantities are absent from IaC. Those unknown quantities appear as unavailable
-estimates and are excluded from the partial total. The saved report and
-workload controls work offline. The fallback region is
+`--costs` discovers service offers in the AWS Price List index. Unknown usage
+quantities appear as unavailable estimates and are excluded from the partial
+total. The saved report and workload controls work offline. The fallback region is
 `--cost-region`, then `AWS_REGION` or `AWS_DEFAULT_REGION`, then `us-east-1`.
 For CDK comparisons, install AWS CLI and configure access to read the deployed
 CloudFormation template in the stack's account and region. Pulumi comparisons
