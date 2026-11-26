@@ -1,9 +1,12 @@
-// Package app runs InfraLens report workflows.
 package app
 
-import "os"
+import (
+	"context"
+	"fmt"
+	"os"
+)
 
-// Report describes a successfully written report.
+// Report includes any files written before a later sidecar failed.
 type Report struct {
 	Path             string
 	GraphPath        string
@@ -17,28 +20,59 @@ type Sidecars struct {
 	Cost  string
 }
 
-// Graph writes a JSON graph built by read.
-func Graph(inputs []string, output string, read ReadInputsFunc) (Report, error) {
+type ReportOptions struct {
+	Provider string
+	Output   string
+	Sidecars Sidecars
+	Costs    CostOptions
+}
+
+func (a *App) Graph(providerName string, inputs []string, output string) (Report, error) {
+	provider, err := a.provider(providerName)
+	if err != nil {
+		return Report{}, err
+	}
+	if provider.Adapter == nil {
+		return Report{}, fmt.Errorf("provider %q does not support file inputs", providerName)
+	}
 	info, err := inspectOutput(output)
 	if err != nil {
 		return Report{}, err
 	}
-	g, err := readInputs(inputs, []os.FileInfo{info}, read)
+	g, err := readInputs(inputs, []os.FileInfo{info}, provider.Adapter, nil)
 	if err != nil {
 		return Report{}, err
 	}
-	return writeOutput(output, g, outputJSON)
+	if err := writeGraph(output, g); err != nil {
+		return Report{}, err
+	}
+	return Report{Path: output, OmittedRelations: g.OmittedRelations}, nil
 }
 
-// Render writes an HTML report from the graph built by read.
-func Render(inputs []string, output string, sidecars Sidecars, read ReadInputsFunc) (Report, error) {
-	destinations, err := inspectReportOutputs(output, sidecars)
+func (a *App) Render(ctx context.Context, inputs []string, options ReportOptions) (Report, error) {
+	pricing, err := loadCosts(options)
 	if err != nil {
 		return Report{}, err
 	}
-	g, err := readInputs(inputs, destinations, read)
+	provider, err := a.provider(options.Provider)
 	if err != nil {
 		return Report{}, err
 	}
-	return writeReport(output, sidecars, g)
+	if provider.Adapter == nil {
+		return Report{}, fmt.Errorf("provider %q does not support file inputs", options.Provider)
+	}
+	destinations, err := inspectReportOutputs(options.Output, options.Sidecars)
+	if err != nil {
+		return Report{}, err
+	}
+	inventory := options.Costs.inventory()
+	g, err := readInputs(inputs, destinations, provider.Adapter, inventory)
+	if err != nil {
+		return Report{}, err
+	}
+	costs, err := a.estimateCosts(ctx, g, inventory, pricing)
+	if err != nil {
+		return Report{}, err
+	}
+	return writeReport(options.Output, options.Sidecars, g, costs)
 }

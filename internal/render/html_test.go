@@ -14,7 +14,7 @@ import (
 func TestHTMLTextEscaping(t *testing.T) {
 	g := graph.Graph{SchemaVersion: 1, Nodes: []graph.Node{{ID: "a", Name: `</script><script>alert(1)</script>`, Type: "test"}, {ID: "b", Name: "target", Type: "test"}}, Edges: []graph.Edge{{From: "a", To: "b", Kind: graph.DependsOn, Evidence: []graph.Evidence{{Source: "test", Property: `<img src=x onerror=alert(1)>`, Label: `</script><script>alert(1)</script>`, Details: `<img src=x onerror=alert(1)>`}}}}}
 	var out bytes.Buffer
-	if err := HTML(&out, g); err != nil {
+	if err := HTML(&out, g, nil); err != nil {
 		t.Fatal(err)
 	}
 	result := out.String()
@@ -41,7 +41,7 @@ func TestHTMLTextEscaping(t *testing.T) {
 func TestSimulationLabel(t *testing.T) {
 	g := graph.Graph{SchemaVersion: 1, Simulated: true, Nodes: []graph.Node{{ID: "a", Name: "planned", Type: "test", Change: graph.Create}}}
 	var out bytes.Buffer
-	if err := HTML(&out, g); err != nil {
+	if err := HTML(&out, g, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "SIMULATION") || !strings.Contains(out.String(), `"simulated":true`) {
@@ -54,7 +54,7 @@ func TestOfflineIconsAndEnglishInterface(t *testing.T) {
 		t.Fatal("frontend assets contain a closing tag that would terminate an inline block")
 	}
 	var out bytes.Buffer
-	if err := HTML(&out, graph.Graph{SchemaVersion: 1}); err != nil {
+	if err := HTML(&out, graph.Graph{SchemaVersion: 1}, nil); err != nil {
 		t.Fatal(err)
 	}
 	result := out.String()

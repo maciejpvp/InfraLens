@@ -18,8 +18,7 @@ import (
 type outputFormat uint8
 
 const (
-	outputHTML outputFormat = iota
-	outputJSON
+	outputJSON outputFormat = iota
 	outputCostJSON
 )
 
@@ -72,17 +71,19 @@ func inspectReportOutputs(output string, sidecars Sidecars) ([]os.FileInfo, erro
 	return infos, nil
 }
 
-func writeReport(output string, sidecars Sidecars, g graph.Graph) (Report, error) {
-	if sidecars.Cost != "" && g.Costs == nil {
+func writeReport(output string, sidecars Sidecars, g graph.Graph, costs *cost.Report) (Report, error) {
+	if sidecars.Cost != "" && costs == nil {
 		return Report{}, errors.New("no cost data available to write")
 	}
 	if err := checkSidecars(sidecars); err != nil {
 		return Report{}, err
 	}
-	report, err := writeOutput(output, g, outputHTML)
-	if err != nil {
-		return report, err
+	if err := fileio.WriteAtomic(output, func(w io.Writer) error {
+		return render.HTML(w, g, costs)
+	}); err != nil {
+		return Report{}, err
 	}
+	report := Report{Path: output, OmittedRelations: g.OmittedRelations}
 	if sidecars.Graph != "" {
 		if _, err := inspectReportOutputs(output, sidecars); err != nil {
 			return report, err
@@ -90,7 +91,7 @@ func writeReport(output string, sidecars Sidecars, g graph.Graph) (Report, error
 		if err := checkSidecar(sidecars.Graph, outputJSON); err != nil {
 			return report, err
 		}
-		if _, err := writeOutput(sidecars.Graph, g, outputJSON); err != nil {
+		if err := writeGraph(sidecars.Graph, g); err != nil {
 			return report, fmt.Errorf("cannot save graph: %w", err)
 		}
 		report.GraphPath = sidecars.Graph
@@ -103,7 +104,7 @@ func writeReport(output string, sidecars Sidecars, g graph.Graph) (Report, error
 			return report, err
 		}
 		err := fileio.WriteAtomic(sidecars.Cost, func(w io.Writer) error {
-			return json.NewEncoder(w).Encode(g.Costs)
+			return json.NewEncoder(w).Encode(costs)
 		})
 		if err != nil {
 			return report, fmt.Errorf("cannot save cost data: %w", err)
@@ -168,22 +169,13 @@ func checkSidecar(path string, format outputFormat) error {
 	return nil
 }
 
-func writeOutput(path string, g graph.Graph, format outputFormat) (Report, error) {
-	if format == outputJSON {
-		if err := g.Validate(); err != nil {
-			return Report{}, err
-		}
+func writeGraph(path string, g graph.Graph) error {
+	if err := g.Validate(); err != nil {
+		return err
 	}
-	err := fileio.WriteAtomic(path, func(w io.Writer) error {
-		if format == outputJSON {
-			encoder := json.NewEncoder(w)
-			encoder.SetIndent("", "  ")
-			return encoder.Encode(g)
-		}
-		return render.HTML(w, g)
+	return fileio.WriteAtomic(path, func(w io.Writer) error {
+		encoder := json.NewEncoder(w)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(g)
 	})
-	if err != nil {
-		return Report{}, err
-	}
-	return Report{Path: path, OmittedRelations: g.OmittedRelations}, nil
 }

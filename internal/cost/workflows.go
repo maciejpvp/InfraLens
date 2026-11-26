@@ -333,17 +333,17 @@ func (u *UsageFile) Workload(inventory Inventory) (*WorkflowReport, error) {
 	return report, nil
 }
 
-func workflowQuotes(step *WorkflowStep, meter *WorkflowMeter, modeled []pending) []pending {
+func (meter *WorkflowMeter) quotes(step *WorkflowStep, modeled []pending) []pending {
 	if step.Issue != "" {
 		meter.Pricing.missing(step.Issue)
 		return nil
 	}
 	if meter.usage != "" {
-		return semanticWorkflowQuotes(step, meter, modeled)
+		return meter.semanticQuotes(step, modeled)
 	}
 	rate := meter.rate
 	if rate.Builtin != "" {
-		return modeledWorkflowQuotes(meter, modeled, rate.Builtin)
+		return meter.modeledQuotes(modeled, rate.Builtin)
 	}
 	return []pending{{metric: &meter.Pricing, quantity: 1, quote: quote{
 		service: rate.ServiceCode, usage: rate.UsageType, unit: rate.Unit, operation: rate.Operation,
@@ -351,7 +351,7 @@ func workflowQuotes(step *WorkflowStep, meter *WorkflowMeter, modeled []pending)
 	}}}
 }
 
-func modeledWorkflowQuotes(meter *WorkflowMeter, modeled []pending, input string) []pending {
+func (meter *WorkflowMeter) modeledQuotes(modeled []pending, input string) []pending {
 	meter.usesModel = true
 	var requests []pending
 	for _, component := range modeled {

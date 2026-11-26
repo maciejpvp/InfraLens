@@ -30,9 +30,9 @@ REQ,OnDemand,USD,eu-west-1,EU-Requests-Paid,Requests,1000000,Inf,0.000005
 			Properties: map[string]any{"Capacity": map[string]any{"Size": size, "Class": class}},
 		}
 	}
-	report := build(t.Context(), Inventory{
+	report := (Estimator{Rules: rules}).build(t.Context(), Inventory{
 		Compare: true, Before: []Resource{resource(2, "small")}, After: []Resource{resource(3, "large")},
-	}, "", rules, nil, nil, func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
+	}, nil, nil, func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
 		pending := request.components
 		if key != (catalogKey{"AWSExample", "eu-west-1"}) || len(pending) != 4 {
 			t.Errorf("expected one new catalog for both states, got %v with %d queries", key, len(pending))
@@ -78,8 +78,7 @@ FREE,OnDemand,USD,GB,0,Inf,0
 func TestRulesCanOverrideOneChargeCategory(t *testing.T) {
 	item := Item{}
 	rule := Rule{Monthly: []Meter{}}
-	requests := model(Resource{Type: "AWS::Lambda::Function", Properties: map[string]any{"CapacityProviderConfig": true}},
-		&item, rule)
+	requests := (Resource{Type: "AWS::Lambda::Function", Properties: map[string]any{"CapacityProviderConfig": true}}).model(&item, rule)
 	if len(requests) != 0 || len(item.Monthly.Missing) != 0 || len(item.Usage.Missing) == 0 {
 		t.Fatalf("expected a zero monthly override and the default usage reason: %+v", item)
 	}

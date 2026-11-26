@@ -96,9 +96,9 @@ func (b *modelBuilder) usage(service, usage, unit, operation, input string) {
 	b.add(&b.item.Usage, quote{service: service, usage: usage, unit: unit, operation: operation}, million, input)
 }
 
-func model(resource Resource, item *Item, rule Rule) []pending {
-	b := modelBuilder{resource: resource, item: item}
-	if resource.Conditional {
+func (r Resource) model(item *Item, rule Rule) []pending {
+	b := modelBuilder{resource: r, item: item}
+	if r.Conditional {
 		item.Monthly.missing("CloudFormation resource condition is unresolved.")
 		item.Usage.missing("CloudFormation resource condition is unresolved.")
 		return nil
@@ -281,7 +281,7 @@ func (b *modelBuilder) lambdaProvisioned() {
 }
 
 // LinkLambda copies only billing inputs from the function resolved by the adapter.
-func LinkLambda(configuration *Resource, function Resource) {
+func (configuration *Resource) LinkLambda(function Resource) {
 	properties := make(map[string]any, len(configuration.Properties)+2)
 	for key, value := range configuration.Properties {
 		properties[key] = value

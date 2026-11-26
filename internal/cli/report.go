@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -42,7 +43,7 @@ func (c *CLI) graphOrRender(command string, args []string) error {
 		inputs = append(inputs, value)
 		return nil
 	})
-	costs := &costOptions{}
+	costs := &app.CostOptions{}
 	sidecars := &app.Sidecars{}
 	if command == "render" {
 		costs = costFlags(flags)
@@ -55,7 +56,7 @@ func (c *CLI) graphOrRender(command string, args []string) error {
 		if command == "render" {
 			usage += sidecarUsage + costUsage
 		}
-		fmt.Fprintln(c.stdout, "Usage: infralens "+command+usage+"\n"+c.providerHelp())
+		fmt.Fprintln(c.stdout, "Usage: infralens "+command+usage+"\n"+c.app.ProviderHelp())
 		return nil
 	}
 	if err != nil {
@@ -67,34 +68,16 @@ func (c *CLI) graphOrRender(command string, args []string) error {
 	if len(inputs) == 0 {
 		return errors.New("graph/render require --input and do not accept --project")
 	}
-	if sidecars.Cost != "" && !costs.enabled {
-		return errors.New("--cost-output requires --costs")
-	}
-	if err := costs.load(*output, sidecars.Graph, sidecars.Cost); err != nil {
-		return err
-	}
-	provider, err := c.provider(*providerName)
-	if err != nil {
-		return err
-	}
-	if provider.ReadInputs == nil {
-		return fmt.Errorf("provider %q does not support file inputs", *providerName)
-	}
-	read := provider.ReadInputs
-	if costs.enabled {
-		if provider.ReadCostInputs == nil {
-			return fmt.Errorf("provider %q does not support cost estimates", *providerName)
-		}
-		read = c.costReader(provider, *costs)
-	}
 	if command == "graph" {
-		report, err := app.Graph(inputs, *output, read)
+		report, err := c.app.Graph(*providerName, inputs, *output)
 		if err == nil {
 			c.reportOmittedRelations(report)
 		}
 		return err
 	}
-	report, err := app.Render(inputs, *output, *sidecars, read)
+	report, err := c.app.Render(context.Background(), inputs, app.ReportOptions{
+		Provider: *providerName, Output: *output, Sidecars: *sidecars, Costs: *costs,
+	})
 	if *sidecars != (app.Sidecars{}) {
 		c.reportSaved(report)
 	}

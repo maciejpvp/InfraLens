@@ -20,7 +20,7 @@ func (c *CLI) preview(args []string) error {
 	noOpen := flags.Bool("no-open", false, "save without opening the browser")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\nGenerates an infrastructure report for the current project without deploying.\n"+c.providerHelp())
+			fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\nGenerates an infrastructure report for the current project without deploying.\n"+c.app.ProviderHelp())
 			return nil
 		}
 		return errors.New("invalid flags; use preview --help")
@@ -28,28 +28,8 @@ func (c *CLI) preview(args []string) error {
 	if *output == "" || flags.NArg() != 0 {
 		return errors.New("output must not be empty; positional arguments are unsupported")
 	}
-	if sidecars.Cost != "" && !costs.enabled {
-		return errors.New("--cost-output requires --costs")
-	}
-	if err := costs.load(*output, sidecars.Graph, sidecars.Cost); err != nil {
-		return err
-	}
-	provider, err := c.provider(*providerName)
-	if err != nil {
-		return err
-	}
-	if provider.Preview == nil {
-		return fmt.Errorf("provider %q does not support preview", *providerName)
-	}
-	preview := provider.Preview
-	if costs.enabled {
-		if provider.PreviewCosts == nil {
-			return fmt.Errorf("provider %q does not support cost estimates", *providerName)
-		}
-		preview = c.costPreview(provider, *costs)
-	}
-	report, err := app.Preview(context.Background(), *output, *providerName, *sidecars, preview, func() {
-		fmt.Fprintln(c.stderr, "Generating an infrastructure preview for the current project.")
+	report, err := c.app.Preview(context.Background(), app.ReportOptions{
+		Provider: *providerName, Output: *output, Sidecars: *sidecars, Costs: *costs,
 	})
 	if report.Path != "" {
 		c.reportOmittedRelations(report)

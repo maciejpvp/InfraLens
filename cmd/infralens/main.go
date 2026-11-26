@@ -1,30 +1,23 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
+	"infralens/internal/adapters/awscdk"
+	"infralens/internal/adapters/pulumi"
+	"infralens/internal/adapters/pulumi/simulate"
+	"infralens/internal/app"
 	"infralens/internal/cli"
-	"infralens/internal/graph/awscdk"
-	"infralens/internal/graph/pulumi"
-	"infralens/internal/graph/pulumi/simulate"
 )
 
 func main() {
-	providers := map[string]cli.Provider{
-		"pulumi": {
-			ReadInputs:     pulumi.ReadInputs,
-			Preview:        pulumi.Preview,
-			ReadCostInputs: pulumi.ReadCostInputs,
-			PreviewCosts:   pulumi.PreviewCosts,
-			MockTopology:   simulate.RunInputs,
-		},
+	application := app.New(map[string]app.Provider{
+		"pulumi":    {Adapter: pulumi.Adapter{}, MockTopology: simulate.RunInputs},
 		"terraform": {},
-		"aws-cdk": {
-			ReadInputs:     awscdk.ReadInputs,
-			Preview:        awscdk.Preview,
-			ReadCostInputs: awscdk.ReadCostInputs,
-			PreviewCosts:   awscdk.PreviewCosts,
-		},
-	}
-	os.Exit(cli.New(os.Stdout, os.Stderr, providers).Run(os.Args[1:]))
+		"aws-cdk":   {Adapter: awscdk.Adapter{}},
+	}, func(message string) {
+		fmt.Fprintln(os.Stderr, message)
+	})
+	os.Exit(cli.New(os.Stdout, os.Stderr, application).Run(os.Args[1:]))
 }

@@ -224,6 +224,8 @@ Repeat `--input` to combine files from the same provider. For Pulumi stack refer
 
 ## Development
 
+Start in `cmd/infralens` for provider registration and `internal/app` for command workflows. The [backend data flow](docs/ARCHITECTURE.md#przepływ-danych) shows how the Pulumi and AWS CDK adapters, cost estimator, and HTML renderer fit together.
+
 The Go CLI embeds the built viewer. After changing the frontend, rebuild the bundle before testing Go or regenerating reports.
 
 ```bash

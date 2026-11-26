@@ -124,7 +124,7 @@ func costResources(resources map[string]resource) []cost.Resource {
 		if entry.Type == "aws:lambda/provisionedConcurrencyConfig:ProvisionedConcurrencyConfig" || entry.Type == "aws:lambda/alias:Alias" {
 			name, _ := entry.Properties["functionName"].(string)
 			if function, ok := functions[entry.Region+"\x00"+name]; ok {
-				cost.LinkLambda(entry, function)
+				entry.LinkLambda(function)
 			}
 		}
 	}

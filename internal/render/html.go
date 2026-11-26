@@ -9,6 +9,7 @@ import (
 	"io"
 	"strings"
 
+	"infralens/internal/cost"
 	"infralens/internal/graph"
 )
 
@@ -49,7 +50,7 @@ var page = template.Must(template.New("diagram").Parse(`<!doctype html>
 </html>
 `))
 
-func HTML(w io.Writer, g graph.Graph) error {
+func HTML(w io.Writer, g graph.Graph, report *cost.Report) error {
 	if err := g.Validate(); err != nil {
 		return err
 	}
@@ -58,8 +59,8 @@ func HTML(w io.Writer, g graph.Graph) error {
 		return err
 	}
 	var costs template.JS
-	if g.Costs != nil {
-		payload, err := json.Marshal(g.Costs)
+	if report != nil {
+		payload, err := json.Marshal(report)
 		if err != nil {
 			return err
 		}

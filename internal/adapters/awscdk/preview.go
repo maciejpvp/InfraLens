@@ -16,11 +16,7 @@ import (
 )
 
 // Preview compares synthesized CDK stacks with their deployed templates.
-func Preview(ctx context.Context, onStart func()) (graph.Graph, error) {
-	return PreviewCosts(ctx, onStart, nil)
-}
-
-func PreviewCosts(ctx context.Context, onStart func(), inventory *cost.Inventory) (graph.Graph, error) {
+func (Adapter) Preview(ctx context.Context, onStart func(), inventory *cost.Inventory) (graph.Graph, error) {
 	if _, err := fileio.StatRegular("cdk.json"); err != nil {
 		return graph.Graph{}, errors.New("run preview from an AWS CDK project directory containing cdk.json")
 	}

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"infralens/internal/app"
+	"infralens/internal/cost"
 	"infralens/internal/graph"
 )
 
@@ -25,10 +27,10 @@ func TestPreviewGraphOutputErrors(t *testing.T) {
 	}
 	var logs bytes.Buffer
 	calls := 0
-	cli := New(&logs, &logs, map[string]Provider{"pulumi": {Preview: func(context.Context, func()) (graph.Graph, error) {
+	cli := newTestCLI(&logs, &logs, map[string]app.Provider{"pulumi": {Adapter: stubAdapter{preview: func(context.Context, func(), *cost.Inventory) (graph.Graph, error) {
 		calls++
 		return graph.Graph{SchemaVersion: 1}, nil
-	}}})
+	}}}})
 	args := []string{"preview", "--provider=pulumi", "--no-open", "--output", report, "--graph-output"}
 	if cli.Run(append(args, sidecar)) == 0 || calls != 0 || !strings.Contains(logs.String(), "must be different files") {
 		t.Fatal("preview did not reject aliased output paths:", logs.String())

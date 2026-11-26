@@ -47,12 +47,10 @@ var (
 	resourceType = regexp.MustCompile(`^(?:[A-Za-z0-9]+::[A-Za-z0-9]+::[A-Za-z0-9]+|Custom::[A-Za-z0-9_@-]+)$`)
 )
 
-// ReadInputs builds a graph from one or more JSON templates emitted by cdk synth.
-func ReadInputs(inputs []string, open func(string) (io.Reader, error)) (graph.Graph, error) {
-	return ReadCostInputs(inputs, open, nil)
-}
+type Adapter struct{}
 
-func ReadCostInputs(inputs []string, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
+// ReadInputs builds a graph from one or more JSON templates emitted by cdk synth.
+func (Adapter) ReadInputs(inputs []string, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
 	sources := make([]source, 0, len(inputs))
 	for _, input := range inputs {
 		stack, path := splitInput(input)

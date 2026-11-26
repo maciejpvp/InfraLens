@@ -28,8 +28,8 @@ STORAGE,OnDemand,USD,eu-west-1,Storage,GB-Mo,0,Inf,0.15
 `
 	r := Resource{ID: "resource", Name: "New", Type: "AWS::FutureService::Resource", Service: "futureservice", Region: "eu-west-1"}
 	var loads atomic.Int32
-	report := build(t.Context(), Inventory{Compare: true, Before: []Resource{r}, After: []Resource{r}},
-		"", nil, offers, nil, func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
+	report := Estimator{}.build(t.Context(), Inventory{Compare: true, Before: []Resource{r}, After: []Resource{r}},
+		offers, nil, func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
 			loads.Add(1)
 			if key != (catalogKey{"AmazonFutureService", "eu-west-1"}) || len(request.components) != 0 {
 				t.Errorf("unexpected automatic catalog lookup: %+v", key)

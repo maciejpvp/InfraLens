@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -10,15 +11,36 @@ import (
 	"strings"
 	"testing"
 
+	"infralens/internal/adapters/awscdk"
+	"infralens/internal/adapters/pulumi"
+	"infralens/internal/adapters/pulumi/simulate"
+	"infralens/internal/app"
+	"infralens/internal/cost"
 	"infralens/internal/graph"
-	"infralens/internal/graph/awscdk"
-	"infralens/internal/graph/pulumi"
-	"infralens/internal/graph/pulumi/simulate"
 )
 
+type stubAdapter struct {
+	readInputs func([]string, func(string) (io.Reader, error), *cost.Inventory) (graph.Graph, error)
+	preview    func(context.Context, func(), *cost.Inventory) (graph.Graph, error)
+}
+
+func (s stubAdapter) ReadInputs(inputs []string, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
+	return s.readInputs(inputs, open, inventory)
+}
+
+func (s stubAdapter) Preview(ctx context.Context, onStart func(), inventory *cost.Inventory) (graph.Graph, error) {
+	return s.preview(ctx, onStart, inventory)
+}
+
+func newTestCLI(stdout, stderr io.Writer, providers map[string]app.Provider) *CLI {
+	return New(stdout, stderr, app.New(providers, func(message string) {
+		fmt.Fprintln(stderr, message)
+	}))
+}
+
 func newPulumiCLI(stdout, stderr io.Writer) *CLI {
-	return New(stdout, stderr, map[string]Provider{
-		"pulumi": {ReadInputs: pulumi.ReadInputs, Preview: pulumi.Preview, MockTopology: simulate.RunInputs},
+	return newTestCLI(stdout, stderr, map[string]app.Provider{
+		"pulumi": {Adapter: pulumi.Adapter{}, MockTopology: simulate.RunInputs},
 	})
 }
 
@@ -39,10 +61,10 @@ func TestInjectedProvider(t *testing.T) {
 	}
 	var logs bytes.Buffer
 	readCalls, previewCalls := 0, 0
-	cli := New(&logs, &logs, map[string]Provider{
+	cli := newTestCLI(&logs, &logs, map[string]app.Provider{
 		"aws-cdk": {},
-		"terraform": {
-			ReadInputs: func(args []string, open func(string) (io.Reader, error)) (graph.Graph, error) {
+		"terraform": {Adapter: stubAdapter{
+			readInputs: func(args []string, open func(string) (io.Reader, error), _ *cost.Inventory) (graph.Graph, error) {
 				readCalls++
 				if !slices.Equal(args, inputs) {
 					t.Fatalf("provider received %v, want %v", args, inputs)
@@ -62,12 +84,12 @@ func TestInjectedProvider(t *testing.T) {
 				}
 				return result, nil
 			},
-			Preview: func(_ context.Context, onStart func()) (graph.Graph, error) {
+			preview: func(_ context.Context, onStart func(), _ *cost.Inventory) (graph.Graph, error) {
 				previewCalls++
 				onStart()
 				return result, nil
 			},
-		},
+		}},
 	})
 	for _, command := range []string{"graph", "render", "preview"} {
 		output := filepath.Join(dir, command+".html")
@@ -138,7 +160,7 @@ func TestCommands(t *testing.T) {
 
 func TestCDKReports(t *testing.T) {
 	var logs bytes.Buffer
-	cli := New(&logs, &logs, map[string]Provider{"aws-cdk": {ReadInputs: awscdk.ReadInputs}})
+	cli := newTestCLI(&logs, &logs, map[string]app.Provider{"aws-cdk": {Adapter: awscdk.Adapter{}}})
 	for _, command := range []string{"graph", "render"} {
 		t.Run(command, func(t *testing.T) {
 			output := filepath.Join(t.TempDir(), "report")
@@ -157,8 +179,8 @@ func TestCDKReports(t *testing.T) {
 
 func TestInvalidProviderGraphPreservesReports(t *testing.T) {
 	var logs bytes.Buffer
-	cli := New(&logs, &logs, map[string]Provider{
-		"example": {ReadInputs: func([]string, func(string) (io.Reader, error)) (graph.Graph, error) {
+	cli := newTestCLI(&logs, &logs, map[string]app.Provider{
+		"example": {Adapter: stubAdapter{readInputs: func([]string, func(string) (io.Reader, error), *cost.Inventory) (graph.Graph, error) {
 			return graph.Graph{
 				SchemaVersion: 1,
 				Nodes:         []graph.Node{{ID: "source", Name: "Source", Type: "Example"}},
@@ -166,7 +188,7 @@ func TestInvalidProviderGraphPreservesReports(t *testing.T) {
 					From: "source", To: "missing", Kind: graph.DependsOn, Evidence: []graph.Evidence{{Source: "example"}},
 				}},
 			}, nil
-		}},
+		}}},
 	})
 	for _, command := range []string{"graph", "render"} {
 		t.Run(command, func(t *testing.T) {

@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"infralens/internal/adapters/pulumi"
 	"infralens/internal/fileio"
 	"infralens/internal/graph"
-	"infralens/internal/graph/pulumi"
 )
 
 //go:embed runner_test.go.txt

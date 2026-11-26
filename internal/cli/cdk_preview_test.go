@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"infralens/internal/adapters/awscdk"
+	"infralens/internal/app"
 	"infralens/internal/cost"
 	"infralens/internal/graph"
-	"infralens/internal/graph/awscdk"
 )
 
 func TestCDKPreview(t *testing.T) {
@@ -73,13 +74,14 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 	t.Setenv("PATH", "")
 	t.Chdir(project)
 	var logs bytes.Buffer
-	cli := New(&logs, &logs, map[string]Provider{"aws-cdk": {
-		Preview: awscdk.Preview,
-		PreviewCosts: func(context.Context, func(), *cost.Inventory) (graph.Graph, error) {
-			t.Fatal("CDK preview ran before checking the cost output")
-			return graph.Graph{}, nil
+	cli := newTestCLI(&logs, &logs, map[string]app.Provider{"aws-cdk": {Adapter: stubAdapter{
+		preview: func(ctx context.Context, onStart func(), inventory *cost.Inventory) (graph.Graph, error) {
+			if inventory != nil {
+				t.Fatal("CDK preview ran before checking the cost output")
+			}
+			return (awscdk.Adapter{}).Preview(ctx, onStart, nil)
 		},
-	}})
+	}}})
 	args := []string{"preview", "--provider=aws-cdk", "--no-open", "--graph-output", "preview.json"}
 	const output = "infralens.html"
 	run := func() ([]byte, graph.Graph) {

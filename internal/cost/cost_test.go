@@ -49,9 +49,9 @@ func TestBuildReusesCatalogAcrossStatesAndKeepsPartialResults(t *testing.T) {
 	after.Properties = map[string]any{"MemorySize": 256.0}
 	nat := Resource{ID: "nat", Service: "ec2", Type: "AWS::EC2::NatGateway"}
 	queue := Resource{ID: "queue", Service: "sqs", Type: "AWS::SQS::Queue"}
-	report := build(t.Context(), Inventory{
+	report := (Estimator{Region: "us-east-1"}).build(t.Context(), Inventory{
 		Compare: true, Before: []Resource{before}, After: []Resource{queue, after, nat},
-	}, "us-east-1", nil, nil, nil, func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
+	}, nil, nil, func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
 		requests := request.components
 		if key.service == "AWSQueueService" {
 			return catalogResult{}, errors.New("test network outage")
@@ -89,7 +89,7 @@ func TestUsageBilledResourcesHaveNoFixedRate(t *testing.T) {
 		{Type: "AWS::Cognito::UserPool"},
 	} {
 		var item Item
-		requests := model(r, &item, Rule{})
+		requests := r.model(&item, Rule{})
 		if len(item.Monthly.Missing) > 0 || len(item.Monthly.Charges) > 0 {
 			t.Errorf("%s: expected no fixed charges: %+v", r.Type, item.Monthly)
 		}

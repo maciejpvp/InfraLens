@@ -29,7 +29,7 @@ func TestAppSyncResolvers(t *testing.T) {
 		"WriteStage":{"Type":"AWS::AppSync::FunctionConfiguration","Properties":{"ApiId":{"Fn::GetAtt":"Api.ApiId"},"DataSourceName":"writer"}},
 		"Pipeline":{"Type":"AWS::AppSync::Resolver","Properties":{"ApiId":{"Fn::GetAtt":"Api.ApiId"},"Kind":"PIPELINE","TypeName":"Mutation","FieldName":"updateItem","PipelineConfig":{"Functions":[{"Fn::GetAtt":"ReadStage.FunctionId"},{"Fn::GetAtt":"WriteStage.FunctionId"},{"Fn::GetAtt":"ReadStage.FunctionId"}]}}}
 	}}`
-	g, err := ReadInputs([]string{"app.json"}, func(string) (io.Reader, error) { return strings.NewReader(input), nil })
+	g, err := (Adapter{}).ReadInputs([]string{"app.json"}, func(string) (io.Reader, error) { return strings.NewReader(input), nil }, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

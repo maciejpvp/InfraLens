@@ -36,7 +36,7 @@ func TestWorkflowImportResolvesSnapshotPricesAndMonthlyDuplicates(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	report := build(t.Context(), inventory, "", nil, nil, workflows,
+	report := Estimator{}.build(t.Context(), inventory, nil, workflows,
 		func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
 			if key.region != "eu-west-1" {
 				t.Errorf("wrong rate region: %v", key)
@@ -82,9 +82,9 @@ func TestWorkflowRejectsInvalidEdgesAndAmbiguousSelectors(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = file.Workload(Inventory{After: []Resource{
+		_, err = (Estimator{Usage: file}).Estimate(t.Context(), Inventory{After: []Resource{
 			{ID: "one", Name: "Worker", Type: "Lambda"}, {ID: "two", Name: "Worker", Type: "Lambda"},
-		}})
+		}}, func() { t.Fatal("pricing started with invalid workflow assumptions") })
 		if err == nil || !strings.Contains(err.Error(), test.error) {
 			t.Errorf("expected %q: %v", test.error, err)
 		}
@@ -121,7 +121,7 @@ func TestSemanticWorkflowUsageUsesSnapshotBilling(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			report := build(t.Context(), inventory, "", nil, nil, workflows,
+			report := Estimator{}.build(t.Context(), inventory, nil, workflows,
 				func(_ context.Context, key catalogKey, request catalogRequest) (catalogResult, error) {
 					if key.region != "eu-west-1" {
 						t.Errorf("wrong price region: %v", key)

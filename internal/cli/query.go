@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 
-	"infralens/internal/fileio"
 	"infralens/internal/graph"
 )
 
@@ -38,17 +37,8 @@ func (c *CLI) query(args []string) error {
 		return errors.New("--input is required; positional arguments are unsupported")
 	}
 
-	file, _, err := fileio.OpenRegular(*input)
-	if err != nil {
-		return errors.New("cannot open graph input file")
-	}
-	defer file.Close()
-	g, err := graph.ReadJSON(file)
-	if err != nil {
-		return err
-	}
 	options.Change = graph.Change(*change)
-	result, err := g.Query(options)
+	result, err := c.app.Query(*input, options)
 	if err != nil {
 		return err
 	}

@@ -9,12 +9,10 @@ import (
 	"infralens/internal/graph"
 )
 
-// ReadInputs builds a graph from exported stacks or preview files.
-func ReadInputs(inputs []string, open func(string) (io.Reader, error)) (graph.Graph, error) {
-	return ReadCostInputs(inputs, open, nil)
-}
+type Adapter struct{}
 
-func ReadCostInputs(inputs []string, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
+// ReadInputs builds a graph from exported stacks or preview files.
+func (Adapter) ReadInputs(inputs []string, open func(string) (io.Reader, error), inventory *cost.Inventory) (graph.Graph, error) {
 	sources := make([]Source, 0, len(inputs))
 	for _, input := range inputs {
 		stack, path := splitInput(input)

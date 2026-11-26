@@ -4,11 +4,11 @@ Status: **backend i interaktywny renderer offline zaimplementowane**. Widok wyko
 Viewer buduje grupy stos → komponent z aktywnych relacji `contains`. Zwinięcie grupy agreguje widoczne krawędzie z zachowaniem oryginalnych dowodów. ELK.js wyznacza pozycje grup i kart, ortogonalne ścieżki oraz miejsca etykiet. React Flow używa tych współrzędnych do rysowania diagramu i obsługuje kamerę. Kliknięcie wspólnego odcinka pokazuje wszystkie trafione relacje, a wybór klawiaturą otwiera relację z fokusem. Gdy algorytm nie zwróci trasy, raport pokazuje liczbę niepoprowadzonych połączeń.
 
 
-Preview jest pojedynczym wejściem: adapter odczytuje planowane operacje i przekazuje je w grafie. Nie ma osobnego pakietu `diff` ani porównywania dwóch plików. `Node.change` jest opcjonalnym statusem (`unchanged`, `create`, `update`, `delete`, `replace`); `Edge.state` rozróżnia relacje `before`/`after`. Pełne wartości starego i nowego zasobu nie opuszczają adaptera.
+Adapter Pulumi odczytuje planowane operacje z JSON-a wygenerowanego przez `pulumi preview`. Adapter AWS CDK buduje graf z syntetyzowanych szablonów CloudFormation i nanosi statusy na podstawie `cdk diff`. `Node.change` przechowuje status zmiany, a `Edge.state` rozróżnia relacje `before` i `after`, gdy źródło dostarcza oba stany. CDK pokazuje relacje z docelowych szablonów.
 
 CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/stack=]FILE`. Adapter Pulumi buduje jeden graf przed rozwiązywaniem referencji. W trybie wielu wejść zachowuje korzenie stosów i tworzy `depends_on` z węzła StackReference do dopasowanego korzenia (evidence: `stackReference`, `inputs.name`). Pełne tożsamości wejść muszą być podane jawnie do rozwiązywania tych połączeń; nie wnioskujemy organizacji z URN. `Node.stack` przechowuje projekt/stos. `graph` i `render` nie interpretują formatu Pulumi.
 
-`mock-topology --project org/project/stack=DIRECTORY` korzysta z `graph/pulumi/simulate`: uruchamia `deploy` z `infraMocks` i `withStackConfig` na tymczasowej kopii modułu i przechwytuje aktualne rejestracje/odczyty. Następnie używa zwykłego adaptera eksportu, oznacza graf `simulated: true`, a węzły `create`. Renderer pokazuje etykietę symulacji; silnik grafu nie importuje SDK ani runnera. Konfiguracja i odpowiedzi providera są mockowane przez projekt. Runner przechwytuje outputs i podaje je kolejnym projektom przez StackReference; kolejność wejść musi odpowiadać zależnościom. Szczegóły kontraktu i ograniczenia są w README.
+`mock-topology --project org/project/stack=DIRECTORY` korzysta z `adapters/pulumi/simulate`: uruchamia `deploy` z `infraMocks` i `withStackConfig` na tymczasowej kopii modułu i przechwytuje aktualne rejestracje/odczyty. Następnie używa zwykłego adaptera eksportu, oznacza graf `simulated: true`, a węzły `create`. Renderer pokazuje etykietę symulacji; silnik grafu nie importuje SDK ani runnera. Konfiguracja i odpowiedzi providera są mockowane przez projekt. Runner przechwytuje outputs i podaje je kolejnym projektom przez StackReference; kolejność wejść musi odpowiadać zależnościom. Szczegóły kontraktu i ograniczenia są w README.
 
 ## Baza techniczna
 
@@ -16,41 +16,57 @@ CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/sta
 - React + SVG: komponenty widoku, hooki kamery i historii pływającego inspektora, shadcn/ui i Tailwind.
 - Layout warstwowy z grupowaniem cykli przez SCC; pozycjonowanie na podstawie zdarzeń, osobno od referencji konfiguracji.
 - Vite buduje frontend w `internal/render/frontend/dist`. Go łączy wynik ze zweryfikowanymi danymi grafu i ikonami w samodzielny plik HTML.
-- Bez całego Pulumi SDK, backendu i dostępu do sieci podczas renderowania.
+- Gotowy raport działa offline. Generowanie raportu z `--costs` korzysta z publicznego katalogu cen AWS.
 
 Nie dodajemy Dagre jako fallbacku ani interfejsu pluginów przed wykazaniem potrzeby.
 
-Punkt wejścia rejestruje operacje providerów IaC. CLI wybiera providera przez wymagane `--provider`. `app` przekazuje wybranemu providerowi całą listę argumentów i udostępnia funkcję, która sprawdza oraz otwiera pliki. Provider interpretuje argumenty, rozwiązuje relacje i zwraca zweryfikowany graf do zapisu. Wycofywana komenda `mock-topology` wywołuje operację symulacji wybranego providera i korzysta z tego samego zapisu HTML.
+Punkt wejścia w `cmd/infralens` rejestruje adaptery w `app.App` i przekazuje instancję do CLI. CLI parsuje flagi, przekazuje opcje do odpowiedniej metody `App` i prezentuje wynik. `App` wybiera adapter według `--provider` i zarządza przebiegiem komendy oraz zapisem plików.
 
 ## Przepływ danych
 
 ```mermaid
-flowchart LR
-    A[Plik eksportu] --> B[Walidacja i adapter Pulumi]
-    B --> C[Relacje i normalizacja w pamięci]
-    C --> D[Minimalny model publiczny]
-    D --> E[Walidacja grafu]
-    E --> F[graph.json]
-    E --> G[Renderer HTML]
-    H[Osadzone JS i CSS] --> G
-    G --> I[result.html]
+sequenceDiagram
+    participant CLI
+    participant App
+    participant Adapter
+    participant Cost as cost.Estimator
+    participant Render as render.HTML
+    CLI->>App: graph, render lub preview
+    App->>Adapter: ReadInputs lub Preview
+    Adapter-->>App: graph.Graph i opcjonalny inwentarz kosztowy
+    opt render lub preview z --costs
+        App->>Cost: inwentarz, reguły i założenia
+        Cost-->>App: cost.Report
+    end
+    alt graph
+        App->>App: walidacja i zapis grafu do JSON
+    else render lub preview
+        App->>Render: graf i opcjonalny raport kosztów
+        Render-->>App: HTML po walidacji grafu
+        App->>App: zapis HTML i żądanych plików JSON
+    end
+    App-->>CLI: ścieżki zapisanych plików i ewentualny błąd
 ```
 
-Surowe dane pozostają wewnątrz parsera/adaptera. Granicą bezpieczeństwa jest utworzenie minimalnego modelu publicznego: renderer, frontend, `graph` i logi nie otrzymują surowych inputs/outputs. Dopasowywanie identyfikatorów reguł AWS odbywa się przed tą granicą; ARN-y i wartości właściwości nie trafiają do HTML.
+Przy `graph` i `render` adapter dostaje listę wejść oraz funkcję do ich bezpiecznego otwarcia, dostarczoną przez `App`. Adapter interpretuje format źródłowy, rozwiązuje relacje i zwraca wspólny graf. Przy `--costs` wypełnia też `cost.Inventory` danymi używanymi do wyceny. `cost.Estimator` rozwiązuje założenia, pobiera stawki i zwraca osobny `cost.Report`. HTML osadza graf i koszty w osobnych blokach JSON. `--graph-output` zapisuje graf, a `--cost-output` zapisuje raport kosztów.
+
+`query` korzysta z `App.Query`, które odczytuje zapisany graf InfraLens, waliduje go i deleguje filtrowanie do pakietu `graph`. CLI wypisuje wynik w JSON na stdout. Wycofywane `mock-topology` korzysta z symulatora Pulumi i wspólnej ścieżki zapisu HTML.
+
+Do renderera trafia wspólny graf i opcjonalny raport wyceny. Inwentarz właściwości używanych przez estimator pozostaje danymi roboczymi. Przed udostępnieniem raportu sprawdź nazwy zasobów, ścieżki właściwości i wybrane wartości konfiguracji widoczne w dowodach relacji.
 
 ## Minimalny kontrakt grafu
 
 | Element | Pola / zasada |
 |---|---|
-| Graph | `schemaVersion`, `nodes`, `edges`; metadane tylko jeśli potrzebuje ich widok. |
+| Graph | `schemaVersion`, `nodes`, `edges`, `omittedRelations` oraz opcjonalne `previewProvider` i `simulated`. |
 | Node | `id`, `name`, `type`, `provider`. Adapter może podać `service` dla ikony i grupowania oraz `stackRoot` dla węzła reprezentującego stos. |
 | Edge | `from`, `to`, `kind`, opcjonalny `state`, `evidence[]`; tożsamość przez końce, typ i stan. |
 | Evidence | Źródło (`parent`, `dependencies`, `propertyDependencies`, `aws_rule`), opcjonalna ścieżka właściwości, ID zasobu konfigurującego relację oraz tekstowe `label` i `details` z jawnie dopuszczonych pól konfiguracji. |
 
-- ID węzła: deterministyczny skrót pełnego URN; URN nie jest serializowany. Skrót nie jest gwarancją anonimizacji.
+- Pulumi wylicza ID węzła z URN, a CDK z nazwy stosu i logicznego ID zasobu. Skróty zapewniają stabilne odwołania w grafie.
 - `contains`: **rodzic → dziecko**.
 - `depends_on`: **zasób zależny → zasób, od którego zależy**. Kierunek objaśnia legenda.
-- Jedna krawędź na `(from, to, kind)`; wszystkie unikalne dowody zachowane i stabilnie uporządkowane.
+- Jedna krawędź na `(from, to, kind, state)` z uporządkowaną listą dowodów.
 - Węzły i krawędzie sortowane deterministycznie; frontend używa tej kolejności przy layoucie.
 - Cykle dependencies są dozwolone w modelu; błędna hierarchia rodziców musi być wykryta i zgłoszona bez zapętlenia UI.
 
@@ -87,17 +103,17 @@ Bez autodetekcji wielu adapterów, `--stack`, `--open`, wyboru theme/layoutu i p
 ## Podział kodu
 
 ```text
-cmd/infralens/              punkt wejścia
-internal/cli/               routing, flagi, komunikaty i przeglądarka
-internal/app/               przepływy generowania raportów
-internal/fileio/            operacje plikowe i atomowy zapis
-internal/graph/pulumi/     parser eksportu/preview i mapowanie
-internal/graph/pulumi/simulate/ zbieranie zasobów przez mocki projektów Go
-internal/graph/             model publiczny, relacje, walidacja
-internal/render/              składanie raportu HTML i osadzone ikony
-internal/render/frontend/src/ widok React, układ i trasowanie połączeń SVG
-scripts/check_html.py      test offline desktop/mobile
-testdata/pulumi/            syntetyczne / zanonimizowane fixture’y
+cmd/infralens/                     rejestracja adapterów i uruchomienie CLI
+internal/cli/                      flagi, komunikaty i otwarcie przeglądarki
+internal/app/                      przebieg komend i zapis raportów
+internal/adapters/pulumi/          eksport i preview Pulumi
+internal/adapters/awscdk/          szablony CloudFormation i preview AWS CDK
+internal/adapters/pulumi/simulate/ rejestrowanie zasobów z mocków projektów Go
+internal/graph/                    wspólny model, normalizacja, walidacja i zapytania
+internal/cost/                     inwentarz, reguły, założenia i estymacja kosztów
+internal/fileio/                   operacje plikowe i atomowy zapis
+internal/render/                   składanie raportu HTML i osadzanie zasobów
+internal/render/frontend/src/      widok React, układ i trasowanie połączeń SVG
+scripts/check_html.py              test offline desktop/mobile
+testdata/                          fixture’y do testów
 ```
-
-Istniejące pakiety Go tworzą działający przepływ. Reguły AWS mieszczą się obecnie w adapterze; nie dodajemy osobnego registry. Pakiet obliczający diff powstanie dopiero przy potrzebie porównywania snapshotów.

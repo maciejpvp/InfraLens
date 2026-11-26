@@ -27,7 +27,7 @@ func TestReadInputs(t *testing.T) {
 		}
 		return bytes.NewReader(data), nil
 	}
-	g, err := ReadInputs([]string{fixture, "Second=Other.template.json"}, open)
+	g, err := (Adapter{}).ReadInputs([]string{fixture, "Second=Other.template.json"}, open, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestReadInputs(t *testing.T) {
 			t.Errorf("linked across stack boundaries: %+v", edge)
 		}
 	}
-	reordered, err := ReadInputs([]string{"Second=Other.template.json", fixture}, open)
+	reordered, err := (Adapter{}).ReadInputs([]string{"Second=Other.template.json", fixture}, open, nil)
 	if err != nil || !reflect.DeepEqual(g, reordered) {
 		t.Fatalf("changing input order changed the normalized graph: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestReadInputs(t *testing.T) {
 	if err != nil || bytes.Contains(encoded, []byte("CANARY_CDK_SECRET")) {
 		t.Fatalf("invalid or unsafe graph JSON: %v", err)
 	}
-	if _, err := ReadInputs([]string{fixture, fixture}, open); err == nil {
+	if _, err := (Adapter{}).ReadInputs([]string{fixture, fixture}, open, nil); err == nil {
 		t.Fatal("accepted repeated stack name")
 	}
 }
@@ -100,9 +100,9 @@ func TestReadInputsRejectsInvalidTemplates(t *testing.T) {
 		`{"Resources":{"Example":{"Type":"AWS::SQS::Queue","DependsOn":true}}}`,
 		`{"Resources":{"Example":{"Type":""}}}`,
 	} {
-		_, err := ReadInputs([]string{"example.json"}, func(string) (io.Reader, error) {
+		_, err := (Adapter{}).ReadInputs([]string{"example.json"}, func(string) (io.Reader, error) {
 			return strings.NewReader(input), nil
-		})
+		}, nil)
 		if err == nil {
 			t.Errorf("accepted invalid template %q", input)
 		}

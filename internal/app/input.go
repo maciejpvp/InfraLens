@@ -5,22 +5,19 @@ import (
 	"io"
 	"os"
 
+	"infralens/internal/cost"
 	"infralens/internal/fileio"
 	"infralens/internal/graph"
 )
 
-// ReadInputsFunc builds a graph from an ordered batch of CLI inputs.
-// Readers obtained through open are valid until the function returns.
-type ReadInputsFunc func(inputs []string, open func(path string) (io.Reader, error)) (graph.Graph, error)
-
-func readInputs(inputs []string, outputs []os.FileInfo, read ReadInputsFunc) (graph.Graph, error) {
+func readInputs(inputs []string, outputs []os.FileInfo, adapter Adapter, inventory *cost.Inventory) (graph.Graph, error) {
 	var opened []*os.File
 	defer func() {
 		for _, in := range opened {
 			in.Close()
 		}
 	}()
-	return read(inputs, func(path string) (io.Reader, error) {
+	return adapter.ReadInputs(inputs, func(path string) (io.Reader, error) {
 		in, info, err := fileio.OpenRegular(path)
 		if errors.Is(err, fileio.ErrNotRegular) {
 			return nil, errors.New("input must be a regular file")
@@ -35,5 +32,5 @@ func readInputs(inputs []string, outputs []os.FileInfo, read ReadInputsFunc) (gr
 			}
 		}
 		return in, nil
-	})
+	}, inventory)
 }

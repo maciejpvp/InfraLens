@@ -105,7 +105,23 @@ type pending struct {
 
 type catalogKey struct{ service, region string }
 
-func Build(ctx context.Context, inventory Inventory, region string, rules Rules, workflows *WorkflowReport) *Report {
+type Estimator struct {
+	Region string
+	Rules  Rules
+	Usage  *UsageFile
+}
+
+func (e Estimator) Estimate(ctx context.Context, inventory Inventory, onStart func()) (*Report, error) {
+	workflows, err := e.Usage.Workload(inventory)
+	if err != nil {
+		return nil, err
+	}
+	if onStart != nil {
+		onStart()
+	}
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+
 	var offers offerIndex
 	needsIndex := func(resources []Resource) bool {
 		return slices.ContainsFunc(resources, func(resource Resource) bool {
@@ -117,90 +133,33 @@ func Build(ctx context.Context, inventory Inventory, region string, rules Rules,
 		offers, _ = publicOffers(indexContext)
 		cancel()
 	}
-	return build(ctx, inventory, region, rules, offers, workflows, publicCatalog)
+	report := e.build(ctx, inventory, offers, workflows, publicCatalog)
+	if e.Usage != nil && e.Usage.Version == 1 {
+		if err := e.Usage.Apply(inventory, report); err != nil {
+			return nil, err
+		}
+	}
+	return report, nil
 }
 
-func build(ctx context.Context, inventory Inventory, region string, rules Rules, offers offerIndex, workflows *WorkflowReport, load catalogLoader) *Report {
+type reportBuilder struct {
+	report   *Report
+	fallback string
+	rules    Rules
+	offers   offerIndex
+	requests map[catalogKey]*catalogRequest
+	noOffer  map[catalogKey]bool
+	regions  map[string]bool
+}
+
+func (e Estimator) build(ctx context.Context, inventory Inventory, offers offerIndex, workflows *WorkflowReport, load catalogLoader) *Report {
 	report := &Report{
 		Date: time.Now().UTC().Format("2006-01-02"), Rates: map[string][]Tier{},
 		BeforeIssues: inventory.BeforeIssues, Catalogs: map[string][]Catalog{}, Workflows: workflows,
 	}
-	requests := map[catalogKey]*catalogRequest{}
-	requestFor := func(key catalogKey, service string) *catalogRequest {
-		request := requests[key]
-		if request == nil {
-			request = &catalogRequest{services: map[string]bool{}}
-			requests[key] = request
-		}
-		request.services[service] = true
-		return request
-	}
-	noOffer := map[catalogKey]bool{}
-	regions := map[string]bool{}
-	fallback := fallbackRegion(region)
-	queue := func(components []pending, resourceRegion, service string) {
-		for _, component := range components {
-			priceRegion := component.quote.region
-			if priceRegion == "" {
-				priceRegion = resourceRegion
-			}
-			regions[priceRegion] = true
-			key := catalogKey{component.quote.service, priceRegion}
-			label := service
-			if label == "" {
-				label = offerName(component.quote.service)
-			}
-			request := requestFor(key, label)
-			request.components = append(request.components, component)
-		}
-	}
-	prepare := func(resources []Resource, states [][]WorkflowStep) []Item {
-		resources = slices.Clone(resources)
-		slices.SortFunc(resources, func(a, b Resource) int {
-			return cmp.Compare(a.ID, b.ID)
-		})
-		items := make([]Item, len(resources))
-		modeled := map[string][]pending{}
-		for i, r := range resources {
-			r.Service = serviceName(r.Service)
-			items[i] = Item{ID: r.ID, Name: r.Name, Service: r.Service}
-			if !ValidRegion(r.Region) {
-				r.Region = fallback
-				report.Fallback = fallback
-			}
-			regions[r.Region] = true
-			components := model(r, &items[i], rules[r.Type])
-			var codes []string
-			if !isSupportingResource(r) {
-				codes = offers.codes(r.Service)
-				for _, code := range codes {
-					requestFor(catalogKey{code, r.Region}, r.Service)
-				}
-				if len(codes) == 0 && len(components) == 0 {
-					noOffer[catalogKey{r.Service, r.Region}] = true
-				}
-			}
-			queue(components, r.Region, r.Service)
-			if len(states) > 0 {
-				modeled[r.ID] = components
-			}
-		}
-		for _, steps := range states {
-			for i := range steps {
-				step := &steps[i]
-				region, service := fallback, ""
-				if step.resource != nil {
-					service = serviceName(step.resource.Service)
-					if ValidRegion(step.resource.Region) {
-						region = step.resource.Region
-					}
-				}
-				for j := range step.Meters {
-					queue(workflowQuotes(step, &step.Meters[j], modeled[step.ResourceID]), region, service)
-				}
-			}
-		}
-		return items
+	b := reportBuilder{
+		report: report, fallback: fallbackRegion(e.Region), rules: e.Rules, offers: offers,
+		requests: map[catalogKey]*catalogRequest{}, noOffer: map[catalogKey]bool{}, regions: map[string]bool{},
 	}
 	var beforeSteps, afterSteps [][]WorkflowStep
 	if workflows != nil {
@@ -214,24 +173,109 @@ func build(ctx context.Context, inventory Inventory, region string, rules Rules,
 			}
 		}
 	}
-	report.After = prepare(inventory.After, afterSteps)
+	report.After = b.prepareSnapshot(inventory.After, afterSteps)
 	if inventory.Compare {
-		before := prepare(inventory.Before, beforeSteps)
+		before := b.prepareSnapshot(inventory.Before, beforeSteps)
 		report.Before = &before
 	}
-	report.Regions = slices.Sorted(maps.Keys(regions))
-	for key := range noOffer {
+	report.Regions = slices.Sorted(maps.Keys(b.regions))
+	for key := range b.noOffer {
 		issue := "No matching AWS Price List offer."
-		if offers == nil {
+		if b.offers == nil {
 			issue = "AWS Price List service index unavailable."
 		}
 		report.Catalogs[key.service] = append(report.Catalogs[key.service], Catalog{Region: key.region, Issue: issue})
 	}
 
+	b.loadCatalogs(ctx, load)
+	report.sort()
+	if workflows != nil {
+		workflows.reconcile(report)
+	}
+	return report
+}
+
+func (b *reportBuilder) requestFor(key catalogKey, service string) *catalogRequest {
+	request := b.requests[key]
+	if request == nil {
+		request = &catalogRequest{services: map[string]bool{}}
+		b.requests[key] = request
+	}
+	request.services[service] = true
+	return request
+}
+
+func (b *reportBuilder) queue(components []pending, resourceRegion, service string) {
+	for _, component := range components {
+		priceRegion := component.quote.region
+		if priceRegion == "" {
+			priceRegion = resourceRegion
+		}
+		b.regions[priceRegion] = true
+		key := catalogKey{component.quote.service, priceRegion}
+		label := service
+		if label == "" {
+			label = offerName(component.quote.service)
+		}
+		request := b.requestFor(key, label)
+		request.components = append(request.components, component)
+	}
+}
+
+func (b *reportBuilder) prepareSnapshot(resources []Resource, states [][]WorkflowStep) []Item {
+	resources = slices.Clone(resources)
+	slices.SortFunc(resources, func(a, b Resource) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
+	items := make([]Item, len(resources))
+	modeled := map[string][]pending{}
+	for i, r := range resources {
+		r.Service = serviceName(r.Service)
+		items[i] = Item{ID: r.ID, Name: r.Name, Service: r.Service}
+		if !ValidRegion(r.Region) {
+			r.Region = b.fallback
+			b.report.Fallback = b.fallback
+		}
+		b.regions[r.Region] = true
+		components := r.model(&items[i], b.rules[r.Type])
+		var codes []string
+		if !isSupportingResource(r) {
+			codes = b.offers.codes(r.Service)
+			for _, code := range codes {
+				b.requestFor(catalogKey{code, r.Region}, r.Service)
+			}
+			if len(codes) == 0 && len(components) == 0 {
+				b.noOffer[catalogKey{r.Service, r.Region}] = true
+			}
+		}
+		b.queue(components, r.Region, r.Service)
+		if len(states) > 0 {
+			modeled[r.ID] = components
+		}
+	}
+	for _, steps := range states {
+		for i := range steps {
+			step := &steps[i]
+			region, service := b.fallback, ""
+			if step.resource != nil {
+				service = serviceName(step.resource.Service)
+				if ValidRegion(step.resource.Region) {
+					region = step.resource.Region
+				}
+			}
+			for j := range step.Meters {
+				b.queue(step.Meters[j].quotes(step, modeled[step.ResourceID]), region, service)
+			}
+		}
+	}
+	return items
+}
+
+func (b *reportBuilder) loadCatalogs(ctx context.Context, load catalogLoader) {
 	var group sync.WaitGroup
 	var lock sync.Mutex
 	workers := make(chan struct{}, 4)
-	for key, request := range requests {
+	for key, request := range b.requests {
 		group.Go(func() {
 			var result catalogResult
 			var err error
@@ -255,10 +299,10 @@ func build(ctx context.Context, inventory Inventory, region string, rules Rules,
 				}
 			}
 			for service := range request.services {
-				if !slices.ContainsFunc(report.Catalogs[service], func(existing Catalog) bool {
+				if !slices.ContainsFunc(b.report.Catalogs[service], func(existing Catalog) bool {
 					return existing.Code == catalog.Code && existing.Region == catalog.Region
 				}) {
-					report.Catalogs[service] = append(report.Catalogs[service], catalog)
+					b.report.Catalogs[service] = append(b.report.Catalogs[service], catalog)
 				}
 			}
 			for i, component := range request.components {
@@ -270,14 +314,17 @@ func build(ctx context.Context, inventory Inventory, region string, rules Rules,
 				default:
 					match := result.matches[i]
 					rate := key.service + "/" + key.region + "/" + match.sku + "/" + component.quote.unit
-					report.Rates[rate] = match.tiers
+					b.report.Rates[rate] = match.tiers
 					component.metric.Charges = append(component.metric.Charges, Charge{rate, component.quantity, component.input})
 				}
 			}
 		})
 	}
 	group.Wait()
-	for _, catalogs := range report.Catalogs {
+}
+
+func (r *Report) sort() {
+	for _, catalogs := range r.Catalogs {
 		slices.SortFunc(catalogs, func(a, b Catalog) int {
 			if byCode := cmp.Compare(a.Code, b.Code); byCode != 0 {
 				return byCode
@@ -295,14 +342,10 @@ func build(ctx context.Context, inventory Inventory, region string, rules Rules,
 			}
 		}
 	}
-	sortMetrics(report.After)
-	if report.Before != nil {
-		sortMetrics(*report.Before)
+	sortMetrics(r.After)
+	if r.Before != nil {
+		sortMetrics(*r.Before)
 	}
-	if workflows != nil {
-		workflows.reconcile(report)
-	}
-	return report
 }
 
 func (m *Metric) missing(reason string) {

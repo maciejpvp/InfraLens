@@ -16,11 +16,7 @@ import (
 
 // Preview builds a graph from the current Pulumi project.
 // If supplied, onPreview runs just before the preview starts.
-func Preview(ctx context.Context, onPreview func()) (graph.Graph, error) {
-	return PreviewCosts(ctx, onPreview, nil)
-}
-
-func PreviewCosts(ctx context.Context, onPreview func(), inventory *cost.Inventory) (graph.Graph, error) {
+func (Adapter) Preview(ctx context.Context, onPreview func(), inventory *cost.Inventory) (graph.Graph, error) {
 	if _, yamlErr := fileio.StatRegular("Pulumi.yaml"); yamlErr != nil {
 		if _, ymlErr := fileio.StatRegular("Pulumi.yml"); ymlErr != nil {
 			return graph.Graph{}, errors.New("run preview from a Pulumi project directory containing Pulumi.yaml or Pulumi.yml")

@@ -25,7 +25,7 @@ func (doc template) costResources(stack, region string) []cost.Resource {
 		if res.Type == "AWS::Lambda::Alias" || res.Type == "AWS::Lambda::Version" {
 			if target, ok := doc.Resources[lambdaFunctionID(res.Properties["FunctionName"])]; ok &&
 				target.Type == "AWS::Lambda::Function" && target.Condition == "" {
-				cost.LinkLambda(&entry, cost.Resource{Properties: target.Properties})
+				entry.LinkLambda(cost.Resource{Properties: target.Properties})
 			}
 		}
 		resources = append(resources, entry)

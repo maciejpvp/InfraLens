@@ -18,22 +18,22 @@ func s3ClassUsage(usage string) bool {
 	return false
 }
 
-func semanticWorkflowQuotes(step *WorkflowStep, meter *WorkflowMeter, modeled []pending) []pending {
+func (meter *WorkflowMeter) semanticQuotes(step *WorkflowStep, modeled []pending) []pending {
 	if meter.usage == "unpriced" {
 		meter.Pricing.missing("Automatic pricing is unavailable for this workload dimension.")
 		return nil
 	}
-	r := *step.resource // Semantic usage requires a resource and workflowQuotes checks unresolved bindings.
+	r := *step.resource // Semantic usage requires a resource and quotes checks unresolved bindings.
 	switch meter.usage {
 	case "requests":
-		return modeledWorkflowQuotes(meter, modeled, "operations")
+		return meter.modeledQuotes(modeled, "operations")
 	case "lambdaInvocations", "lambdaMs":
 		if r.Type == "AWS::Lambda::Function" || r.Type == "aws:lambda/function:Function" {
 			input := "lambdaMs"
 			if meter.usage == "lambdaInvocations" {
 				input = "operations"
 			}
-			return modeledWorkflowQuotes(meter, modeled, input)
+			return meter.modeledQuotes(modeled, input)
 		}
 	}
 
@@ -52,7 +52,7 @@ func semanticWorkflowQuotes(step *WorkflowStep, meter *WorkflowMeter, modeled []
 			if meter.usage == "dynamoWriteUnits" {
 				input = "writes"
 			}
-			return modeledWorkflowQuotes(meter, modeled, input)
+			return meter.modeledQuotes(modeled, input)
 		case "dynamoStoredBytes":
 			usage := "TimedStorage-ByteHrs"
 			switch r.stringOr("STANDARD", "TableClass", "tableClass") {
@@ -67,7 +67,7 @@ func semanticWorkflowQuotes(step *WorkflowStep, meter *WorkflowMeter, modeled []
 			multiplier = 1.0 / gib
 		}
 	case "AWS::S3::Bucket", "aws:s3/bucket:Bucket", "aws:s3/bucketV2:BucketV2":
-		selection, multiplier = s3WorkflowQuote(meter)
+		selection, multiplier = meter.s3Quote()
 	}
 	if selection.service != "" {
 		return []pending{{metric: &meter.Pricing, quote: selection, quantity: multiplier}}
@@ -78,7 +78,7 @@ func semanticWorkflowQuotes(step *WorkflowStep, meter *WorkflowMeter, modeled []
 	return nil
 }
 
-func s3WorkflowQuote(meter *WorkflowMeter) (quote, float64) {
+func (meter *WorkflowMeter) s3Quote() (quote, float64) {
 	const bytesToGB = 1.0 / (1 << 30)
 	selection := quote{service: "AmazonS3"}
 	class := strings.ToUpper(meter.class)
