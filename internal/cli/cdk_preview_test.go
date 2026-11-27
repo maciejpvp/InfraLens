@@ -126,7 +126,7 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 	} {
 		logs.Reset()
 		conflict := append([]string{"preview", "--provider=aws-cdk", "--no-open", "--output", "blocked.html"}, test.flags...)
-		if cli.Run(conflict) == 0 || !strings.Contains(logs.String(), "not an Laytrace "+test.kind+" report") ||
+		if cli.Run(conflict) == 0 || !strings.Contains(logs.String(), "not a Laytrace "+test.kind+" report") ||
 			strings.Contains(logs.String(), "Generating an infrastructure preview") {
 			t.Fatalf("CDK preview accepted its configuration as %s output: %s", test.kind, logs.String())
 		}

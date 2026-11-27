@@ -164,7 +164,7 @@ func checkSidecar(path string, format outputFormat) error {
 	}
 	var extra json.RawMessage
 	if !valid || decoder.Decode(&extra) != io.EOF {
-		return fmt.Errorf("existing JSON output is not an Laytrace %s report; choose a new output path", kind)
+		return fmt.Errorf("existing JSON output is not a Laytrace %s report; choose a new output path", kind)
 	}
 	return nil
 }
