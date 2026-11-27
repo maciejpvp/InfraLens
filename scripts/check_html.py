@@ -196,6 +196,33 @@ try {
     expectReduced();
     await leave();
   }else if(location.search.includes('mixed-changes')){
+    const changeSummary=$('change-summary');
+    const changeTrigger=trigger(changeSummary);
+    assert(changeTrigger.getAttribute('aria-expanded')==='false'&&changeTrigger.querySelector('svg'),'Change summary has no collapsed chevron');
+    const summaryWidth=changeSummary.offsetWidth;
+    const checkWidth=()=>assert(changeSummary.offsetWidth===summaryWidth,'Change summary changed width during a transition');
+    const collapsedHeight=changeSummary.offsetHeight;
+    const heights=new Set([collapsedHeight]);
+    changeTrigger.click();
+    await until(()=>{
+      checkWidth();
+      heights.add(changeSummary.offsetHeight);
+      return changeSummary.querySelector('[data-slot="accordion-content"] > div')?.style.height==='auto';
+    },'Change summary did not finish opening');
+    if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+      assert(heights.size>2,'Change summary skipped the opening height transition');
+    }
+    const changeRows=[...changeSummary.querySelectorAll('li')];
+    const services=[...changeSummary.querySelectorAll('h3')].map(heading=>heading.textContent);
+    assert(services.some(name=>name.includes('SQS'))&&services.some(name=>name.includes('Lambda')),'Change details are missing service groups');
+    assert(changeRows.length===graph.nodes.length&&graph.nodes.every(node=>changeRows.some(row=>
+      row.textContent.includes(node.name)&&row.textContent.includes(node.type)&&row.textContent.includes(node.stack))),
+    'Change details are missing resource names, types or stacks');
+    await click(changeTrigger);
+    await until(()=>{
+      checkWidth();
+      return !changeSummary.querySelector('li');
+    },'Change summary did not collapse');
     for(const mode of ['flow-view','infra-view']){
       await click($(mode));
       for(const resource of graph.nodes){

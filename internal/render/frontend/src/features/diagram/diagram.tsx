@@ -4,7 +4,7 @@ import { memo } from 'react'
 import type { Topology } from '../../lib/graph.types'
 import { contentVariants, useMotionTransition } from '../../lib/motion'
 import { Box } from '../../ui/box'
-import { Text } from '../../ui/text'
+import { ChangeSummary } from './change-summary'
 import { ConnectionLegend } from './connection-legend'
 import { DiagramCanvas } from './diagram-canvas'
 import { MapControls } from './map-controls'
@@ -30,14 +30,12 @@ type DiagramProps = {
   costs?: ReactNode
   costControl?: ComponentProps<typeof Toolbar>['costControl']
   costMaximized: boolean
-  changes: string
 }
 
 const stageStyles = {
   stage:
     'relative min-h-0 min-w-0 flex-1 cursor-grab touch-none overflow-hidden bg-background bg-[radial-gradient(var(--diagram-grid)_.8px,transparent_.8px)] bg-[length:20px_20px] data-[inspecting=true]:bg-[radial-gradient(var(--diagram-grid-inspecting)_.8px,transparent_.8px)] text-foreground',
   empty: 'pointer-events-none absolute inset-x-[12%] top-[42%] text-center text-muted-foreground',
-  changes: 'pointer-events-none absolute top-3 left-3 rounded-sm border bg-card px-2 py-1 text-xs text-muted-foreground tabular-nums',
 }
 
 // The stage can update independently of the React Flow nodes and edges.
@@ -45,7 +43,7 @@ const MemoizedDiagramCanvas = memo(DiagramCanvas)
 
 export function Diagram({
   stage, isEmpty, noFlow, layoutFailed, legend, canvas, toolbar, mapControls,
-  onTopologyChange, onClearWorkflow, inspector, inspectorModal, costs, costControl, costMaximized, changes,
+  onTopologyChange, onClearWorkflow, inspector, inspectorModal, costs, costControl, costMaximized,
 }: DiagramProps) {
   const transition = useMotionTransition('content')
   let emptyMessage = 'This file contains no resources.'
@@ -59,7 +57,7 @@ export function Diagram({
       <Box className="report-diagram-row relative flex min-h-0 min-w-0 flex-1" inert={costMaximized}>
         <Box as="main" id="stage" aria-label="Interactive infrastructure diagram" className={stageStyles.stage} inert={inspectorModal} {...stage}>
           {canvas && <MemoizedDiagramCanvas {...canvas} />}
-          {changes && <Text as="p" className={stageStyles.changes}>{changes} · all resources</Text>}
+          <ChangeSummary resources={toolbar.report.nodes} icons={toolbar.icons} />
           <AnimatePresence initial={false}>
             {(layoutFailed || isEmpty || noFlow) && (
               <m.p key={layoutFailed ? 'layout-error' : emptyMessage}

@@ -3,7 +3,6 @@ import type { WorkflowCostShare } from '../features/costs/workflow-table'
 import { workflowGraph } from '../features/costs/workflows'
 import { useConnectionLegend } from '../features/diagram/connection-legend'
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../features/inspector/use-inspector'
-import { countChanges } from '../lib/graph-view'
 import type {
   Graph,
   GraphEdge,
@@ -44,7 +43,6 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   const activePath = path?.side === topology ? path : undefined
   const graph = useMemo(() => activePath ? workflowGraph(baseGraph, activePath) : baseGraph, [baseGraph, activePath])
   const byId = useMemo(() => new Map(baseGraph.nodes.map((node) => [node.id, node])), [baseGraph])
-  const changes = useMemo(() => countChanges(baseGraph.nodes), [baseGraph])
   const provider = useMemo(() => {
     if (baseGraph.previewProvider === 'aws-cdk') return 'AWS CDK'
     if (baseGraph.previewProvider === 'pulumi') return 'Pulumi'
@@ -246,7 +244,6 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         'data-inspecting': Boolean(selection),
       },
       legend: legendProps,
-      changes,
       layoutFailed,
       isEmpty: graph.nodes.length === 0,
       noFlow: !activePath && graph.nodes.length > 0 && mode === 'flow' && !tree.flowIDs.size,
