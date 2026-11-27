@@ -23,8 +23,8 @@ export function formatEstimate(value: Estimate, precise = false) {
   const amount = formatAmount(value.amount, precise)
   return value.missing.length ? amount + ' · Partial' : amount
 }
-export const rightCellClass = 'px-1.5 py-2 text-right tabular-nums align-top sm:px-2'
-export const leftCellClass = 'px-1.5 py-2 text-left align-top sm:px-2'
+export const rightCellClass = 'px-2 py-1.5 text-right tabular-nums align-top'
+export const leftCellClass = 'px-2 py-1.5 text-left align-top'
 
 export function QuantityInput({ label, value, onChange }: {
   label: string; value: number | null; onChange: (value: string) => void

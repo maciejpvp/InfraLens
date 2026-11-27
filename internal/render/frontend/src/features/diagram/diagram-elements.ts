@@ -27,13 +27,13 @@ const edgeInteractionWidth = 18
 const diagramLayers = { group: 0, edge: 1, node: 2 }
 
 const styles = {
-  edge: 'group cursor-pointer outline-none motion-safe:transition-opacity',
+  edge: 'group cursor-pointer outline-none transition-opacity duration-(--motion-feedback) ease-(--motion-standard)',
   selected: 'selected',
-  mutedEdge: 'muted opacity-[0.08] focus-visible:opacity-75',
-  wire: 'wire group-hover:brightness-115 group-focus-visible:brightness-115',
+  mutedEdge: 'muted opacity-25 focus-visible:opacity-75',
+  wire: 'wire transition-[filter] duration-(--motion-feedback) ease-(--motion-standard) group-hover:brightness-115 group-focus-visible:brightness-115',
   selectedWire: 'brightness-125 drop-shadow-[0_0_2px_currentColor]',
   edgeLabel:
-    'edge-label pointer-events-none absolute w-max whitespace-nowrap bg-background text-xs text-foreground',
+    'edge-label pointer-events-none transition-opacity duration-(--motion-feedback) ease-(--motion-standard) absolute w-max whitespace-nowrap bg-background text-xs text-foreground',
 }
 
 export type DiagramItemData = {

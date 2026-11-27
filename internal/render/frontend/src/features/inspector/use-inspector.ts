@@ -24,6 +24,7 @@ export const useInspector = (
   const closeButton = useRef<HTMLButtonElement>(null)
   const opener = useRef<InspectorOrigin | null>(null)
   const restore = useRef<InspectorPage | null>(null)
+  const previousBody = useRef<HTMLDivElement>(null)
 
   const open = useCallback((page: InspectorPage, origin: InspectorOrigin) => {
     opener.current = origin
@@ -52,6 +53,7 @@ export const useInspector = (
 
   const restoreGraphFocus = (event: Event) => {
     event.preventDefault()
+    if (document.activeElement && document.activeElement !== document.body) return
     resolveOpener(opener.current)?.focus({ preventScroll: true })
   }
 
@@ -60,7 +62,9 @@ export const useInspector = (
     if (!pages.length || !container) return
     const previous = restore.current
     restore.current = null
-    const target = previous?.trigger || closeButton.current
+    // The dialog handles initial focus once its focus scope is active.
+    const target = previous?.trigger || (container === previousBody.current ? closeButton.current : undefined)
+    previousBody.current = container
     target?.focus({ preventScroll: true })
     container.scrollTop = previous?.scroll || 0
     const { trigger, triggerOffset } = previous ?? {}

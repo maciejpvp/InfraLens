@@ -20,13 +20,13 @@ export function CatalogRates({ catalogs }: { catalogs: Record<string, Catalog[]>
   if (!services.length) return null
 
   return (
-    <details className="mt-3 border-t pt-2">
+    <details data-motion-details className="mt-3 border-t pt-2">
       <summary className="cursor-pointer font-medium">AWS catalog rates</summary>
       <p className="my-2 max-w-sm text-xs text-muted-foreground">
         Published prices per billing unit. Ranges show prices across AWS products and usage tiers.
       </p>
       {services.map(({ id, name, offers }) => (
-        <details key={id} className="border-t py-2 text-xs">
+        <details data-motion-details key={id} className="border-t py-2 text-xs">
           <summary className="cursor-pointer font-medium">{name}</summary>
           {offers.map((offer) => (
             <div key={(offer.code ?? '') + '/' + offer.region} className="mt-2">
@@ -87,7 +87,7 @@ export function CostStatusTooltip({ value }: { value: Estimate }) {
         </button>
       </Tooltip.Trigger>
       <Tooltip.Portal>
-        <Tooltip.Content sideOffset={6} className="z-[60] max-h-60 max-w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-lg border bg-card p-2.5 text-left text-xs font-normal text-foreground shadow-panel">
+        <Tooltip.Content data-motion-tooltip sideOffset={6} className="z-[60] max-h-60 max-w-[min(24rem,calc(100vw-2rem))] overflow-auto rounded-lg border bg-card p-2.5 text-left text-xs font-normal text-foreground shadow-panel">
           <p className="font-semibold">{status}</p>
           <ul className="mt-1 space-y-1 text-muted-foreground wrap-anywhere">
             {value.missing.map((reason) => <li key={reason}>{reason}</li>)}

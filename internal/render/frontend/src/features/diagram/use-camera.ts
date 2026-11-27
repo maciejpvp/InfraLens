@@ -1,30 +1,31 @@
+import { cubicBezier } from 'motion/react'
 import type { OnMove, ReactFlowInstance } from '@xyflow/react'
 import type { RefObject } from 'react'
 import type { Position, Scene } from './layout/layout-model'
 import type { DiagramNode, DiagramRelation } from './diagram-elements'
 
 import { useCallback, useRef } from 'react'
+import { motionPresets, navigationDuration } from '../../lib/motion'
 export const cameraConfig = {
   mobileMaxWidth: 620,
   mobileInitialWidth: 520,
   minimumCenterWidth: 650,
   minZoom: 0.001,
   maxZoom: 40,
-  initialTopPadding: 30,
-  bottomPadding: 85,
-  legendGap: 12,
-  mobileTopPadding: 36,
+  initialTopPadding: 44,
+  bottomPadding: 24,
+  mobileTopPadding: 52,
   mobileLeftPadding: 24,
 }
 
+const viewportEase = cubicBezier(...motionPresets.workspace.ease)
+const viewportMotion = () => ({ duration: navigationDuration(), ease: viewportEase, interpolate: 'linear' as const })
+
 export const useCamera = (
   stage: RefObject<HTMLElement | null>,
-  search: RefObject<HTMLInputElement | null>,
   zoomLabel: RefObject<HTMLOutputElement | null>,
   scene: Scene | undefined,
-  legend: RefObject<HTMLElement | null>,
   workflowFocused: boolean,
-  getObstruction?: () => DOMRect | undefined,
 ) => {
   const flow = useRef<ReactFlowInstance<DiagramNode, DiagramRelation> | null>(null)
   const fitZoom = useRef(1)
@@ -36,46 +37,39 @@ export const useCamera = (
   }, [zoomLabel])
 
   const fitViewport = useCallback((layout = scene?.layout) => {
-    if (!stage.current || !search.current || !layout) return
+    if (!stage.current || !layout) return
     const { clientWidth: width, clientHeight: height } = stage.current
-    const top = search.current.getBoundingClientRect().bottom + cameraConfig.initialTopPadding
-    const legendTop = legend.current?.getBoundingClientRect().top ?? height
-    const bottom = Math.max(cameraConfig.bottomPadding, height - legendTop + cameraConfig.legendGap)
-    const usableHeight = height - top - bottom
-    const obstruction = getObstruction?.()
-    const stageLeft = stage.current.getBoundingClientRect().left
-    const panelRight = obstruction ? obstruction.right - stageLeft : 0
-    const left = panelRight > 0 && width - panelRight >= 300 ? panelRight + 12 : 0
-    const usableWidth = width - left
+    if (!width || !height) return
+    const top = Math.min(cameraConfig.initialTopPadding, height / 5)
+    const usableHeight = height - top - Math.min(cameraConfig.bottomPadding, height / 5)
     const zoom = Math.min(
-      Math.max(1, usableWidth - 40) / (layout.width + 60),
-      Math.max(1, usableHeight) / (layout.height + 60),
+      width / (layout.width + 64),
+      usableHeight / (layout.height + 32),
     )
     return {
-      x: left + (usableWidth - layout.width * zoom) / 2 - (layout.left ?? 0) * zoom,
+      x: (width - layout.width * zoom) / 2 - (layout.left ?? 0) * zoom,
       y: top + (usableHeight - layout.height * zoom) / 2 - (layout.top ?? 0) * zoom,
       zoom,
     }
-  }, [scene?.layout, stage, search, legend, getObstruction])
+  }, [scene?.layout, stage])
 
   const fit = () => {
     const viewport = fitViewport()
     if (!viewport) return
     fitZoom.current = viewport.zoom
-    flow.current?.setViewport(viewport)
-    showZoom(null, viewport)
+    flow.current?.setViewport(viewport, viewportMotion())
   }
 
-  const init = useCallback((instance: ReactFlowInstance<DiagramNode, DiagramRelation>) => {
+  const frame = useCallback((instance: ReactFlowInstance<DiagramNode, DiagramRelation>, animate = false) => {
     flow.current = instance
     const initial = fitViewport()
-    if (!initial || !scene || !stage.current || !search.current) return
+    if (!initial || !scene || !stage.current) return
     fitZoom.current = initial.zoom
     const { current, layout, tree } = scene
     const width = stage.current.clientWidth
     if (width > cameraConfig.mobileMaxWidth || !current.items.size) {
-      instance.setViewport(initial)
-      showZoom(null, initial)
+      instance.setViewport(initial, animate ? viewportMotion() : undefined)
+      if (!animate) showZoom(null, initial)
       return
     }
 
@@ -89,21 +83,23 @@ export const useCamera = (
     const viewport = {
       x: workflowFocused ? (width - first.width * zoom) / 2 - first.x * zoom
         : (cameraConfig.mobileLeftPadding - first.x) * zoom,
-      y: search.current.getBoundingClientRect().bottom + cameraConfig.mobileTopPadding - first.y * zoom,
+      y: cameraConfig.mobileTopPadding - first.y * zoom,
       zoom,
     }
-    instance.setViewport(viewport)
-    showZoom(null, viewport)
-  }, [fitViewport, scene, stage, search, showZoom, workflowFocused])
+    instance.setViewport(viewport, animate ? viewportMotion() : undefined)
+    if (!animate) showZoom(null, viewport)
+  }, [fitViewport, scene, stage, showZoom, workflowFocused])
+
+  const init = useCallback((instance: ReactFlowInstance<DiagramNode, DiagramRelation>) => frame(instance), [frame])
 
   const frameWorkflow = () => {
-    if (flow.current) init(flow.current)
+    if (flow.current) frame(flow.current, true)
   }
 
   const zoom = (factor: number) => {
     if (!flow.current) return
     const zoom = flow.current.getZoom() / factor
-    flow.current.zoomTo(Math.min(cameraConfig.maxZoom, Math.max(cameraConfig.minZoom, zoom)))
+    flow.current.zoomTo(Math.min(cameraConfig.maxZoom, Math.max(cameraConfig.minZoom, zoom)), viewportMotion())
   }
 
   const center = (position: Position, expanded: boolean) => {
@@ -113,7 +109,7 @@ export const useCamera = (
     flow.current.setCenter(
       position.x + position.width / 2,
       position.y + (expanded ? 24 : position.height / 2),
-      { zoom },
+      { zoom, ...viewportMotion() },
     )
   }
 

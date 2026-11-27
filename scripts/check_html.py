@@ -16,31 +16,33 @@ try {
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const graph=JSON.parse($('laytrace-data').textContent);
   const view=()=>$('diagram').querySelector('.react-flow__viewport').style.transform;
+  const zoom=()=>new DOMMatrix(view()).a;
+  const compact=matchMedia('(max-width: 639px)').matches;
   const card=item=>item.closest('[data-diagram-card]');
-  const cardColors={unchanged:'#7b8a9e',create:'#55d98a',delete:'#fa7882',update:'#f0c75e',replace:'#f0c75e'};
+  const tokens=getComputedStyle(document.documentElement);
+  const cardColors={unchanged:tokens.getPropertyValue('--color-input').trim()};
+  for(const change of ['create','delete','update','replace'])cardColors[change]=tokens.getPropertyValue('--card-'+change).trim();
   const swatch=document.createElement('span');
   document.body.append(swatch);
-  swatch.style.backgroundColor='var(--color-card)';
+  swatch.style.backgroundColor='var(--color-muted)';
   const neutralCard=getComputedStyle(swatch).backgroundColor;
   swatch.remove();
   function checkStatusBorder(style,change){
     const color=cardColors[change||'unchanged'];
     assert(style.borderColor==='rgb('+color.slice(1).match(/../g).map(hex=>parseInt(hex,16)).join(', ')+')','Wrong status border color: '+change);
-    assert(style.borderTopWidth==='2px','Status border is too thin');
+    assert(style.borderTopWidth==='1px','Status border is not 1 px');
   }
   function checkCardChange(card,change){
+    for(const animation of card.getAnimations())if(animation instanceof CSSTransition)animation.finish();
     const style=getComputedStyle(card);
     checkStatusBorder(style,change);
-    assert(style.backgroundColor===neutralCard,'Card background varies with change status');
-    if(change&&change!=='unchanged'){
-      assert(style.boxShadow.includes('0px 0px 3px')&&style.boxShadow.includes('0px 0px 12px'),'Missing two-layer status shadow: '+style.boxShadow);
-    }
+    assert(card.matches(':hover')||style.backgroundColor===neutralCard,'Card background varies with change status');
   }
   const edgeLabel=edge=>document.querySelector(`[data-edge-label="${edge.dataset.edge}"]`);
   const dialog=()=>$('inspector'),close=()=>$('clear-selection'),back=()=>$('inspector-back');
   const title=()=>dialog().querySelector('[data-slot="dialog-title"]').textContent;
   const inspector=()=>dialog()?.matches('[role="dialog"][data-state="open"]');
-  const activePage=()=>dialog().querySelector('[data-inspector-page]:not([hidden])');
+  const activePage=()=>dialog().querySelector('[data-inspector-page]:not([inert])');
   const accordionItems=()=>[...activePage().querySelectorAll('[data-slot="accordion-item"]')];
   const trigger=section=>section.querySelector('[data-slot="accordion-trigger"]');
   const opened=section=>trigger(section).getAttribute('aria-expanded')==='true';
@@ -49,13 +51,27 @@ try {
     assert($('stage')?.getAttribute('aria-busy')==='false','Layout did not finish');
     assert(!$('stage').querySelector('[role=alert]'),'Layout failed');
   };
-  async function dispatch(target,event){
-    target.dispatchEvent(event);
+  const until=async(test,message)=>{
+    for(let attempt=0;!test()&&attempt<70;attempt++)await wait(16);
+    assert(test(),message);
+  };
+  async function settle(target, event){
     await wait(40);
     await waitForLayout();
+    if(target instanceof Element && (target.id==='clear-selection' || event?.key==='Escape' && target.closest('#inspector'))){
+      await until(()=>!dialog(),'Inspector did not finish closing');
+      await wait(20);
+    }
+    if(target instanceof Element && target.matches('#fit,#zoom-in,#zoom-out,#flow-view,#infra-view,[data-resource]')){
+      await wait(300);
+    }
+  }
+  async function dispatch(target,event){
+    target.dispatchEvent(event);
+    await settle(target,event);
   }
   const clickAt=(target,x,y)=>dispatch(target,new MouseEvent('click',{bubbles:true,detail:1,clientX:x,clientY:y}));
-  async function click(target){target.click();await wait(40);await waitForLayout();}
+  async function click(target){target.click();await settle(target);}
   async function expandRelationGroups(section){
     for(const item of section.querySelectorAll('[data-slot="accordion-item"]')){
       assert(!opened(item),'Nested relationship group should start closed');
@@ -85,12 +101,65 @@ try {
     const camera=view();
     assert(scheme()==='dark'&&theme.getAttribute('aria-pressed')==='false','The report should start in dark mode');
     await click(theme);
-    assert(scheme()==='light'&&background()==='rgb(255, 255, 255)'&&theme.getAttribute('aria-pressed')==='true','Light mode did not apply to the report');
+    assert(scheme()==='light'&&background()==='rgb(245, 247, 250)'&&theme.getAttribute('aria-pressed')==='true','Light mode did not apply to the report');
     assert($('stage')===stage&&view()===camera,'Changing the theme reset the diagram');
     await click(theme);
     assert(scheme()==='dark'&&theme.getAttribute('aria-pressed')==='false','Dark mode could not be restored');
   }
-  if(location.search.includes('connection-scope')){
+  if(location.search.includes('cost-dock')){
+    const dock=()=>$('report-cost-window');
+    const resize=()=>dock().querySelector('[role=separator]');
+    const action=label=>dock().querySelector('[aria-label="'+label+'"]');
+    const height=$('stage').clientHeight, width=$('stage').clientWidth, camera=view();
+    const stage=$('stage'), diagram=$('diagram');
+    const animate=async(target, measure, done)=>{
+      const sizes=new Set([measure()]);
+      target.click();
+      await until(()=>{
+        sizes.add(measure());
+        assert(view()===camera&&$('diagram')===diagram,'Resizing a panel moved or recreated the diagram');
+        return done();
+      },'Panel motion did not settle');
+      assert(sizes.size>2,'Panel did not resize through intermediate sizes: '+target.textContent+' '+target.getAttribute('aria-label')+' '+[...sizes]);
+    };
+    const mode=document.querySelector('[aria-label="Graph mode"] button[aria-pressed="true"]');
+    await click(mode);
+    await animate(document.querySelector('[data-node="source"]'),()=>stage.clientWidth,
+      ()=>dialog()?.querySelector('[role=separator]'));
+    await animate($('cost-toggle'),()=>stage.clientHeight,()=>dock()&&resize());
+    assert(stage.clientHeight>0&&stage.clientWidth<width,'Both docks did not leave a visible canvas');
+    assert(mode.getAttribute('aria-pressed')==='true','Opening costs changed the graph mode');
+    const dockHeight=dock().offsetHeight;
+    await dispatch(resize(),new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));
+    assert(dock().offsetHeight>dockHeight,'Keyboard failed to resize the cost dock');
+    await animate(action('Maximize costs'),()=>stage.clientHeight,()=>stage.clientHeight===0);
+    assert(stage.closest('.report-diagram-row').inert,'Maximizing costs left the graph interactive');
+    await animate(action('Restore costs'),()=>stage.clientHeight,()=>resize());
+    assert(dock().offsetHeight>dockHeight&&!stage.closest('.report-diagram-row').inert,'Restoring costs lost the split or the chosen height');
+    await animate(close(),()=>stage.clientWidth,()=>!dialog());
+    assert(stage.clientWidth===width,'Closing the inspector did not restore its space');
+    await animate(action('Close costs'),()=>stage.clientHeight,()=>!dock());
+    $('cost-toggle').click();
+    await wait(50);
+    $('cost-toggle').click();
+    await wait(50);
+    $('cost-toggle').click();
+    await until(()=>dock()&&resize(),'Rapid toggles did not reopen costs');
+    assert(view()===camera&&stage.clientHeight<height,'Reopening costs reset the view');
+    const tabs=[...dock().querySelectorAll('[aria-label="Cost view"] button')];
+    await click(tabs[1]);
+    const row=dock().querySelector('[data-workflow]');
+    await click(row);
+    assert(row.getAttribute('aria-expanded')==='true'&&document.querySelector('[data-workflow-detail]:not([inert])'),'Selecting a workflow did not open its details');
+    assert(document.querySelector('[data-node="source"]')&&document.querySelector('[data-node="target"]')&&
+      !document.querySelector('[data-node="unrelated"]'),'Workflow did not scope the graph to its resources');
+    await click(tabs[0]);
+    await click(tabs[1]);
+    assert(dock().querySelector('[data-workflow]').getAttribute('aria-expanded')==='true','Switching tabs lost the workflow selection');
+    await click(action('Close costs'));
+    await until(()=>!dock(),'Costs did not finish closing');
+    assert(stage.clientHeight===height&&document.activeElement===$('cost-toggle'),'Closing costs did not restore canvas space and focus');
+  }else if(location.search.includes('connection-scope')){
     const item=id=>[...document.querySelectorAll('[data-item]')].find(card=>card.dataset.item===id);
     const press=(id,type,detail)=>dispatch(item(id),new MouseEvent(type,{bubbles:true,detail}));
     const exit=()=>$('exit-details-view');
@@ -143,6 +212,7 @@ try {
     await click(toggle());
     for(let attempt=0;toggle().getAttribute('aria-expanded')!=='false'&&attempt<40;attempt++)await wait(10);
     assert(toggle().getAttribute('aria-expanded')==='false','Stack did not collapse');
+    await wait(160);
     checkCardChange(stack(),'unchanged');
     const summary=stack().querySelector('.node-meta');
     assert(summary.scrollWidth<=summary.clientWidth,'Mixed change counts are clipped');
@@ -178,7 +248,7 @@ try {
     await click(trigger(accordionItems().find(item=>trigger(item).textContent.startsWith('Resources in group'))));
     const member=activePage().querySelector('[data-member-id="lambda-150"]').closest('button');
     member.scrollIntoView({block:'center'});
-    await wait(100);
+    await wait(230);
     const memberOffset=()=>member.getBoundingClientRect().top-$('details').getBoundingClientRect().top;
     const previousOffset=memberOffset();
     await click(member);
@@ -199,45 +269,30 @@ try {
     await click(rows()[0]);
     assert(inspector()&&title()==='Benchmark Lambda 050','A result beyond the first page could not be opened');
     await click(close());
-  }else if(location.search.includes('zoomed-drag')){
+  }else if(location.search.includes('zoomed-resize')){
     await clickAt(document.querySelector('[data-edge]'),0,0);
     assert(inspector(),'Connection did not open the inspector');
     document.documentElement.style.zoom='1.5';
-    await wait(100);
-    const grip=dialog().querySelector('[data-window-grip]'),header=grip.closest('header');
+    await until(()=>dialog()?.querySelector('[role=separator]'),'Inspector did not finish opening');
+    const grip=dialog().querySelector('[role=separator]');
     const rect=()=>dialog().getBoundingClientRect();
-    const assertInViewport=()=>{
-      const {left,top,right,bottom}=rect(),port=window.visualViewport;
-      assert(left>=port.offsetLeft&&top>=port.offsetTop&&right<=port.offsetLeft+port.width&&bottom<=port.offsetTop+port.height,'Inspector escaped the visible viewport');
-    };
-    // Synthetic pointers cannot register capture with Chromium.
-    header.setPointerCapture=()=>{};
-    const grab=()=>{
-      const {x,y,target}=hitCenter(grip);
-      assert(target?.closest('[data-window-grip]')===grip,'Inspector grip is covered');
-      const pointer=(element,type,dx,dy)=>element.dispatchEvent(new PointerEvent(type,{
-        bubbles:true,isPrimary:true,pointerId:21,clientX:x+dx,clientY:y+dy,
-      }));
-      pointer(target,'pointerdown',0,0);
-      return (type,dx,dy)=>pointer(header,type,dx,dy);
-    };
-    assertInViewport();
+    grip.setPointerCapture=()=>{};
+    const {x,y,target}=hitCenter(grip);
+    assert(target===grip,'Inspector resize separator is covered');
+    const pointer=(type,dx)=>grip.dispatchEvent(new PointerEvent(type,{
+      bubbles:true,isPrimary:true,pointerId:21,clientX:x+dx,clientY:y,
+    }));
     const start=rect();
-    let send=grab();
-    send('pointermove',-100,0);
-    assert(Math.abs(rect().x-start.x+100)<1,'Inspector did not follow the pointer at 150%');
-    send('pointermove',2000,2000);
-    assertInViewport();
-    send('pointercancel',0,0);
-    const retry=rect();
-    send=grab();
-    send('pointerup',-100,0);
-    assert(Math.abs(rect().x-retry.x+100)<1,'Inspector ignored the release position after interruption');
-    assertInViewport();
-    await wait(650);
-    assertInViewport();
+    pointer('pointerdown',0);
+    pointer('pointermove',-100);
+    assert(Math.abs(rect().width-start.width-100)<2,'Inspector did not follow the pointer at 150%');
+    pointer('pointermove',3000);
+    assert(rect().left>=0&&rect().right<=innerWidth+1,'Inspector escaped the visible viewport');
+    pointer('pointercancel',0);
+    const cancelled=rect().width;
+    pointer('pointermove',-250);
+    assert(rect().width===cancelled,'Cancelled resize kept moving the inspector');
   }else{
-  const initial=view();
   async function checkRoutes(){
     // An in-flight transition can briefly move cards across the previous routes.
     await wait(320);
@@ -280,28 +335,25 @@ try {
       for(const other of [...boxes,...labelBoxes])assert(!(r.x<other.x+other.w&&r.x+r.w>other.x&&r.y<other.y+other.h&&r.y+r.h>other.y),'Connection count overlaps an element');
       labelBoxes.push(r);
     }
-    assert(!$('summary').textContent.includes('unrouted'),'Missing connection route');
+    assert(!$('summary').parentElement.title.includes('Unrouted'),'Missing connection route');
   }
   assert(document.documentElement.lang==='en','Diagram language is not English');
   const legend=$('connection-legend'),legendButton=document.querySelector('[aria-controls="connection-legend"]');
   if(graph.nodes.length){
     assert(legend&&legendButton,'Diagram has no connection legend');
-    assert(legend.hidden===(innerWidth<=620),'Legend starts in the wrong state for this viewport');
-    if(legend.hidden)await click(legendButton);
+    const compactLegend=matchMedia('(max-width: 980px)').matches;
+    assert((getComputedStyle(legend).display==='none')===compactLegend,'Legend starts in the wrong state for this viewport');
+    if(compactLegend)await click(legendButton);
     const swatches=[...legend.querySelectorAll('li')];
     assert(swatches.length===3&&new Set(swatches.map(row=>row.querySelector('svg>path:last-child')?.getAttribute('fill'))).size===3,'Legend does not distinguish its three connection types');
     const pipe=document.querySelector('[data-edge] .pipe-current')||legend.querySelector('.pipe-current');
     const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
     assert(getComputedStyle(pipe).animationName===(reduced?'none':'pipe-current'),'Flow animation did not respect the motion preference');
-    if(!reduced){
-      await click(document.querySelector('[aria-label="Pause flow animation"]'));
-      assert(getComputedStyle(pipe).animationPlayState==='paused','Legend did not pause flow motion');
-      await click(document.querySelector('[aria-label="Resume flow animation"]'));
-      assert(getComputedStyle(pipe).animationPlayState==='running','Legend did not resume flow motion');
-    }
-    if(innerWidth<=620)await click(legendButton);
+    assert(legend.querySelectorAll('button').length===swatches.length,'Legend has a control other than the connection filters');
+    if(!reduced)assert(getComputedStyle(pipe).animationPlayState==='running','Flow animation did not play');
+    if(compactLegend)await click(legendButton);
     else {
-      const overlay=legend.closest('section').getBoundingClientRect();
+      const overlay=legend.closest('footer').getBoundingClientRect();
       for(const item of document.querySelectorAll('[data-item]')){
         const card=item.getBoundingClientRect();
         assert(card.right<=overlay.left||card.left>=overlay.right||card.bottom<=overlay.top||card.top>=overlay.bottom,'Legend covers a resource in the initial view');
@@ -329,7 +381,7 @@ try {
       await click(toggle);
     }
     await expandConnectionGroups();
-    assert($('summary').textContent.includes(endpoints.size+' in flow · '+graph.nodes.length+' total'),'Incorrect Flow counts');
+    assert($('summary').textContent.includes(endpoints.size+' / '+graph.nodes.length),'Incorrect Flow counts');
     assert([...document.querySelectorAll('[data-node]')].every(n=>endpoints.has(n.dataset.node)),'Flow contains an unrelated resource');
     const shown=[...document.querySelectorAll('[data-edge]')].reduce((n,e)=>n+(+e.dataset.count),0);
     assert(shown===plannedFlow.length,'Configured flow connections are missing');
@@ -380,21 +432,21 @@ try {
       const selectedStyle=getComputedStyle(focusCard);
       checkStatusBorder(selectedStyle,focusCard.dataset.change);
       assert(selectedStyle.outlineStyle==='solid'&&selectedStyle.outlineWidth==='2px','Selected card lost its outline');
-      for(const element of [...flowEdges,...flowCards]){
+      for(const element of [...flowEdges,...flowCards,...flowEdges.map(edgeLabel)].filter(Boolean)){
         for(const animation of element.getAnimations())if(animation instanceof CSSTransition)animation.finish();
       }
       const neighbors=new Set([focusCard.dataset.node]);
       for(const edge of flowEdges){
         const incident=[edge.dataset.from,edge.dataset.to].includes(focusCard.dataset.node);
         if(incident){neighbors.add(edge.dataset.from);neighbors.add(edge.dataset.to);}
-        assert(+getComputedStyle(edge).opacity===(incident?1:.08),'Wrong arrow opacity in object focus: '+getComputedStyle(edge).opacity+' '+edge.getAttribute('class')+' incident='+incident+' connected='+edge.isConnected);
+        assert(+getComputedStyle(edge).opacity===(incident?1:.25),'Wrong arrow opacity in object focus: '+getComputedStyle(edge).opacity+' '+edge.getAttribute('class')+' incident='+incident+' connected='+edge.isConnected);
         const caption=edgeLabel(edge);
-        if(caption)assert(+getComputedStyle(caption).opacity===(incident?1:.08),'Arrow label did not follow object focus');
+        if(caption)assert(+getComputedStyle(caption).opacity===(incident?1:.25),'Arrow label did not follow object focus');
         const stream=edge.querySelector('.pipe-current');
         if(!incident&&stream)assert(getComputedStyle(stream).animationPlayState==='paused','Unrelated arrow is still animated');
       }
       for(const node of flowCards){
-        assert(+getComputedStyle(node).opacity===(neighbors.has(node.dataset.node)?1:.25),'Wrong card opacity in object focus');
+        assert(+getComputedStyle(node).opacity===(neighbors.has(node.dataset.node)?1:.6),'Wrong card opacity in object focus');
         assert(node.classList.contains('selected')===(node===focusCard),'Object focus selected an adjacent resource');
       }
       assert(getComputedStyle($('stage')).backgroundImage!==grid,'Object focus did not dim the grid');
@@ -420,6 +472,7 @@ try {
   if(graph.nodes.length){
     assert(document.querySelectorAll('[data-item]').length>0,'Diagram did not render');
     const toggle=document.querySelector('[data-toggle]');
+    const initial=view();
     const open=toggle.getAttribute('aria-expanded');await dispatch(toggle,new MouseEvent('click',{bubbles:true}));
     assert(view()===initial,'Expansion changed camera');await checkRoutes();
     const replacement=[...document.querySelectorAll('[data-toggle]')].find(e=>e.dataset.toggle===toggle.dataset.toggle);
@@ -431,8 +484,9 @@ try {
     assert(inspector(),'Keyboard inspection failed');
     assert(document.activeElement===close(),'Modal did not receive focus');
     $('zoom-in').focus();
-    assert(document.activeElement===$('zoom-in'),'Inspector trapped focus on the diagram');
-    assert(view()===initial,'Inspection changed camera');
+    assert(compact ? dialog().contains(document.activeElement) : document.activeElement===$('zoom-in'),'Inspector uses the wrong focus behavior for the viewport');
+    assert(zoom()===new DOMMatrix(initial).a,'Inspection changed zoom');
+    assert(compact || $('stage').getBoundingClientRect().right<dialog().getBoundingClientRect().right,'Inspector did not dock beside the canvas');
     close().focus();
     await dispatch(close(),new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
     assert(!inspector()&&document.activeElement===item,'Escape path did not restore focus');
@@ -456,7 +510,7 @@ try {
         const relationNames={triggers:'Events / invocations',connects_to:'Configuration references',depends_on:'Deployment dependencies'};
         const section=accordionItems().find(item=>trigger(item).textContent.startsWith(relationNames[within.kind]));
         assert(section,'Missing internal relationship section');
-        await click(trigger(section));
+        if(!opened(section))await click(trigger(section));
         await expandRelationGroups(section);
         assert([...section.querySelectorAll('.connection-item')].some(button=>button.textContent.includes('within group')),'Missing internal group relationship');
         await click(trigger(section));
@@ -482,12 +536,12 @@ try {
       const references=sections.find(section=>trigger(section).textContent.startsWith('Configuration references'));
       const links=references||sections.find(section=>!trigger(section).textContent.startsWith('Resources in group'));
       if(links){
-        assert(!opened(links),'Resource connection accordion should start closed');
-        await click(trigger(links));
+        if(!opened(links))await click(trigger(links));
         await expandRelationGroups(links);
         const link=links.querySelector('.connection-item');
         const linkGroup=link.closest('[data-slot="accordion-item"]');
         assert(link.scrollWidth<=link.clientWidth+1,'Connection overflows its row');
+        await wait(230);
         link.scrollIntoView({block:'end'});
         const scroll=$('details').scrollTop;
         await click(link);
@@ -506,41 +560,21 @@ try {
       assert(back(),'Back did not become available after reopening a member');
     }
     assert(!document.querySelector('[data-slot="dialog-overlay"]'),'Inspector creates a backdrop');
-    assert(document.body.style.pointerEvents!=='none','Inspector blocks diagram interaction');
-    const beforeWindowZoom=view();
-    await click($('zoom-in'));
-    assert(inspector()&&view()!==beforeWindowZoom,'Zoom did not work while the inspector was open');
-
-    const grip=dialog().querySelector('[data-window-grip]');
-    const header=grip.closest('header');
-    const beforeDrag=dialog().getBoundingClientRect();
-    const handle=grip.getBoundingClientRect();
-    const startX=handle.x+handle.width/2,startY=handle.y+handle.height/2;
-    const dx=innerWidth>620?-110:0,dy=innerWidth>620?40:-76;
-    // A synthetic pointer cannot register capture with Chromium. Record the request for this gesture.
-    let captured=false;
-    header.setPointerCapture=()=>{captured=true;};
-    header.hasPointerCapture=()=>captured;
-    header.releasePointerCapture=()=>{captured=false;};
-    const dragEvent=(target,type,x,y)=>target.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,isPrimary:true,button:0,pointerId:21,clientX:x,clientY:y}));
-    dragEvent(grip,'pointerdown',startX,startY);
-    assert(captured,'Window did not capture its drag pointer');
-    dragEvent(header,'pointermove',startX+dx,startY+dy);
-    const during=dialog().getBoundingClientRect();
-    assert(Math.abs(during.x-beforeDrag.x-dx)<1&&Math.abs(during.y-beforeDrag.y-dy)<1,'Inspector did not track the drag directly');
-    dragEvent(header,'pointerup',startX+dx,startY+dy);
-    assert(!captured&&inspector(),'Drag release lost the inspector or left pointer capture');
-    await wait(650);
-    const settled=dialog().getBoundingClientRect();
-    assert(settled.left>=0&&settled.top>=0&&settled.right<=innerWidth&&settled.bottom<=innerHeight,'Inspector settled outside the viewport');
-
-    const keyboardStart=settled.y;
-    grip.focus();
-    await dispatch(grip,new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));
-    assert(dialog().getBoundingClientRect().y<keyboardStart,'Keyboard could not move the inspector');
-    await dispatch(grip,new KeyboardEvent('keydown',{key:'Home',bubbles:true,cancelable:true}));
-    const reset=dialog().getBoundingClientRect();
-    assert(Math.abs(reset.x-beforeDrag.x)<1&&Math.abs(reset.y-beforeDrag.y)<1,'Home did not reset inspector position');
+    assert((document.body.style.pointerEvents==='none')===compact,'Inspector uses the wrong pointer behavior for the viewport');
+    if(!compact){
+      const before=view(),stageWidth=$('stage').clientWidth;
+      await click($('zoom-in'));
+      assert(inspector()&&view()!==before,'Zoom did not work while the inspector was open');
+      await until(()=>dialog()?.querySelector('[role=separator]'),'Inspector did not finish opening');
+      const grip=dialog().querySelector('[role=separator]');
+      const beforeResize=dialog().offsetWidth, previousZoom=zoom();
+      grip.focus();
+      await dispatch(grip,new KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true,cancelable:true}));
+      assert(dialog().offsetWidth>beforeResize&&$('stage').clientWidth<stageWidth,'Keyboard failed to resize the dock and canvas together');
+      assert(zoom()===previousZoom,'Resizing the dock changed zoom');
+      await dispatch(grip,new KeyboardEvent('keydown',{key:'Home',bubbles:true,cancelable:true}));
+      assert(dialog().offsetWidth===Number(grip.getAttribute('aria-valuemin')),'Home did not set the minimum inspector width');
+    }
 
     await click(close());
     assert(!inspector()&&document.activeElement.hasAttribute('data-item'),'Close did not restore graph focus');
@@ -578,6 +612,9 @@ try {
       assert(opened(accordionItems()[0]),'Single relationship type should start expanded');
       assert($('details').textContent.includes('Source')&&$('details').textContent.includes('Target'),'Missing endpoint metadata');
       if(location.search.includes('long-mobile')){
+        await until(()=>
+          dialog().closest('.report-inspector-slot').style.getPropertyValue('--dock-open')==='1',
+          'Mobile inspector did not finish opening');
         const rect=dialog().getBoundingClientRect(),body=$('details'),closeTop=close().getBoundingClientRect().top;
         assert(rect.left>=0&&rect.right<=innerWidth&&rect.top>=0&&rect.bottom<=innerHeight,'Mobile modal overflowed the viewport');
         assert(body.scrollWidth<=body.clientWidth,'Long modal content overflowed horizontally');
@@ -609,8 +646,8 @@ try {
       select.value='after';await dispatch(select,new Event('change',{bubbles:true}));
     }
     await click($('infra-view'));
-    assert($('summary').textContent.startsWith(graph.nodes.length+' resource'),'Incorrect Infrastructure count');
-    if(graph.nodes.every(n=>n.change==='create'))assert($('summary').textContent.includes('+ create '+graph.nodes.length),'Incorrect create count');
+    assert($('summary').textContent.startsWith(graph.nodes.length+' / '+graph.nodes.length),'Incorrect Infrastructure count');
+    if(graph.nodes.every(n=>n.change==='create'))assert($('stage').textContent.includes('+ create '+graph.nodes.length),'Incorrect create count');
     const infraViewport=view();
     const serviceGroups=[...document.querySelectorAll('[data-service]')];
     for(const group of serviceGroups){
@@ -643,7 +680,7 @@ try {
     await click($('dependencies'));assert(view()===beforeMode,'Filter changed camera');assert(!document.querySelector('[data-edge].depends_on'),'Dependency filter left deployment edges visible');await click($('dependencies'));
     await click($('zoom-in'));assert(view()!==beforeMode,'Zoom failed');
     if(location.search.includes('parallel')){
-      const legendWasHidden=legend.hidden;
+      const legendWasHidden=getComputedStyle(legend).display==='none';
       if(legendWasHidden)await click(legendButton);
       const entryFor=kind=>legend.querySelector('[data-connection-kind="'+kind+'"]');
       const edgesOf=kind=>document.querySelectorAll('[data-edge].'+kind);
@@ -759,6 +796,7 @@ try {
       const snapshot=()=>JSON.stringify([view(),[...document.querySelectorAll('[data-item]')].map(node=>node.dataset.item)]);
       const beforeSearch=snapshot();
       const changeLabels={create:'+ create',update:'~ update',delete:'− delete',replace:'↻ replace',unchanged:'Unchanged'};
+      if(!$('search').offsetWidth)await click($('search-toggle'));
       if(search.value)await click(document.querySelector('[aria-label="Clear search"]'));
       await click(filterButton);
       assert(!filterPanel.hidden&&filterButton.getAttribute('aria-expanded')==='true','Search filters did not open');
@@ -795,7 +833,8 @@ try {
       await key(document.activeElement,'ArrowUp');
       assert(document.activeElement===search,'ArrowUp did not return to the search field');
       await key(search,'Escape');
-      assert(results.hidden&&document.activeElement===search,'Escape did not dismiss search');
+      assert(results.hidden&&document.activeElement===($('search-toggle').offsetWidth?$('search-toggle'):search),'Escape did not dismiss search');
+      if(!$('search').offsetWidth)await click($('search-toggle'));
       await key(search,'ArrowDown');
       assert(document.activeElement===resultButtons()[0],'ArrowDown did not reopen search and focus results');
       const match=expected.find(node=>node.id===resultButtons()[0].dataset.resource);
@@ -847,11 +886,10 @@ try {
       }
     }
     await dispatch(document,new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert($('filters').hidden,'Filter dismissal failed');
-    const cameraBeforeResize=view(),width=$('stage').clientWidth;
-    $('stage').style.width=(width-20)+'px';await wait(50);
-    const cameraAfterResize=view();
-    assert(cameraBeforeResize===cameraAfterResize,'Resize moved camera or changed zoom');
-    $('stage').style.width='';await wait(50);
+    const zoomBeforeResize=zoom();
+    $('stage').style.flex='0 0 calc(100% - 20px)';await wait(50);
+    assert(zoomBeforeResize===zoom(),'Resize changed zoom');
+    $('stage').style.flex='';await wait(50);
   }else assert(!$('empty').hidden,'Empty graph message missing');
   assert(document.documentElement.scrollWidth<=innerWidth+1,'Horizontal page overflow');
   for(const text of document.querySelectorAll('.node-name,.node-meta'))assert(text.offsetWidth<=215&&getComputedStyle(text).textOverflow==='ellipsis','Card label overflow');
@@ -865,10 +903,12 @@ try {
   }
   await wait(150);
   assert(!window.__qaErrors.length,'Runtime error: '+window.__qaErrors.join(';'));
+  const resizeWarnings=window.__qaResizeWarnings;
+  assert(!resizeWarnings.some((time,index)=>index>=3&&time-resizeWarnings[index-3]<160),'ResizeObserver failed to settle');
   assert(!window.__qaCSP.length,'Blocked resource requests: '+window.__qaCSP.join(';'));
   assert(!performance.getEntriesByType('resource').some(e=>/^https?:/.test(e.name)),'HTTP resource request');
   const output=document.createElement('output');output.id='qa-result';output.hidden=true;
-  output.textContent=JSON.stringify({ok:true,resources:graph.nodes.length,visible:document.querySelectorAll('[data-item]').length,connections:graph.edges.filter(e=>['triggers','connects_to'].includes(e.kind)).length,width:innerWidth});document.body.append(output);
+  output.textContent=JSON.stringify({ok:true,resources:graph.nodes.length,visible:document.querySelectorAll('[data-item]').length,connections:graph.edges.filter(e=>['triggers','connects_to'].includes(e.kind)).length,width:innerWidth,resizeWarnings:resizeWarnings.length});document.body.append(output);
 } catch(error) {
   const output=document.createElement('output');output.id='qa-result';output.hidden=true;output.textContent=JSON.stringify({ok:false,error:error.message,location:error.stack?.split('\n').at(-1)});document.body.append(output);
 }
@@ -899,7 +939,14 @@ def main():
     if len(sys.argv) != 3:
         raise SystemExit('Usage: python3 scripts/check_html.py RESULT.html CHROMIUM_EXECUTABLE')
     original = Path(sys.argv[1]).read_text()
-    instrument = '<script>window.__qaErrors=[];window.__qaCSP=[];addEventListener("error",e=>window.__qaErrors.push(e.message));addEventListener("securitypolicyviolation",e=>window.__qaCSP.push(e.blockedURI));</script>'
+    instrument = """<script>
+window.__qaErrors=[];window.__qaCSP=[];window.__qaResizeWarnings=[];
+addEventListener("error",e=>{
+  if(e.message==="ResizeObserver loop completed with undelivered notifications.")window.__qaResizeWarnings.push(performance.now());
+  else window.__qaErrors.push(e.message);
+});
+addEventListener("securitypolicyviolation",e=>window.__qaCSP.push(e.blockedURI));
+</script>"""
     with tempfile.TemporaryDirectory(prefix='laytrace-html-check-') as folder:
         path = Path(folder) / 'check.html'
         data_pattern = r'(<script id="laytrace-data" type="application/json">)(.*?)(</script>)'
@@ -942,12 +989,29 @@ def main():
             'edges': [{'from': node['id'], 'to': lambdas[0]['id'], 'kind': 'triggers',
                        'evidence': [{'source': 'test', 'property': 'EventSource'}]} for node in queues],
         }
-        scenarios = [('zoomed-drag', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('dense-viewer', 1440, 1000, dense_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False), ('mixed-changes-desktop', 1440, 1000, mixed_graph, False), ('mixed-changes-mobile', 390, 844, mixed_graph, False)]
+        scenarios = [('cost-dock', 1440, 900, scope_graph, False), ('zoomed-resize', 1440, 900, mobile_graph, False), ('desktop', 1440, 1000, source_graph, False), ('mobile', 390, 844, source_graph, False), ('long-reduced', 1440, 1000, long_graph, True), ('long-mobile', 390, 844, mobile_graph, False), ('empty', 390, 844, empty_graph, False), ('dense-viewer', 1440, 1000, dense_graph, False), ('parallel-desktop', 1440, 1000, parallel_graph, False), ('parallel-mobile', 390, 844, parallel_graph, False), ('mixed-changes-desktop', 1440, 1000, mixed_graph, False), ('mixed-changes-mobile', 390, 844, mixed_graph, False)]
         scenarios.extend([('connection-scope-desktop', 1440, 1000, scope_graph, False),
                           ('connection-scope-mobile', 390, 844, scope_graph, False)])
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)
+            if name == 'cost-dock':
+                document = re.sub(r'<script id="laytrace-costs" type="application/json">.*?</script>', '', document, count=1, flags=re.S)
+                workflow = {
+                    'runsPerUser': None, 'steps': [
+                        {'id': key, 'label': key, 'resourceId': key, 'meters': []}
+                        for key in ('source', 'target')
+                    ],
+                    'links': [{'from': 'source', 'to': 'target'}],
+                }
+                costs = {'date': '2026-01-01', 'regions': [], 'after': [], 'rates': {}, 'workflows': {
+                    'activeUsers': 1000, 'sharedMonthly': {}, 'items': [
+                        {'id': 'example', 'label': 'Workflow fixture', 'before': None, 'after': workflow}
+                    ],
+                }}
+                document = document.replace('<script id="laytrace-icons"',
+                    '<script id="laytrace-costs" type="application/json">' + json.dumps(costs) + '</script>\n'
+                    + '<script id="laytrace-icons"', 1)
             path.write_text(document.replace('<script id="laytrace-data"', instrument + '<script id="laytrace-data"', 1).replace('</body>', CHECK + '</body>', 1))
             screenshot = Path(tempfile.gettempdir()) / f'laytrace-{name}.png'
             command = [sys.argv[2], '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--user-data-dir=' + str(Path(folder) / f'profile-{name}'), f'--window-size={width},{height}', '--virtual-time-budget=15000', '--dump-dom']

@@ -9,7 +9,7 @@ import { revealInPlace } from './layout/scene-motion.ts'
 import { useSceneMotion } from './use-scene-motion'
 
 export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: GraphView, liftedId: string | undefined, anchor: RefObject<string | null>, workflow: boolean) => {
-  const [result, setResult] = useState<{ current: GraphView; scene?: Scene; fixed?: boolean; failed?: boolean }>()
+  const [result, setResult] = useState<{ current: GraphView; scene?: Scene; fixed?: boolean; workflow?: boolean; failed?: boolean }>()
   const contextScene = useRef<Scene>(undefined)
   const measureText = useMemo(() => {
     const context = document.createElement('canvas').getContext('2d')
@@ -17,7 +17,7 @@ export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: G
     context.font = `${edgeCaptionFontSize}px ${getComputedStyle(document.documentElement).fontFamily}`
     return (text: string) => context.measureText(text).width
   }, [])
-  const { scene, moveCard, settled } = useSceneMotion(result?.scene, anchor, measureText, result?.fixed)
+  const { scene, moveCard, settled } = useSceneMotion(result?.scene, anchor, measureText, result?.fixed, result?.workflow)
 
   useEffect(() => {
     let active = true
@@ -35,7 +35,7 @@ export const useDiagramLayout = (tree: Hierarchy, current: GraphView, context: G
     }
     resolve().then(
       (resolved) => {
-        if (active) setResult({ current, ...resolved })
+        if (active) setResult({ current, workflow, ...resolved })
       },
       () => {
         if (active) setResult((previous) => ({ current, scene: previous?.scene, failed: true }))

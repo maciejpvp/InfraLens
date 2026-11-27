@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { motionTime } from '../../lib/motion'
 import type { Point, Scene } from './layout/layout-model'
 import { isDenseScene } from './layout/route-visibility'
 import { canPlace, motionFrame, moveCard, placementKey, positionScene, translateScene } from './layout/scene-motion.ts'
@@ -9,10 +10,12 @@ export const useSceneMotion = (
   anchor: RefObject<string | null>,
   measure: (text: string) => number,
   fixed = false,
+  workflow = false,
 ) => {
   const [scene, setScene] = useState<Scene>()
   const shown = useRef<Scene | undefined>(undefined)
   const settled = useRef<Scene | undefined>(undefined)
+  const previousWorkflow = useRef(false)
   const saved = useRef(new Map<string, Point>())
   const frame = useRef(0)
   const timeout = useRef(0)
@@ -65,12 +68,16 @@ export const useSceneMotion = (
     const id = anchor.current
     const from = id ? current?.layout.positions.get(id) : undefined
     const to = id ? next.layout.positions.get(id) : undefined
-    if (fixed && id && current?.tree === target.tree) {
-      animate(current, next, 150, true)
+    const switchingWorkflow = (workflow || previousWorkflow.current) && previousTarget?.tree !== target.tree
+    previousWorkflow.current = workflow
+    if (switchingWorkflow && current) {
+      animate(current, next, motionTime.content, true)
+    } else if (fixed && id && current?.tree === target.tree) {
+      animate(current, next, motionTime.feedback, true)
     } else if (!fixed && from && to && current?.tree === target.tree) {
       next = translateScene(next, { x: from.x - to.x, y: from.y - to.y })
       const distance = Math.max(Math.abs(from.height - to.height), Math.abs(from.width - to.width))
-      animate(current, next, Math.max(150, Math.min(270, distance * 2)), true)
+      animate(current, next, Math.max(motionTime.feedback, Math.min(motionTime.workspace, distance * 2)), true)
     } else {
       stop()
       if (!fixed && previousTarget?.tree === target.tree && current) {
@@ -84,7 +91,7 @@ export const useSceneMotion = (
       publish(next)
     }
     return stop
-  }, [target, fixed, anchor, measure, animate, publish, stop])
+  }, [target, fixed, workflow, anchor, measure, animate, publish, stop])
 
   const begin = useCallback((id: string) => {
     const current = shown.current

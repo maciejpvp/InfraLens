@@ -2,6 +2,8 @@ import { Filter, Search, X } from 'lucide-react'
 import { useLayoutEffect, useRef, type KeyboardEvent } from 'react'
 import { ServiceIcon } from '../../components/service-icon'
 import { countLabel, serviceIconSrc } from '../../lib/graph-view'
+import { cn } from '../../lib/utils'
+import { overlayPanelClass } from '../../components/overlay-styles'
 import { Box } from '../../ui/box'
 import { Button } from '../../ui/button'
 import { Checkbox } from '../../ui/checkbox'
@@ -13,16 +15,16 @@ import { searchFacets } from './search-resources'
 import { useToolbar } from './use-toolbar'
 
 const styles = {
-  search: 'relative order-last w-full min-w-0 min-[621px]:order-0 min-[621px]:ml-auto min-[621px]:max-w-md',
-  searchControls: 'flex items-center gap-1.5',
+  search: 'min-w-0 min-[700px]:relative min-[700px]:w-full min-[700px]:max-w-xs',
+  searchControls: 'search-controls flex items-center gap-1 max-[700px]:absolute max-[700px]:inset-x-2 max-[700px]:top-full max-[700px]:mt-1 max-[700px]:rounded-md max-[700px]:border max-[700px]:bg-card max-[700px]:p-1 max-[700px]:shadow-panel',
   searchField: 'relative min-w-0 flex-1',
   searchLabel: 'sr-only',
-  searchIcon: 'pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground',
-  searchInput: 'h-10 rounded-full bg-background/70 pr-10 pl-9 [&::-webkit-search-cancel-button]:hidden',
-  clearSearch: 'absolute right-1 top-1/2 -translate-y-1/2 rounded-full text-muted-foreground',
-  searchFilterButton: 'min-w-10 rounded-full border-border bg-background/70 px-2.5 has-[>svg]:px-2.5',
+  searchIcon: 'pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground',
+  searchInput: 'h-8 bg-background pr-7 pl-7 text-sm [&::-webkit-search-cancel-button]:hidden',
+  clearSearch: 'absolute right-0.5 top-1/2 -translate-y-1/2 text-muted-foreground',
+  searchFilterButton: 'h-8 gap-1 px-2 text-xs has-[>svg]:px-2',
   searchPanel:
-    'absolute top-full right-0 z-10 mt-2 max-h-[min(55dvh,calc(100dvh-9rem))] w-full overflow-auto overscroll-contain rounded-2xl border bg-card shadow-panel min-[621px]:min-w-64',
+    cn(overlayPanelClass, 'top-full right-0 mt-1 max-h-[min(55dvh,calc(100dvh-8rem))] min-[700px]:w-full min-[700px]:min-w-64 max-[700px]:inset-x-2 max-[700px]:top-[calc(100%+2.9rem)]'),
   searchFilterHeader: 'sticky top-0 z-10 flex items-center justify-between gap-2 border-b bg-card px-3 py-2',
   searchFacet: 'mx-3 my-2 min-w-0 border-b pb-2 last:border-0',
   searchFacetTitle: 'py-1 text-xs font-semibold text-muted-foreground',
@@ -42,6 +44,8 @@ export function ResourceSearch({
   icons,
   query,
   searching,
+  compactOpen,
+  toggleSearch,
   filtersOpen,
   facets,
   searchFilters,
@@ -58,6 +62,7 @@ export function ResourceSearch({
   results,
 }: ReturnType<typeof useToolbar>['searchProps']) {
   const resultsRef = useRef<HTMLDivElement>(null)
+  const focusSearch = useRef(false)
   const pendingFocus = useRef<'ArrowDown' | 'ArrowUp' | null>(null)
   const hasPrevious = page > 0
   const hasNext = offset + results.length < total
@@ -79,11 +84,15 @@ export function ResourceSearch({
   }
 
   useLayoutEffect(() => {
+    if (compactOpen && focusSearch.current) {
+      search.current?.focus()
+      focusSearch.current = false
+    }
     if (pendingFocus.current) {
       if (searching) moveFocus(pendingFocus.current)
       pendingFocus.current = null
     }
-  }, [searching, page])
+  }, [compactOpen, searching, page, search])
 
   const searchKeys = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return
@@ -107,7 +116,15 @@ export function ResourceSearch({
 
   return (
     <Box ref={searchRoot} className={styles.search}>
-      <Box className={styles.searchControls}>
+      <Button id="search-toggle" type="button" size="icon-sm" variant="ghost" className="min-[700px]:hidden"
+        aria-label="Search resources" title="Search resources" aria-expanded={compactOpen} aria-controls="search-controls"
+        onClick={() => {
+          focusSearch.current = !compactOpen
+          toggleSearch()
+        }}>
+        <Icon icon={Search} />
+      </Button>
+      <Box id="search-controls" data-open={compactOpen} className={cn(styles.searchControls, !compactOpen && 'max-[700px]:hidden')}>
         <Box className={styles.searchField}>
           <Label className={styles.searchLabel} htmlFor="search">Search resources</Label>
           <Icon icon={Search} className={styles.searchIcon} aria-hidden="true" />
@@ -134,14 +151,14 @@ export function ResourceSearch({
             </Button>
           )}
         </Box>
-        <Button type="button" variant={activeCount || filtersOpen ? 'secondary' : 'outline'} size="lg"
+        <Button type="button" variant={activeCount || filtersOpen ? 'secondary' : 'ghost'} size="sm"
           className={styles.searchFilterButton} aria-label={activeCount ? `Search filters (${activeCount} active)` : 'Search filters'}
-          aria-controls="search-filters" aria-expanded={filtersOpen} onClick={toggleFilters}>
+          title="Search filters" aria-controls="search-filters" aria-expanded={filtersOpen} onClick={toggleFilters}>
           <Icon icon={Filter} aria-hidden="true" />
           {activeCount > 0 && <span aria-hidden="true" className="tabular-nums">{activeCount}</span>}
         </Button>
       </Box>
-      <Box as="section" id="search-filters" aria-label="Search filters" hidden={!filtersOpen} className={styles.searchPanel}>
+      <Box as="section" id="search-filters" aria-label="Search filters" data-motion-popover hidden={!filtersOpen} inert={!filtersOpen} className={styles.searchPanel}>
         <Box className={styles.searchFilterHeader}>
           <Button type="button" variant="ghost" size="sm" disabled={!activeCount} onClick={clearFilters}>Clear filters</Button>
           <Button type="button" variant="secondary" size="sm" onClick={() => {
@@ -169,7 +186,7 @@ export function ResourceSearch({
           </fieldset>
         ))}
       </Box>
-      <Box as="section" id="results" aria-label="Search results" ref={resultsRef} hidden={!searching}
+      <Box as="section" id="results" aria-label="Search results" ref={resultsRef} data-motion-popover hidden={!searching} inert={!searching}
         className={paged ? `${styles.searchPanel} scroll-pt-14` : styles.searchPanel}
         onKeyDown={(event) => {
           if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -177,7 +194,7 @@ export function ResourceSearch({
           event.preventDefault()
           moveFocus(event.key, event.target)
         }}>
-        {searching && (
+        {(searching || results.length > 0) && (
           <Box className={paged ? styles.searchFilterHeader : undefined}>
             <Text as="p" role="status" className={paged ? 'text-xs text-muted-foreground' : styles.resultCount}>
               {resultStatus}

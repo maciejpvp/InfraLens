@@ -35,7 +35,7 @@ export const useReport = (graph: Graph, icons: ServiceIcons, costs?: CostReport)
   }
   const selectWorkflow = (next: WorkflowSelection) => {
     if (next.id !== selection?.id) setWorkflowBasis('one')
-    exitDetailsView()
+    exitDetailsView(!window.matchMedia('(max-width: 639px)').matches)
     setDiagramTopology(next.side)
     setSelection(next)
     setCostTab('workflows')

@@ -17,24 +17,24 @@ import { type Endpoint, groupBySharedEndpoint, groupDependenciesByService } from
 
 const styles = {
   dependencyTitle: 'flex min-w-0 flex-wrap items-center gap-1.5 [&_img]:size-4',
-  rows: 'space-y-1',
-  row: 'connection-item block h-auto min-h-10 w-full rounded-xl border-highlight/10 bg-highlight/5 px-2.5 py-2 text-left text-xs whitespace-normal wrap-anywhere motion-safe:active:scale-[.99]',
+  rows: 'divide-y',
+  row: 'connection-item block h-auto min-h-8 w-full rounded-none px-1.5 py-1.5 text-left text-xs whitespace-normal wrap-anywhere',
   memberRow: 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2',
   rowName: 'block min-w-0 font-semibold leading-snug select-text',
   relationEndpoint: 'flex min-w-0 items-center gap-1.5 [&_img]:size-4',
-  rowCaption: 'mt-1 block text-[.6875rem] leading-normal text-muted-foreground',
-  relationCaption: 'mt-2 block border-t border-highlight/10 pt-1.5 text-[.6875rem] leading-normal text-muted-foreground',
+  rowCaption: 'block text-xs leading-snug text-muted-foreground',
+  relationCaption: 'mt-0.5 block pl-5 text-xs leading-snug text-muted-foreground',
   note: 'mb-2 text-xs leading-relaxed text-muted-foreground',
   connections: 'space-y-2',
   connection: 'space-y-2',
   connectionTitle: 'text-sm font-semibold',
-  evidenceGroup: 'space-y-1 rounded-xl bg-highlight/[.045] p-2.5',
+  evidenceGroup: 'space-y-1 border-t px-1.5 py-2',
   evidenceTitle: 'text-xs font-semibold',
   evidenceDetails: 'text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground',
   evidenceList: 'space-y-1.5 text-xs text-muted-foreground',
-  evidenceEntry: 'rounded-lg bg-background/30 px-2 py-1.5',
+  evidenceEntry: 'rounded-sm bg-muted px-2 py-1.5',
   evidenceProperty:
-    'mt-1 block rounded-lg bg-background/75 px-2 py-1.5 font-mono whitespace-pre-wrap text-foreground',
+    'mt-1 block font-mono whitespace-pre-wrap text-foreground',
 }
 
 export function ResourceDetails({ icons, ...props }: ResourceDetailsOptions & { icons: ServiceIcons }) {
@@ -46,7 +46,8 @@ export function ResourceDetails({ icons, ...props }: ResourceDetailsOptions & { 
   return (
     <>
       <Metadata rows={rows} />
-      <DetailSections type="multiple">
+      {relations.length > 0 && <Text as="h3" className="px-1.5 py-1 text-sm font-semibold">Connections</Text>}
+      <DetailSections type="multiple" defaultValue={relations.filter(({ kind }) => kind !== 'contains').map(({ kind }) => kind)}>
         {resourceGroup && (
           <DetailSection value="members" title={resourceGroup.title}>
             <Box className={styles.rows}>
@@ -115,7 +116,7 @@ function DetailRow({
   onClick: MouseEventHandler<HTMLButtonElement>
 }) {
   return (
-    <Button variant="outline" onClick={onClick} className={`inspector-row ${styles.row}`}>
+    <Button variant="ghost" onClick={onClick} className={`inspector-row ${styles.row}`}>
       {children}
     </Button>
   )
@@ -211,8 +212,9 @@ function RelationRows({ edges, byId, icons, shared, toRow }: {
         return (
           <DetailRow key={JSON.stringify([edge.from, edge.to, edge.state])} onClick={onClick}>
             <RelationEndpoints edge={edge} byId={byId} icons={icons} shared={shared} />
-            <Text className={styles.relationCaption}>
-              {descriptions && `${descriptions} · `}{summary}
+            <Text className="flex items-end justify-between gap-2">
+              <Text className={styles.relationCaption}>{descriptions && `${descriptions} · `}{summary}</Text>
+              <Icon icon={ChevronRight} className="size-3.5 text-muted-foreground" />
             </Text>
           </DetailRow>
         )

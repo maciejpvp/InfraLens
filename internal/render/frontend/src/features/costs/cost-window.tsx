@@ -1,15 +1,11 @@
-import { DollarSign, GripHorizontal, Info, X } from 'lucide-react'
-import { Dialog as RadixDialog, Tooltip } from 'radix-ui'
+import { AnimatePresence } from 'motion/react'
+import { Info, Maximize, Minimize, X } from 'lucide-react'
+import { Tooltip } from 'radix-ui'
 import { useRef, useState } from 'react'
-import { FloatingWindow } from '../../components/floating-window'
-import { overlayPanelClass } from '../../components/overlay-styles'
-import { useFloatingWindow } from '../../hooks/use-floating-window'
+import { Dock } from '../../components/dock'
+import { ResizeHandle } from '../../components/resize-handle'
 import type { ServiceIcons, Topology } from '../../lib/graph.types'
-import { cn } from '../../lib/utils'
 import { Button } from '../../ui/button'
-import { Dialog } from '../../ui/dialog'
-import { DialogClose } from '../../ui/dialog-close'
-import { DialogTitle } from '../../ui/dialog-title'
 import { Icon } from '../../ui/icon'
 import type { CostReport, Scenario } from './costs'
 import type { CostComparisonMode } from './resource-costs'
@@ -40,7 +36,7 @@ function EstimateInfo({ report }: { report: CostReport }) {
           </Button>
         </Tooltip.Trigger>
         <Tooltip.Portal>
-          <Tooltip.Content sideOffset={6} className="z-[60] max-w-[min(22rem,calc(100vw-2rem))] rounded-lg border bg-card p-3 text-xs text-foreground shadow-panel">
+          <Tooltip.Content data-motion-tooltip sideOffset={6} className="z-[60] max-w-[min(22rem,calc(100vw-2rem))] rounded-lg border bg-card p-3 text-xs text-foreground shadow-panel">
             {note} Price catalog lookup {report.date} UTC.
             <Tooltip.Arrow className="fill-card" />
           </Tooltip.Content>
@@ -51,13 +47,16 @@ function EstimateInfo({ report }: { report: CostReport }) {
 }
 
 export function CostWindow({
-  report, icons, open, setOpen, tab, setTab, topology, selection, onSelect, onSide, onClear, pricing, onEditWorkflow,
+  report, icons, open, maximized, inert, onMaximize, onClose, tab, setTab, topology, selection, onSelect, onSide, onClear, pricing, onEditWorkflow,
   workflowBasis, setWorkflowBasis, colorByCost, setColorByCost,
 }: {
   report: CostReport
   icons: ServiceIcons
   open: boolean
-  setOpen: (open: boolean) => void
+  maximized: boolean
+  inert: boolean
+  onMaximize: () => void
+  onClose: () => void
   tab: CostTab
   setTab: (tab: CostTab) => void
   pricing?: { after: WorkflowSide; before?: WorkflowSide }
@@ -77,59 +76,48 @@ export function CostWindow({
   const [listFilter, setListFilter] = useState(defaultWorkflowTableFilter)
   const [listBasis, setListBasis] = useState<WorkflowBasis>('month')
   const bodyRef = useRef<HTMLDivElement>(null)
-  const { windowRef, moveWithKeys, dragEvents } = useFloatingWindow(open)
+  const totals = (topology === 'before' ? pricing?.before : pricing?.after)?.totals
 
   return (
-    <Dialog open={open} onOpenChange={setOpen} modal={false}>
-      <RadixDialog.Trigger asChild>
-        <Button
-          variant="ghost" size="sm"
-          className={cn(overlayPanelClass, 'bottom-[max(4.5rem,calc(env(safe-area-inset-bottom)+3.75rem))] left-2.5 min-h-10 px-3.5 sm:left-4')}
-        >
-          <Icon icon={DollarSign} size={16} /> Costs
-        </Button>
-      </RadixDialog.Trigger>
-      <FloatingWindow
-        id="report-cost-window" ref={windowRef} aria-describedby={undefined}
-        onInteractOutside={(event) => {
-          if (selection || (event.target instanceof Element && event.target.closest('#theme-toggle'))) {
-            event.preventDefault()
-          }
-        }}
-        className={cn('bottom-28 left-2.5 flex w-max max-w-[var(--inspector-max-width,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-2xl border bg-card text-sm shadow-panel sm:left-4',
-          report.workflows ? 'max-h-[min(76dvh,var(--inspector-max-height,100dvh))]' : 'max-h-[var(--inspector-max-height,calc(100dvh-1.25rem))]')}
-      >
-        <header {...dragEvents} className="flex touch-none items-center gap-1 border-b px-3 py-2 select-none">
-          <Button
-            data-window-grip type="button" variant="ghost" size="icon-sm"
-            className="cursor-grab active:cursor-grabbing"
-            aria-label="Move costs window with arrow keys. Home resets position." onKeyDown={moveWithKeys}
-          >
-            <Icon icon={GripHorizontal} size={16} />
-          </Button>
-          <DialogTitle className="text-base">AWS cost estimate</DialogTitle>
-          <EstimateInfo report={report} />
-          <DialogClose asChild>
-            <Button type="button" size="icon-sm" variant="ghost" aria-label="Close costs" className="ml-auto">
-              <Icon icon={X} size={16} />
-            </Button>
-          </DialogClose>
-        </header>
-        <Tooltip.Provider delayDuration={200}>
-          <div className={cn('min-h-0', report.workflows
-            ? 'flex w-[37rem] max-w-full flex-col' : 'overflow-auto overscroll-contain px-3 py-3')}>
-            {report.workflows ? (
-              pricing && <WorkflowCosts report={report} icons={icons} {...pricing} onEdit={onEditWorkflow}
-                tab={tab} setTab={setTab} side={topology} selection={selection} onSelect={onSelect}
-                basis={workflowBasis} setBasis={setWorkflowBasis} colorByCost={colorByCost} setColorByCost={setColorByCost}
-                listFilter={listFilter} setListFilter={setListFilter} listBasis={listBasis} setListBasis={setListBasis}
-                onSide={onSide} onClear={onClear} onGraph={() => setOpen(false)} bodyRef={bodyRef} />
-            ) : (
-              <ResourceCosts report={report} icons={icons} mode={mode} setMode={setMode} scenario={scenario} setScenario={setScenario} />
-            )}
-          </div>
-        </Tooltip.Provider>
-      </FloatingWindow>
-    </Dialog>
+    <AnimatePresence>
+      {open && <Dock kind="cost" maximized={maximized}>
+        {(_, resizable) => (
+          <section id="report-cost-window" aria-labelledby="cost-title" inert={inert} data-resizable={resizable} className="report-cost-dock relative flex min-w-0 shrink-0 flex-col border-t bg-card text-sm"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                onClose()
+              }
+            }}>
+            {resizable && <ResizeHandle panelId="report-cost-window" axis="height" label="Resize costs" />}
+            <header className="flex min-h-9 shrink-0 items-center gap-1 border-b px-3">
+              <h2 id="cost-title" className="font-semibold">AWS cost estimate</h2>
+              <EstimateInfo report={report} />
+              {totals?.monthly.missing.length ? <span className="text-xs text-muted-foreground">Partial monthly estimate</span> : null}
+              <Button type="button" size="icon-xs" variant="ghost" className="ml-auto"
+                aria-label={maximized ? 'Restore costs' : 'Maximize costs'} title={maximized ? 'Restore costs' : 'Maximize costs'} onClick={onMaximize}>
+                <Icon icon={maximized ? Minimize : Maximize} size={15} />
+              </Button>
+              <Button type="button" size="icon-xs" variant="ghost" aria-label="Close costs" title="Close costs" onClick={onClose}>
+                <Icon icon={X} />
+              </Button>
+            </header>
+            <Tooltip.Provider delayDuration={200}>
+              {report.workflows ? (
+                pricing && <WorkflowCosts report={report} icons={icons} {...pricing} onEdit={onEditWorkflow}
+                  tab={tab} setTab={setTab} side={topology} selection={selection} onSelect={onSelect}
+                  basis={workflowBasis} setBasis={setWorkflowBasis} colorByCost={colorByCost} setColorByCost={setColorByCost}
+                  listFilter={listFilter} setListFilter={setListFilter} listBasis={listBasis} setListBasis={setListBasis}
+                  onSide={onSide} onClear={onClear} onGraph={maximized ? onMaximize : onClose} bodyRef={bodyRef} />
+              ) : (
+                <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-3 py-2" tabIndex={0} aria-label="Cost estimates">
+                  <ResourceCosts report={report} icons={icons} mode={mode} setMode={setMode} scenario={scenario} setScenario={setScenario} />
+                </div>
+              )}
+            </Tooltip.Provider>
+          </section>
+        )}
+      </Dock>}
+    </AnimatePresence>
   )
 }

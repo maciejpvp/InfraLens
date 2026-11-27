@@ -7,6 +7,7 @@ import { indexResources, searchFacets, searchResources } from './search-resource
 
 export type ToolbarOptions = {
   graph: Graph
+  report: Graph
   icons: ServiceIcons
   search: RefObject<HTMLInputElement | null>
   mode: ViewMode
@@ -30,6 +31,7 @@ const emptyFilters: SearchFilters = {}
 
 export const useToolbar = ({
   graph,
+  report,
   icons,
   search,
   mode,
@@ -49,10 +51,12 @@ export const useToolbar = ({
   const searchFilters = selection?.graph === graph ? selection.filters : emptyFilters
   const searchRoot = useRef<HTMLDivElement>(null)
   const { entries, facets } = useMemo(() => indexResources(graph.nodes), [graph.nodes])
+  const stacks = useMemo(() => [...new Set(report.nodes.flatMap(({ stack }) => stack ? [stack] : []))].sort(), [report])
   const activeCount = searchFacets.reduce((count, facet) => count + (searchFilters[facet]?.size ?? 0), 0)
-  const searching = panel === 'results' && Boolean(query.trim() || activeCount)
-  const matches = useMemo(() => searching ? searchResources(entries, query, searchFilters) : [],
-    [searching, entries, query, searchFilters])
+  const hasSearch = Boolean(query.trim() || activeCount)
+  const searching = panel === 'results' && hasSearch
+  const matches = useMemo(() => hasSearch ? searchResources(entries, query, searchFilters) : [],
+    [hasSearch, entries, query, searchFilters])
   const page = pagination?.graph === graph ? pagination.index : 0
   const offset = page * pageSize
   const filtersOpen = panel === 'diagramFilters'
@@ -71,13 +75,18 @@ export const useToolbar = ({
   useEffect(() => {
     const dismiss = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !inspecting) {
-        if (searchRoot.current?.contains(document.activeElement)) search.current?.focus()
+        if (searchRoot.current?.contains(document.activeElement)) {
+          const trigger = searchRoot.current?.querySelector<HTMLButtonElement>('#search-toggle')
+          if (trigger?.offsetWidth && panel) trigger.focus()
+          else search.current?.focus()
+        } else if (panel === 'diagramFilters') document.getElementById('filter-button')?.focus()
         setPanel(null)
       }
     }
     const dismissSearch = (event: PointerEvent) => {
-      if (event.target instanceof Node && !searchRoot.current?.contains(event.target))
-        setPanel((current) => current === 'diagramFilters' ? current : null)
+      const target = event.target
+      if (!(target instanceof Element) || searchRoot.current?.contains(target)) return
+      setPanel((current) => current === 'diagramFilters' && target.closest('#filters, #filter-button') ? current : null)
     }
     document.addEventListener('keydown', dismiss)
     document.addEventListener('pointerdown', dismissSearch)
@@ -85,22 +94,21 @@ export const useToolbar = ({
       document.removeEventListener('keydown', dismiss)
       document.removeEventListener('pointerdown', dismissSearch)
     }
-  }, [inspecting, search])
+  }, [inspecting, panel, search])
 
   return {
-    simulated: Boolean(graph.simulated),
-    provenance: graph.simulated ? 'SIMULATION' : 'STATE / PREVIEW',
+    stacks,
+    provenance: report.simulated ? 'SIMULATION' : report.previewProvider ? 'Preview' : 'Snapshot',
     modes: viewModes.map(({ value, id, label }) => ({
       id,
       label,
       pressed: mode === value,
-      variant: mode === value ? ('secondary' as const) : ('ghost' as const),
       onClick: () => setMode(value),
     })),
     filtersOpen,
     toggleFilters: () => setPanel((current) => current === 'diagramFilters' ? null : 'diagramFilters'),
     filterProps: {
-      simulated: Boolean(graph.simulated),
+      simulated: Boolean(report.simulated),
       filtersOpen,
       showTopology: graph.edges.some((edge) => edge.state),
       topology,
@@ -119,6 +127,8 @@ export const useToolbar = ({
       icons,
       query,
       searching,
+      compactOpen: panel === 'results' || panel === 'searchFilters',
+      toggleSearch: () => setPanel((current) => current === 'results' || current === 'searchFilters' ? null : 'results'),
       filtersOpen: panel === 'searchFilters',
       facets,
       searchFilters,

@@ -1,7 +1,13 @@
-import { ArrowLeft, ChevronRight } from 'lucide-react'
-import { useLayoutEffect, useRef } from 'react'
+import { AnimatePresence, m, useIsPresent } from 'motion/react'
+import { ChevronDown, ChevronRight, X } from 'lucide-react'
+import { Fragment, useLayoutEffect, useRef } from 'react'
 import type { ReactNode, RefObject } from 'react'
 import { DetailSection, DetailSections } from '../../components/detail-sections'
+import { MotionContent } from '../../components/motion-content'
+import { SegmentButton } from '../../components/segment-button'
+import { disclosureVariants, useMotionTransition } from '../../lib/motion'
+import { segmentedControlClass } from '../../components/overlay-styles'
+import { cn } from '../../lib/utils'
 import { serviceFor } from '../../lib/graph-projection'
 import { serviceIconSrc } from '../../lib/graph-view'
 import type { ServiceIcons, Topology } from '../../lib/graph.types'
@@ -15,7 +21,7 @@ import { type WorkflowSelection, type WorkflowSide, maxWorkflowInput, workflowUs
 import { WorkflowDetail } from './workflow-detail'
 import { EstimateCell, FeeDetails, Issues, Sources, leftCellClass, rightCellClass } from './workflow-estimate'
 import { filterCostEntries, workflowEstimate } from './workflow-table'
-import type { WorkflowBasis } from './workflow-table'
+import type { WorkflowBasis, WorkflowRow } from './workflow-table'
 import { WorkflowBasisSelect, WorkflowTableControls } from './workflow-table-controls'
 import type { WorkflowTableFilter } from './workflow-table-controls'
 
@@ -62,7 +68,7 @@ function WorkflowServices({ current, other, previous, report, icons, onEdit, sid
               const before = previous && (previous.services.get(service)?.monthly ?? missingServiceBefore)
               const estimate = current.services.get(service) ?? fallback
               return (
-                <tr key={service} className="border-b">
+                <tr key={service} className="border-b transition-colors duration-(--motion-hover) ease-(--motion-standard) hover:bg-accent/50">
                   <th scope="row" className={leftCellClass}>
                     <span className="flex items-center gap-1.5 font-medium">
                       {icon && <img src={icon} className="size-4 shrink-0" alt="" />}
@@ -128,163 +134,171 @@ export function WorkflowCosts({
   listBasis: WorkflowBasis
   setListBasis: (basis: WorkflowBasis) => void
 }) {
+  const filterTransition = useMotionTransition('disclosure')
   const current = side === 'before' && before ? before : after
   const previous = side === 'after' ? before : undefined
   const row = tab === 'workflows' && selection ? current.workflows.get(selection.id) : undefined
-  const back = useRef<HTMLButtonElement>(null)
-  const selectedId = row?.workflow.id
-  const previousId = useRef<string>(undefined)
-  const list = useRef<HTMLTableElement>(null)
+  const selectedButton = useRef<HTMLButtonElement>(null)
+  const active = row?.workflow.id
   useLayoutEffect(() => {
-    if (selectedId) {
-      if (bodyRef.current) bodyRef.current.scrollTop = 0
-      back.current?.focus({ preventScroll: true })
-    } else if (previousId.current) {
-      const button = [...(list.current?.querySelectorAll<HTMLButtonElement>('button[data-workflow]') ?? [])]
-        .find((element) => element.getAttribute('data-workflow') === previousId.current)
-      const target = button ?? bodyRef.current?.querySelector<HTMLInputElement>('input[type="search"]')
-      target?.focus()
+    const button = selectedButton.current
+    if (active && button && !bodyRef.current?.contains(document.activeElement)) {
+      button.scrollIntoView({ block: 'nearest' })
     }
-    previousId.current = selectedId
-  }, [selectedId, bodyRef])
+  }, [active, bodyRef])
 
-  let content: ReactNode
-  if (tab === 'services') {
-    content = (
-      <WorkflowServices
-        current={current}
-        other={side === 'before' ? after : before}
-        previous={previous}
-        report={report}
-        icons={icons}
-        side={side}
-        onEdit={onEdit}
-      />
-    )
-  } else if (row) {
-    content = (
-      <>
-        <Button ref={back} type="button" size="sm" variant="ghost" className="mb-2" onClick={onClear}>
-          <Icon icon={ArrowLeft} size={14} /> All workflows
-        </Button>
-        <WorkflowDetail
-          key={row.workflow.id}
-          row={row}
-          current={current}
-          report={report}
-          side={side}
-          onEdit={onEdit}
-          onGraph={onGraph}
-          basis={basis}
-          setBasis={setBasis}
-          colorByCost={colorByCost}
-          setColorByCost={setColorByCost}
-        />
-      </>
-    )
-  } else {
-    content = (
-      <WorkflowList
-        current={current}
-        previous={previous}
-        tableRef={list}
-        filter={listFilter}
-        setFilter={setListFilter}
-        basis={listBasis}
-        setBasis={setListBasis}
-        onSelect={(id) => onSelect({ id, side })}
-      />
-    )
+  const detail = row && <WorkflowDetail
+    key={row.workflow.id}
+    row={row}
+    current={current}
+    report={report}
+    side={side}
+    onEdit={onEdit}
+    onGraph={onGraph}
+    basis={basis}
+    setBasis={setBasis}
+    colorByCost={colorByCost}
+    setColorByCost={setColorByCost}
+  />
+
+  const clear = () => {
+    selectedButton.current?.focus({ preventScroll: true })
+    onClear()
   }
 
   return (
     <>
-      <div className="shrink-0 space-y-2 border-b bg-card px-3 py-2">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b bg-card px-3 py-1.5">
+        <div className={segmentedControlClass} role="group" aria-label="Cost view">
+          {(['services', 'workflows'] as const).map((choice) => (
+            <SegmentButton key={choice} type="button" size="sm" group="cost-view" pressed={tab === choice} onClick={() => setTab(choice)}>
+              {choice === 'services' ? 'Services' : 'Workflows'}
+            </SegmentButton>
+          ))}
+        </div>
+        {before && <div className={segmentedControlClass} role="group" aria-label="Cost snapshot">
+          {(['before', 'after'] as const).map((state) => (
+            <SegmentButton key={state} type="button" size="sm" group="cost-snapshot" pressed={side === state} onClick={() => onSide(state)}>
+              {state === 'before' ? 'Before' : 'After'}
+            </SegmentButton>
+          ))}
+        </div>}
+        <div className="ml-auto flex max-w-full flex-wrap items-center gap-1">
           <label className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             Monthly active users
-            <Input type="number" className="h-8 w-24" min={0} max={maxWorkflowInput} step="any"
+            <Input type="number" className="h-7 w-24 text-sm tabular-nums" min={0} max={maxWorkflowInput} step="any"
               value={current.users ?? ''} placeholder="Unknown" onChange={(event) => onEdit('users', event.currentTarget.value)} />
           </label>
           <div className="flex gap-1" role="group" aria-label="Active user presets">
             {workflowUserPresets.map(({ value, label }) => (
-              <Button key={value} type="button" size="sm" variant={current.users === value ? 'secondary' : 'outline'}
-                aria-pressed={current.users === value} onClick={() => onEdit('users', String(value))}>{label}</Button>
+              <SegmentButton key={value} type="button" size="sm" group="cost-users" variant="outline"
+                pressed={current.users === value} onClick={() => onEdit('users', String(value))}>{label}</SegmentButton>
             ))}
           </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex gap-1" role="group" aria-label="Cost view">
-            {(['services', 'workflows'] as const).map((choice) => (
-              <Button key={choice} type="button" size="sm" variant={tab === choice ? 'secondary' : 'ghost'}
-                aria-pressed={tab === choice} onClick={() => {
-                  setTab(choice)
-                  onClear()
-                }}>
-                {choice === 'services' ? 'Services' : 'Workflows'}
-              </Button>
-            ))}
-          </div>
-          {before && <div className="flex gap-1" role="group" aria-label="Cost snapshot">
-            {(['before', 'after'] as const).map((state) => (
-              <Button key={state} type="button" size="sm" variant={side === state ? 'secondary' : 'ghost'}
-                aria-pressed={side === state} onClick={() => onSide(state)}>{state === 'before' ? 'Before' : 'After'}</Button>
-            ))}
-          </div>}
         </div>
       </div>
-      <div ref={bodyRef} className="min-h-0 overflow-auto overscroll-contain px-3 pb-2" tabIndex={0} aria-label="Cost estimates">
-        {content}
+      <AnimatePresence initial={false}>
+        {tab === 'workflows' && (
+          <m.div className="shrink-0 overflow-hidden" initial="closed" animate="open" exit="closed"
+            variants={disclosureVariants} transition={filterTransition}>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-b px-3 py-1.5">
+              <WorkflowTableControls list filter={listFilter} onChange={setListFilter}>
+                <WorkflowBasisSelect label="Workflow cost basis" value={listBasis} onChange={setListBasis} />
+              </WorkflowTableControls>
+              {selection && <Button type="button" size="sm" variant="ghost" className="h-7 text-xs text-primary"
+                onClick={clear}><Icon icon={X} size={14} /> Clear workflow</Button>}
+            </div>
+          </m.div>
+        )}
+      </AnimatePresence>
+      <div ref={bodyRef} className="relative min-h-0 flex-1 overflow-auto overscroll-contain px-3 pb-2" tabIndex={0} aria-label="Cost estimates">
+        <AnimatePresence initial={false} mode="popLayout">
+          <MotionContent key={tab}>
+            {tab === 'services' ? (
+              <WorkflowServices current={current} other={side === 'before' ? after : before} previous={previous}
+                report={report} icons={icons} side={side} onEdit={onEdit} />
+            ) : (
+              <WorkflowList current={current} previous={previous} filter={listFilter} basis={listBasis}
+                selected={row} selectedButton={selectedButton} detail={detail}
+                onSelect={(id) => id === active ? clear() : onSelect({ id, side })} />
+            )}
+          </MotionContent>
+        </AnimatePresence>
       </div>
     </>
   )
 }
 
-function WorkflowList({ current, previous, tableRef, onSelect, filter, setFilter, basis, setBasis }: {
+function WorkflowList({ current, previous, onSelect, filter, basis, selected, selectedButton, detail }: {
   current: WorkflowSide
   previous?: WorkflowSide
-  tableRef: RefObject<HTMLTableElement | null>
   onSelect: (id: string) => void
   filter: WorkflowTableFilter
-  setFilter: (filter: WorkflowTableFilter) => void
   basis: WorkflowBasis
-  setBasis: (basis: WorkflowBasis) => void
+  selected?: WorkflowRow
+  selectedButton: RefObject<HTMLButtonElement | null>
+  detail?: ReactNode
 }) {
   const rows = filterCostEntries([...current.workflows.values()].map((entry) => ({
     entry, labels: [entry.workflow.label], estimate: workflowEstimate(entry, basis), absent: !entry.state,
-  })), filter.query, filter.pricing, filter.order)
+  })), filter.query, filter.pricing, filter.order).map(({ entry }) => entry)
+  if (selected && !rows.includes(selected)) rows.unshift(selected)
+
   return (
-    <div className="space-y-3 pt-3">
-      <WorkflowTableControls list filter={filter} onChange={setFilter}>
-        <WorkflowBasisSelect label="Workflow cost basis" value={basis} onChange={setBasis} />
-      </WorkflowTableControls>
-      <div className="overflow-x-auto" role="region" aria-label="Workflow costs" tabIndex={0}>
-        <table ref={tableRef} className="w-full">
-          <thead className="border-y text-xs text-muted-foreground">
-            <tr>
-              <th scope="col" className={leftCellClass}>Workflow</th>
-              <th scope="col" className={rightCellClass}>Per run</th>
-              <th scope="col" className={rightCellClass}>Per 1M</th>
-              <th scope="col" className={rightCellClass}>Monthly</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ entry }) => <tr key={entry.workflow.id} className="cursor-pointer border-b hover:bg-highlight/5"
-              onClick={() => onSelect(entry.workflow.id)}>
-              <th scope="row" className="p-0 text-left">
-                <Button data-workflow={entry.workflow.id} type="button" variant="ghost" size="sm"
-                  className="h-auto min-h-9 w-full justify-between whitespace-normal px-1.5 text-left wrap-anywhere sm:px-2">
-                  {entry.workflow.label}<Icon icon={ChevronRight} size={13} className="shrink-0 text-muted-foreground" />
-                </Button>
-              </th>
-              <EstimateCell value={entry.state ? entry.one.total : { ...zero, priced: false }} precise />
-              <EstimateCell value={entry.state ? entry.million.total : { ...zero, priced: false }} />
-              <EstimateCell value={entry.month} before={previous?.workflows.get(entry.workflow.id)?.month} />
-            </tr>)}
-            {!rows.length && <tr><td colSpan={4} className={leftCellClass}>No workflows found.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <table className="w-full min-w-[26rem]" aria-label="Workflow costs">
+      <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-[inset_0_-1px_0_var(--border)]">
+        <tr>
+          <th scope="col" className={leftCellClass}>Workflow</th>
+          <th scope="col" className={rightCellClass}>Per run</th>
+          <th scope="col" className={rightCellClass}>Per 1M</th>
+          <th scope="col" className={rightCellClass}>Monthly</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((entry) => {
+          const id = entry.workflow.id
+          const expanded = entry === selected
+          return (
+            <Fragment key={id}>
+              <tr className={cn('cursor-pointer border-b transition-colors duration-(--motion-hover) ease-(--motion-standard) hover:bg-accent/50', expanded && 'bg-muted')}
+                onClick={(event) => {
+                  if (event.target instanceof Element && !event.target.closest('button')) onSelect(id)
+                }}>
+                <th scope="row" className="p-0 text-left">
+                  <Button ref={expanded ? selectedButton : undefined} data-workflow={id} type="button" variant="ghost" size="sm"
+                    aria-expanded={expanded} aria-controls={expanded ? `workflow-detail-${id}` : undefined} onClick={() => onSelect(id)}
+                    className={cn('h-auto min-h-8 w-full justify-start whitespace-normal px-2 py-1 text-left wrap-anywhere', expanded && 'text-primary')}>
+                    <Icon icon={expanded ? ChevronDown : ChevronRight} size={14} />
+                    {entry.workflow.label}
+                  </Button>
+                </th>
+                <EstimateCell value={entry.state ? entry.one.total : { ...zero, priced: false }} precise />
+                <EstimateCell value={entry.state ? entry.million.total : { ...zero, priced: false }} />
+                <EstimateCell value={entry.month} before={previous?.workflows.get(id)?.month} />
+              </tr>
+              <AnimatePresence initial={false}>
+                {expanded && <WorkflowDetailRow id={id}>{detail}</WorkflowDetailRow>}
+              </AnimatePresence>
+            </Fragment>
+          )
+        })}
+        {!rows.length && <tr><td colSpan={4} className={leftCellClass}>No workflows found.</td></tr>}
+      </tbody>
+    </table>
+  )
+}
+
+function WorkflowDetailRow({ id, children }: { id: string; children: ReactNode }) {
+  const present = useIsPresent()
+  const transition = useMotionTransition('disclosure')
+
+  return (
+    <m.tr data-workflow-detail={id} id={`workflow-detail-${id}`} inert={!present} initial="closed" animate="open" exit="closed">
+      <td colSpan={4} className="bg-background/40 p-0">
+        <m.div className="overflow-hidden" variants={disclosureVariants} transition={transition}>
+          <div className="border-b p-3">{children}</div>
+        </m.div>
+      </td>
+    </m.tr>
   )
 }

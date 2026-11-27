@@ -33,6 +33,7 @@ export type GraphEdge = {
 export type Graph = {
   nodes: Resource[]
   edges: GraphEdge[]
+  previewProvider?: string
   simulated?: boolean
   omittedRelations?: number
 }

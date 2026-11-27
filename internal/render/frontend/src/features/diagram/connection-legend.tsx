@@ -1,9 +1,7 @@
-import { ChevronDown, ChevronUp, Pause, Play } from 'lucide-react'
+import { ChevronUp } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { useRef, useState } from 'react'
-import { overlayPanelClass } from '../../components/overlay-styles'
+import { useState } from 'react'
 import type { ProjectedEdge } from '../../lib/graph.types'
-import { cn } from '../../lib/utils'
 import { Box } from '../../ui/box'
 import { Button } from '../../ui/button'
 import { Icon } from '../../ui/icon'
@@ -15,66 +13,45 @@ import type { FlowPaintLayer } from './flow-path'
 import { FlowPath } from './flow-path'
 
 const styles = {
-  placement:
-    'right-2.5 bottom-[max(3.75rem,calc(env(safe-area-inset-bottom)+3.25rem))] w-max max-w-[calc(100%-1.25rem)] p-1.5 sm:right-4',
-  header: 'flex items-center gap-1',
-  button: 'justify-start gap-2 rounded-full px-2.5 text-xs motion-safe:active:scale-95',
-  motion: 'ml-auto rounded-full text-muted-foreground motion-reduce:hidden',
-  content: 'px-2.5 pt-1 pb-1.5 motion-safe:animate-detail-in',
-  entries: 'grid gap-1',
+  placement: 'relative justify-self-center',
+  trigger: 'text-muted-foreground min-[981px]:hidden',
+  content: 'connection-legend-content items-center gap-1 text-xs text-muted-foreground',
+  entries: 'flex items-center gap-2 max-[980px]:flex-col max-[980px]:items-stretch max-[980px]:gap-1',
   entry:
-    'flex w-full cursor-pointer items-center gap-2 rounded-sm text-left text-xs leading-tight text-foreground hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-[pressed=false]:text-muted-foreground aria-[pressed=false]:grayscale',
-  sample: 'pointer-events-none h-3.5 w-12 shrink-0',
-  note: 'mt-2 text-[.625rem] leading-snug text-muted-foreground',
+    'flex min-h-6 w-full cursor-pointer items-center gap-1.5 rounded-sm px-1 text-left text-xs whitespace-nowrap hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring aria-[pressed=false]:line-through aria-[pressed=false]:grayscale',
+  sample: 'pointer-events-none h-3 w-8 shrink-0',
+  note: 'text-xs text-muted-foreground min-[981px]:sr-only',
 }
 
 const legendEntries = pipeKinds.map((kind) => ({
-    kind,
-    label: pipeAppearance[kind].label,
-    ...pipePaint[kind],
-  }))
+  kind,
+  label: pipeAppearance[kind].label,
+  ...pipePaint[kind],
+}))
 
 export function ConnectionLegend({
   legendOpen,
-  legendRef,
-  playing,
   hiddenKinds,
   setKindVisible,
-  motionAction,
   toggleLegend,
-  toggleMotion,
 }: ReturnType<typeof useConnectionLegend>) {
   return (
-    <Box
-      as="section"
-      ref={legendRef}
-      aria-label="Connection legend"
-      className={cn(overlayPanelClass, styles.placement)}
-    >
-      <Box className={styles.header}>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={styles.button}
-          aria-expanded={legendOpen}
-          aria-controls="connection-legend"
-          onClick={toggleLegend}
-        >
-          Connection legend
-          <Icon icon={legendOpen ? ChevronDown : ChevronUp} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className={styles.motion}
-          aria-label={motionAction}
-          title={motionAction}
-          onClick={toggleMotion}
-        >
-          <Icon icon={playing ? Pause : Play} />
-        </Button>
-      </Box>
-      <Box id="connection-legend" hidden={!legendOpen} className={styles.content}>
+    <Box as="section" aria-label="Connection legend" className={styles.placement}
+      data-open={legendOpen} onBlur={(event) => {
+        if (legendOpen && !event.currentTarget.contains(event.relatedTarget)) toggleLegend()
+      }}>
+      <Button variant="ghost" size="xs" className={styles.trigger} aria-expanded={legendOpen}
+        aria-controls="connection-legend" onClick={toggleLegend}>
+        Legend <Icon icon={ChevronUp} />
+      </Button>
+      <Box id="connection-legend" className={styles.content} onKeyDown={(event) => {
+        if (event.key === 'Escape' && legendOpen) {
+          event.stopPropagation()
+          toggleLegend()
+          const trigger = event.currentTarget.previousElementSibling
+          if (trigger instanceof HTMLElement) trigger.focus()
+        }
+      }}>
         <List className={styles.entries}>
           {legendEntries.map(({ kind, label, ...paint }) => {
             const visible = !hiddenKinds.has(kind)
@@ -86,7 +63,6 @@ export function ConnectionLegend({
                   className={styles.entry}
                   aria-pressed={visible}
                   data-connection-kind={kind}
-                  data-pipe-motion={visible ? undefined : 'off'}
                   onClick={() => setKindVisible(kind, !visible)}
                 >
                   <FlowSwatch className={styles.sample} {...paint} />
@@ -126,11 +102,7 @@ function FlowSwatch({
 type ConnectionKind = ProjectedEdge['kind']
 
 export const useConnectionLegend = () => {
-  const [legendOpen, setLegendOpen] = useState(
-    () => window.matchMedia('(min-width: 621px)').matches,
-  )
-  const legendRef = useRef<HTMLElement>(null)
-  const [playing, setPlaying] = useState(true)
+  const [legendOpen, setLegendOpen] = useState(false)
   const [hiddenKinds, setHiddenKinds] = useState<ReadonlySet<ConnectionKind>>(() => new Set())
   const setKindVisible = (kind: ConnectionKind, visible: boolean) => {
     setHiddenKinds((previous) => {
@@ -144,12 +116,8 @@ export const useConnectionLegend = () => {
 
   return {
     legendOpen,
-    legendRef,
-    playing,
     hiddenKinds,
     setKindVisible,
-    motionAction: playing ? 'Pause flow animation' : 'Resume flow animation',
     toggleLegend: () => setLegendOpen((open) => !open),
-    toggleMotion: () => setPlaying((value) => !value),
   }
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { cn } from '../../lib/utils'
 import { Input } from '../../ui/input'
 import { NativeSelect } from '../../ui/native-select'
 import { workflowBasisLabels } from './workflow-table'
@@ -23,9 +24,10 @@ export function WorkflowTableControls({ filter, onChange, list = false, children
 }) {
   const searchLabel = list ? 'Search workflows' : 'Search operations'
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className={cn('flex flex-wrap items-center gap-2', list &&
+      'max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:[&>[data-slot=native-select-wrapper]]:w-full')}>
       <Input type="search" aria-label={searchLabel} placeholder={searchLabel}
-        className="h-8 min-w-40 flex-1" value={filter.query}
+        className="h-8 w-56 max-w-full text-sm max-sm:w-full" value={filter.query}
         onChange={(event) => onChange({ ...filter, query: event.currentTarget.value })} />
       <NativeSelect size="sm" aria-label={list ? 'Workflow pricing status' : 'Operation pricing status'} value={filter.pricing}
         onChange={(event) => onChange({ ...filter, pricing: event.currentTarget.value as PricingFilter })}>

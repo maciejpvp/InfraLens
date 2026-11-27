@@ -64,7 +64,7 @@ export function WorkflowDetail({ row, current, report, side, onEdit, onGraph, ba
   return (
     <section className="space-y-3" aria-label="Selected workflow">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h3 className="text-lg font-semibold leading-tight wrap-anywhere">{row.workflow.label}</h3>
+        <h3 className="text-sm font-semibold leading-tight wrap-anywhere">{row.workflow.label}</h3>
         <div className="flex flex-wrap items-center gap-2">
           <Label className="flex min-h-8 items-center gap-2 text-xs">
             <Checkbox checked={colorByCost} onCheckedChange={(checked) => setColorByCost(checked === true)} />
@@ -75,7 +75,7 @@ export function WorkflowDetail({ row, current, report, side, onEdit, onGraph, ba
       </div>
       {row.state ? <>
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 [&>dl]:mb-0">
+          <div className="min-w-0 max-w-96 flex-1 [&>dl]:mb-0">
             <Metadata rows={[
               [workflowBasisLabels[basis], formatEstimate(total, basis === 'one')],
               ['Runs / month', row.runs === null ? 'Unknown' : quantityFormat.format(row.runs)],

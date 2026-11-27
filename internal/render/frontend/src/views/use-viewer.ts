@@ -3,6 +3,7 @@ import type { WorkflowCostShare } from '../features/costs/workflow-table'
 import { workflowGraph } from '../features/costs/workflows'
 import { useConnectionLegend } from '../features/diagram/connection-legend'
 import type { InspectorOrigin, InspectorPage, OpenRelation, OpenResource } from '../features/inspector/use-inspector'
+import { countChanges } from '../lib/graph-view'
 import type {
   Graph,
   GraphEdge,
@@ -29,10 +30,6 @@ const diagramElement = (
   )
 }
 
-function getCostWindowBounds() {
-  return document.getElementById('report-cost-window')?.getBoundingClientRect()
-}
-
 const resourcePage = (item: HierarchyItem, edges: GraphEdge[]): InspectorPage => ({
   item,
   links: edges.filter((edge) => item.members.has(edge.from) || item.members.has(edge.to)),
@@ -47,6 +44,15 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   const activePath = path?.side === topology ? path : undefined
   const graph = useMemo(() => activePath ? workflowGraph(baseGraph, activePath) : baseGraph, [baseGraph, activePath])
   const byId = useMemo(() => new Map(baseGraph.nodes.map((node) => [node.id, node])), [baseGraph])
+  const changes = useMemo(() => countChanges(baseGraph.nodes), [baseGraph])
+  const provider = useMemo(() => {
+    if (baseGraph.previewProvider === 'aws-cdk') return 'AWS CDK'
+    if (baseGraph.previewProvider === 'pulumi') return 'Pulumi'
+    const providers = new Set(baseGraph.nodes.flatMap(({ provider }) => provider ? [provider] : []))
+    if (providers.size > 1) return 'Multiple providers'
+    const name = providers.values().next().value
+    return name === 'aws' ? 'AWS' : name
+  }, [baseGraph])
   const [mode, setMode] = useState<ViewMode>(() =>
     activeEdges(baseGraph, defaultTopology).some(isFlow) ? 'flow' : 'infra',
   )
@@ -81,7 +87,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   const inspector = useInspector((origin) => {
     const element = findOpener(origin)
     restoreOrigin.current = origin
-    return element || search.current
+    return element || (search.current?.offsetWidth ? search.current : document.getElementById('search-toggle'))
   })
   const { open } = inspector
   const selection = inspector.pages.at(-1)
@@ -122,10 +128,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
   const { scene, moveCard, layoutPending, layoutFailed } = useDiagramLayout(
     tree, current, context, onlyConnections ? undefined : projectedFocusId, layoutAnchor, Boolean(activePath),
   )
-  const camera = useCamera(
-    stage, search, zoomLabel, scene, legendProps.legendRef, Boolean(activePath),
-    activePath ? getCostWindowBounds : undefined,
-  )
+  const camera = useCamera(stage, zoomLabel, scene, Boolean(activePath))
 
   useLayoutEffect(() => {
     if (!scene || scene.motion || scene.current !== current) return
@@ -209,7 +212,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
       open(page, id)
     }
     if (action === 'pointer') {
-      // Opening the panel could cover the card before the browser delivers the second click.
+      // Docking can move the card before the browser delivers the second click.
       setPendingItem(page)
       pointerTimer.current = window.setTimeout(() => {
         setPendingItem(undefined)
@@ -228,11 +231,11 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
     const dependent = !isolatedScope && edge.kind === 'depends_on' ? revealOnDiagram(edge.from, false) : undefined
     inspector.navigate({ edges: [edge], focusId: detailsScope ? focusId : isolatedScope ?? (dependent ? edge.from : focusId) }, trigger)
   }
-  const exitDetailsView = () => {
+  const exitDetailsView = (keepInspector = false) => {
     cancelPointerOpen()
     setDetailsViewId(undefined)
     setIsolatedId(undefined)
-    inspector.close()
+    if (!keepInspector) inspector.close()
   }
 
   return {
@@ -241,9 +244,9 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         ref: stage,
         'aria-busy': layoutPending || Boolean(scene?.motion),
         'data-inspecting': Boolean(selection),
-        'data-pipe-motion': legendProps.playing ? 'on' : 'off',
       },
       legend: legendProps,
+      changes,
       layoutFailed,
       isEmpty: graph.nodes.length === 0,
       noFlow: !activePath && graph.nodes.length > 0 && mode === 'flow' && !tree.flowIDs.size,
@@ -267,6 +270,7 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
       },
       toolbar: {
         graph: scopedGraph,
+        report: baseGraph,
         icons,
         search,
         mode,
@@ -293,10 +297,13 @@ export const useViewer = (baseGraph: Graph, icons: ServiceIcons, path?: Workflow
         onResource: showResource,
         inspecting: Boolean(selection),
       },
-      mapControls: scene && {
-        graph: scopedGraph,
-        flowCount: !detailsScope && mode === 'flow' ? tree.flowIDs.size : undefined,
-        routes: scene.routes,
+      mapControls: {
+        provider,
+        visible: current.representatives.size,
+        total: baseGraph.nodes.length,
+        omitted: baseGraph.omittedRelations,
+        unrouted: scene?.routes.filter((route) => !route).length,
+        disabled: !scene || !current.items.size,
         zoomLabel,
         zoom: camera.zoom,
         fit: camera.fit,

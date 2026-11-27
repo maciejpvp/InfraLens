@@ -15,31 +15,29 @@ import { GROUP_HEADER_HEIGHT } from './layout/dimensions'
 const styles = {
   selected: 'selected',
   item: 'relative pointer-events-none',
-  groupBounds: 'absolute inset-0 rounded-[24px] bg-card/65',
+  groupBounds: 'absolute inset-0 rounded-lg bg-card/90',
   nestedGroupBounds: 'border-dashed',
   button:
-    'nopan pointer-events-auto absolute inset-x-0 top-0 w-full cursor-pointer overflow-hidden text-left outline-none motion-safe:transition-opacity',
+    'nopan pointer-events-auto absolute inset-x-0 top-0 w-full cursor-pointer overflow-hidden text-left outline-2 outline-transparent transition-[opacity,background-color,border-color,outline-color] duration-(--motion-feedback) ease-(--motion-standard)',
   groupHeader: 'group-header',
-  header: 'header-bg flex items-center gap-2 rounded-[20px] px-4 hover:bg-accent/70 focus-visible:bg-accent',
+  header: 'header-bg flex items-center gap-2 rounded-t-lg px-3.5 hover:bg-accent/70 focus-visible:bg-accent',
   headerWithIcon: 'pl-2.5',
   selectedHeader: 'bg-accent',
   headerName: 'min-w-0 flex-1 truncate text-sm font-semibold',
   groupCount: 'shrink-0 pr-9 text-xs text-muted-foreground',
   node: 'node',
-  mutedItem: 'muted opacity-25 focus-visible:opacity-75',
-  card: 'body flex h-full flex-col justify-center gap-1 rounded-[17px] bg-card px-3.5 hover:bg-accent/40 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+  mutedItem: 'muted opacity-60 focus-visible:opacity-100',
+  card: 'body flex h-full flex-col justify-center gap-1 rounded-lg bg-muted px-3.5 hover:bg-accent/40 focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
   supportCard: 'border-dashed',
-  selectedCard: 'outline-solid outline-2 outline-offset-2 outline-ring',
-  statusBorder: 'border-2 border-(--card-change)',
-  cardShadow: 'shadow-node',
-  changedCard:
-    '[box-shadow:0_0_3px_color-mix(in_srgb,var(--card-change)_40%,transparent),0_0_12px_color-mix(in_srgb,var(--card-change)_16%,transparent)]',
+  selectedCard: 'outline-solid outline-2 outline-offset-1 outline-primary',
+  statusBorder: 'border border-input',
+  changedCard: 'border-(--card-change)',
   changeColor: {
-    unchanged: '[--card-change:var(--card-unchanged)]',
+    unchanged: '',
     create: '[--card-change:var(--card-create)]',
     delete: '[--card-change:var(--card-delete)]',
     update: '[--card-change:var(--card-update)]',
-    replace: '[--card-change:var(--card-update)]',
+    replace: '[--card-change:var(--card-replace)]',
   },
   cardTop: 'flex items-center gap-2',
   reserveToggle: 'pr-9',
@@ -47,10 +45,10 @@ const styles = {
   nodeType: 'node-type min-w-0 flex-1 truncate text-[11px] text-muted-foreground',
   nodeName: 'node-name truncate text-sm font-medium',
   nodeMeta: 'node-meta truncate text-xs text-muted-foreground',
-  change: 'shrink-0 text-[11px] text-muted-foreground',
+  change: 'shrink-0 text-[11px] text-(--card-change)',
   handle: 'opacity-0',
   toggle:
-    'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-full border border-input bg-accent p-0 text-lg font-medium text-foreground hover:bg-accent/70 dark:hover:bg-[#456070] focus-visible:ring-ring motion-safe:active:scale-95',
+    'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-sm border border-transparent bg-transparent p-0 text-lg font-medium text-muted-foreground hover:bg-accent focus-visible:ring-ring motion-safe:active:scale-95',
 }
 
 const costPercent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 })
@@ -59,7 +57,7 @@ export function DiagramItem({ data }: NodeProps<DiagramNode>) {
   const { item, bounds, workflowHeat } = data
   const percent = workflowHeat && (workflowHeat.share < 0.001 ? '<0.1%' : costPercent.format(workflowHeat.share))
   const costLabel = workflowHeat && `${percent} of ${workflowHeat.partial ? 'known ' : ''}workflow cost`
-  const heatColor = workflowHeat && `color-mix(in srgb, #f59e0b ${5 + 26 * workflowHeat.intensity}%, transparent)`
+  const heatColor = workflowHeat && `color-mix(in srgb, var(--color-cost-warning) ${5 + 26 * workflowHeat.intensity}%, transparent)`
   const name = <Text className={cn(styles.nodeName, data.drag && 'pr-8')}>{item.name}</Text>
   const usage = data.workflowUsage?.join(' · ')
   const usageClass = 'line-clamp-2 text-xs leading-tight text-muted-foreground'
@@ -197,12 +195,12 @@ const getCardPresentation = ({
               styles.card,
               styles.statusBorder,
               statusColor,
-              hasChange ? styles.changedCard : styles.cardShadow,
+              hasChange && styles.changedCard,
               item.support && styles.supportCard,
               selected && styles.selectedCard,
             ],
         selected && styles.selected,
-        muted && styles.mutedItem,
+        muted && !item.expanded && styles.mutedItem,
       ),
       style: item.expanded ? { height: GROUP_HEADER_HEIGHT } : undefined,
       ...open,
@@ -211,9 +209,9 @@ const getCardPresentation = ({
     groupClassName: cn(
       styles.groupBounds,
       styles.statusBorder,
+      hasChange && styles.changedCard,
       statusColor,
       depth > 0 && styles.nestedGroupBounds,
-      muted && styles.mutedItem,
     ),
     cardTopClassName: cn(styles.cardTop, item.group && styles.reserveToggle),
     count: item.service && hasChange ? `${resourceCount} · ${changeLabels[change]}` : resourceCount,

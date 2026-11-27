@@ -99,14 +99,11 @@ export type ResourceDetailsOptions = {
 export const describeResource = ({ item, links, byId, onResource, onEdges }: ResourceDetailsOptions) => {
   const groups = groupRelations(links)
   const rows: MetadataRow[] = [
-    ['Type', item.node?.type || item.service?.name || 'Resource group'],
-    ['Stack', item.stack],
-    ['Changes', changeSummary(item, byId)],
-    [
-      'Connections',
-      groups.map(({ name, relations }) => `${name}: ${relations.length}`).join(' · ') || 'No connections',
-    ],
+    ['Stack', item.stack || '—'],
+    ['Change', changeSummary(item, byId), undefined, item.node?.change && `change-${item.node.change}`],
   ]
+  if (!item.node) rows.unshift(['Type', item.service?.name || 'Resource group'])
+  for (const { name, relations } of groups) rows.push([name, String(relations.length)])
   const resourceGroup = item.group
     ? {
         title: `Resources in group (${item.members.size})`,

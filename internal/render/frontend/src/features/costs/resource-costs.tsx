@@ -1,12 +1,14 @@
+import { AnimatePresence } from 'motion/react'
 import { DollarSign } from 'lucide-react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useId, useMemo } from 'react'
-import { segmentButtonClass, segmentedControlClass } from '../../components/overlay-styles'
+import { MotionContent } from '../../components/motion-content'
+import { SegmentButton } from '../../components/segment-button'
+import { segmentedControlClass } from '../../components/overlay-styles'
 import { serviceFor } from '../../lib/graph-projection'
 import { serviceIconSrc } from '../../lib/graph-view'
 import type { ServiceIcons, Topology } from '../../lib/graph.types'
 import { cn } from '../../lib/utils'
-import { Button } from '../../ui/button'
 import { Icon } from '../../ui/icon'
 import { Input } from '../../ui/input'
 import type { CostReport, Costs, Estimate, Scenario } from './costs'
@@ -103,13 +105,10 @@ export function ResourceCosts({ report, icons, mode, setMode, scenario, setScena
         {report.before && (
           <div role="group" aria-label="Cost comparison" className={segmentedControlClass}>
             {modes.map((choice) => (
-              <Button
-                key={choice} type="button" size="sm" variant={mode === choice ? 'secondary' : 'ghost'}
-                aria-pressed={mode === choice} className={segmentButtonClass}
-                onClick={() => setMode(choice)}
-              >
+              <SegmentButton key={choice} type="button" size="sm" group="cost-comparison"
+                pressed={mode === choice} onClick={() => setMode(choice)}>
                 {choice}
-              </Button>
+              </SegmentButton>
             ))}
           </div>
         )}
@@ -117,47 +116,51 @@ export function ResourceCosts({ report, icons, mode, setMode, scenario, setScena
       {mode !== 'After' && report.beforeIssues?.map((issue) => (
         <p key={issue} className="mb-2 max-w-80 text-xs text-cost-warning">{issue}</p>
       ))}
-      <div role="region" className="overflow-x-auto" tabIndex={compare ? 0 : undefined} aria-label="AWS cost table">
-        <table className="w-full border-collapse text-sm">
-          {compare && <><colgroup span={1} /><colgroup span={3} /><colgroup span={3} /></>}
-          <thead className="border-y text-xs text-muted-foreground">
-            <tr>
-              <th rowSpan={compare ? 2 : 1} scope="col" className="min-w-28 p-2 text-left">Service</th>
-              {metrics.map(({ id, label }) => (
-                <th key={id} scope={compare ? 'colgroup' : 'col'} colSpan={compare ? 3 : 1} className={cell}>{label}</th>
-              ))}
-            </tr>
-            {compare && (
-              <tr>
-                {metrics.flatMap(({ id }) => ['Before', 'After', 'Difference'].map((label) => (
-                  <th key={id + label} scope="col" className={cell}>{label}</th>
-                )))}
-              </tr>
-            )}
-          </thead>
-          <tbody>
-            {sorted.map(({ service, display, before, after }) => {
-              const icon = serviceIconSrc({ ...display, icon: service }, icons)
-              return (
-                <tr key={service} className="border-b">
-                  <th scope="row" className="p-2 text-left align-top font-medium">
-                    <span className="flex items-center gap-2">
-                      {icon ? <img src={icon} alt="" className="size-5 shrink-0" /> : <Icon icon={DollarSign} size={16} />}
-                      {display.name}
-                    </span>
-                  </th>
-                  <CostCells mode={mode} before={before} after={after} />
+      <div role="region" aria-label="AWS cost table" className="relative">
+        <AnimatePresence initial={false} mode="popLayout">
+          <MotionContent key={mode}>
+            <table className="w-full border-collapse text-sm">
+              {compare && <><colgroup span={1} /><colgroup span={3} /><colgroup span={3} /></>}
+              <thead className="sticky top-0 z-10 bg-card text-xs text-muted-foreground shadow-[inset_0_-1px_0_var(--border)]">
+                <tr>
+                  <th rowSpan={compare ? 2 : 1} scope="col" className="min-w-28 p-2 text-left">Service</th>
+                  {metrics.map(({ id, label }) => (
+                    <th key={id} scope={compare ? 'colgroup' : 'col'} colSpan={compare ? 3 : 1} className={cell}>{label}</th>
+                  ))}
                 </tr>
-              )
-            })}
-            {sorted.length === 0 && (
-              <tr><td colSpan={compare ? 7 : 3} className="p-2 text-muted-foreground">No AWS resources found.</td></tr>
-            )}
-          </tbody>
-          <tfoot className="font-semibold">
-            <tr><th scope="row" className="p-2 text-left align-top">Total</th><CostCells mode={mode} {...total} /></tr>
-          </tfoot>
-        </table>
+                {compare && (
+                  <tr>
+                    {metrics.flatMap(({ id }) => ['Before', 'After', 'Difference'].map((label) => (
+                      <th key={id + label} scope="col" className={cell}>{label}</th>
+                    )))}
+                  </tr>
+                )}
+              </thead>
+              <tbody>
+                {sorted.map(({ service, display, before, after }) => {
+                  const icon = serviceIconSrc({ ...display, icon: service }, icons)
+                  return (
+                    <tr key={service} className="border-b transition-colors duration-(--motion-hover) ease-(--motion-standard) hover:bg-accent/50">
+                      <th scope="row" className="p-2 text-left align-top font-medium">
+                        <span className="flex items-center gap-2">
+                          {icon ? <img src={icon} alt="" className="size-5 shrink-0" /> : <Icon icon={DollarSign} size={16} />}
+                          {display.name}
+                        </span>
+                      </th>
+                      <CostCells mode={mode} before={before} after={after} />
+                    </tr>
+                  )
+                })}
+                {sorted.length === 0 && (
+                  <tr><td colSpan={compare ? 7 : 3} className="p-2 text-muted-foreground">No AWS resources found.</td></tr>
+                )}
+              </tbody>
+              <tfoot className="font-semibold">
+                <tr><th scope="row" className="p-2 text-left align-top">Total</th><CostCells mode={mode} {...total} /></tr>
+              </tfoot>
+            </table>
+          </MotionContent>
+        </AnimatePresence>
       </div>
       {report.catalogs && <CatalogRates catalogs={report.catalogs} />}
       <CostAssumptions
@@ -187,7 +190,7 @@ function CostAssumptions({
   if (!imported && !panels.some(({ controls }) => controls.length)) return null
 
   return (
-    <details className="mt-3 border-t pt-2">
+    <details data-motion-details className="mt-3 border-t pt-2">
       <summary className="cursor-pointer font-medium">
         Usage assumptions{imported && ' · Imported'}
       </summary>
