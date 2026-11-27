@@ -8,9 +8,14 @@ Each report is a single file with a searchable diagram, change filters, and a re
 
 ## See it in action
 
-The screenshot shows the public AWS CDK demo, with AppSync, Lambda, S3, SQS, and DynamoDB connections. In **Flow**, select a connection to inspect the event or configuration behind it. Switch to **Infrastructure** for the full resource inventory, deployment dependencies, and preview changes.
+The public AWS CDK demo shows AppSync, Lambda, S3, SQS, and DynamoDB connections. Expand the change summary to see affected resources grouped by service. Select a resource or connection to open its details beside the graph. Switch to **Infrastructure** for the full resource inventory and deployment dependencies.
 
-[![Flow view of the AWS CDK demo with connected AWS resources](docs/images/demo-flow.png)](https://maciejpvp.github.io/Laytrace/demo.html)
+<a href="https://maciejpvp.github.io/Laytrace/demo.html">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/images/demo-flow-light.png">
+    <img src="docs/images/demo-flow.png" alt="AWS CDK demo in Flow view with the change summary and Lambda resource inspector">
+  </picture>
+</a>
 
 ## Install
 
