@@ -1,6 +1,6 @@
 package awscdk
 
-import "infralens/internal/graph"
+import "laytrace/internal/graph"
 
 const (
 	appsyncAPI      = "AWS::AppSync::GraphQLApi"

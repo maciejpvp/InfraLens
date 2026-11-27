@@ -1,20 +1,20 @@
-# InfraLens — techniczny plan realizacji open-source CLI do wizualizacji infrastruktury
+# Laytrace — techniczny plan realizacji open-source CLI do wizualizacji infrastruktury
 
 ## Executive summary
 
-**InfraLens ma sens jako małe, lokalne narzędzie developerskie, a nie kolejna platforma.** Najlepszy punkt wejścia to dokładnie ten, który zaproponowałeś: jeden binarny CLI w Go bierze `pulumi stack export`, buduje neutralny graf infrastruktury i generuje **jeden samodzielny `result.html`**, który użytkownik może otworzyć dwuklikiem bez serwera, konta, API keya, CDN-u i dostępu do internetu. Pulumi jest dobrym pierwszym adapterem, bo eksport stosu zawiera zasoby, typy, rodziców, dependencies, inputs i outputs; oficjalny model `ResourceV3` dodatkowo zawiera `propertyDependencies`. citeturn973623search0turn559474search0turn559474search1
+**Laytrace ma sens jako małe, lokalne narzędzie developerskie, a nie kolejna platforma.** Najlepszy punkt wejścia to dokładnie ten, który zaproponowałeś: jeden binarny CLI w Go bierze `pulumi stack export`, buduje neutralny graf infrastruktury i generuje **jeden samodzielny `result.html`**, który użytkownik może otworzyć dwuklikiem bez serwera, konta, API keya, CDN-u i dostępu do internetu. Pulumi jest dobrym pierwszym adapterem, bo eksport stosu zawiera zasoby, typy, rodziców, dependencies, inputs i outputs; oficjalny model `ResourceV3` dodatkowo zawiera `propertyDependencies`. citeturn973623search0turn559474search0turn559474search1
 
-Najważniejsza decyzja architektoniczna brzmi: **InfraLens nie powinien być parserem Pulumi. Powinien być silnikiem grafu z adapterem Pulumi.** Dzięki temu późniejszy Terraform i OpenTofu sprowadzą się głównie do napisania kolejnych translatorów do wspólnego `Graph`, zamiast przepisywania renderera. Terraform i OpenTofu mają oficjalne maszynowe reprezentacje JSON dla state i planów poprzez odpowiednio `terraform show -json` i `tofu show -json`, więc ten kierunek ma stabilną podstawę integracyjną. citeturn310309search0turn310309search1turn310309search3turn310309search4
+Najważniejsza decyzja architektoniczna brzmi: **Laytrace nie powinien być parserem Pulumi. Powinien być silnikiem grafu z adapterem Pulumi.** Dzięki temu późniejszy Terraform i OpenTofu sprowadzą się głównie do napisania kolejnych translatorów do wspólnego `Graph`, zamiast przepisywania renderera. Terraform i OpenTofu mają oficjalne maszynowe reprezentacje JSON dla state i planów poprzez odpowiednio `terraform show -json` i `tofu show -json`, więc ten kierunek ma stabilną podstawę integracyjną. citeturn310309search0turn310309search1turn310309search3turn310309search4
 
-Największym problemem nie będzie HTML ani React. **Najtrudniejsze będzie odróżnienie „Pulumi wie, że A zależy od B” od „A komunikuje się z B”.** `dependencies` oraz `propertyDependencies` oznaczają zależności wdrożeniowe/danych, nie automatycznie ruch sieciowy czy flow aplikacyjne. Dlatego InfraLens powinien mieć cztery jawne klasy relacji: `contains`, `depends_on`, `connects_to`, `triggers`, a każda krawędź musi posiadać źródło dowodu (`evidence`). Oficjalny model Pulumi udostępnia parent, dependencies i property dependencies, co daje solidną bazę dla dwóch pierwszych typów; dwa pozostałe muszą wynikać z kontrolowanych reguł provider-specific. citeturn559474search0turn559474search1
+Największym problemem nie będzie HTML ani React. **Najtrudniejsze będzie odróżnienie „Pulumi wie, że A zależy od B” od „A komunikuje się z B”.** `dependencies` oraz `propertyDependencies` oznaczają zależności wdrożeniowe/danych, nie automatycznie ruch sieciowy czy flow aplikacyjne. Dlatego Laytrace powinien mieć cztery jawne klasy relacji: `contains`, `depends_on`, `connects_to`, `triggers`, a każda krawędź musi posiadać źródło dowodu (`evidence`). Oficjalny model Pulumi udostępnia parent, dependencies i property dependencies, co daje solidną bazę dla dwóch pierwszych typów; dwa pozostałe muszą wynikać z kontrolowanych reguł provider-specific. citeturn559474search0turn559474search1
 
 Frontend proponuję zrobić jako **React Flow + ELK.js**, ale z możliwością przełączenia na Dagre. React Flow daje zoom, pan, custom nodes, selection i minimapę; jego dokumentacja wymienia ELK jako rozwiązanie wspierające dynamiczne rozmiary node'ów, sub-flow oraz routing krawędzi. ELK jest bardziej złożony, ale grupowanie VPC/subnet/componentów jest dokładnie przypadkiem, w którym jego możliwości są warte kosztu. citeturn654689search1turn654689search3turn654689search4
 
-InfraSketch jest już znacznie szerszym produktem niż prosty „diagram generator”: obecnie deklaruje osiem formatów IaC, containment, blast radius, diff, plan badges, GitHub Action, eksport PNG/SVG/draw.io/Mermaid, Checkov i Infracost. To oznacza, że **InfraLens nie wygra liczbą ficzerów w pierwszych miesiącach**. Jego sensowna przewaga to: rzeczywisty Pulumi state/preview zamiast analizy kodu źródłowego, jeden offline HTML, jeden natywny binarny CLI, jawna semantyka relacji i bezpieczeństwo danych jako element modelu, a nie późniejszy dodatek. citeturn399012view0turn228336search5
+InfraSketch jest już znacznie szerszym produktem niż prosty „diagram generator”: obecnie deklaruje osiem formatów IaC, containment, blast radius, diff, plan badges, GitHub Action, eksport PNG/SVG/draw.io/Mermaid, Checkov i Infracost. To oznacza, że **Laytrace nie wygra liczbą ficzerów w pierwszych miesiącach**. Jego sensowna przewaga to: rzeczywisty Pulumi state/preview zamiast analizy kodu źródłowego, jeden offline HTML, jeden natywny binarny CLI, jawna semantyka relacji i bezpieczeństwo danych jako element modelu, a nie późniejszy dodatek. citeturn399012view0turn228336search5
 
 ### Pozycjonowanie względem istniejących narzędzi
 
-| Funkcja | InfraLens v0.4 | InfraSketch | Inframap | Rover | Blast Radius | Pluralith |
+| Funkcja | Laytrace v0.4 | InfraSketch | Inframap | Rover | Blast Radius | Pluralith |
 |---|---:|---:|---:|---:|---:|---:|
 | Pulumi state jako źródło prawdy | **Tak** | Nie — Pulumi głównie z kodu źródłowego | Nie | Nie | Nie | Nie |
 | Terraform | Po MVP | Tak | Tak | Tak | Tak | Tak |
@@ -29,7 +29,7 @@ InfraSketch jest już znacznie szerszym produktem niż prosty „diagram generat
 
 Źródła funkcji konkurencji: InfraSketch deklaruje interaktywny diagram, diff PR, containment, eksporty, security/cost overlays i GitHub Action; Inframap czyta tfstate/HCL i generuje provider-aware graph; Rover generuje interaktywną wizualizację Terraform i potrafi stworzyć standalone ZIP; Blast Radius używa Graphviz + D3 i lokalnego serwera; Pluralith deklaruje plan changes, drift, cost i CI, ale jego repo informuje o wymaganiu Pluralith UI/API key. citeturn399012view0turn862828search0turn862828search2turn862828search3turn862828search5turn862828search6
 
-Istotna rzecz przy inspirowaniu się InfraSketch: aktualna strona repozytorium pokazuje **niespójność licencyjną** — panel GitHuba oznacza repo jako GPL-3.0, natomiast README mówi AGPL-3.0. Najbezpieczniejszy model dla InfraLens to niezależna implementacja oparta na oficjalnych formatach Pulumi/Terraform/OpenTofu i obserwowalnym zachowaniu produktów, bez kopiowania kodu czy assetów InfraSketch. citeturn399012view0
+Istotna rzecz przy inspirowaniu się InfraSketch: aktualna strona repozytorium pokazuje **niespójność licencyjną** — panel GitHuba oznacza repo jako GPL-3.0, natomiast README mówi AGPL-3.0. Najbezpieczniejszy model dla Laytrace to niezależna implementacja oparta na oficjalnych formatach Pulumi/Terraform/OpenTofu i obserwowalnym zachowaniu produktów, bez kopiowania kodu czy assetów InfraSketch. citeturn399012view0
 
 ## Zakres MVP i kolejność dostaw
 
@@ -44,7 +44,7 @@ Nie próbowałbym w pierwszym wydaniu obsłużyć AWS, Azure, GCP, Pulumi, Terra
 
 `pulumi stack export` jest lepszym wejściem niż `pulumi stack output --json`: stack export zawiera pełny deployment z resources, inputs, outputs i dependencies, podczas gdy stack outputs reprezentują tylko wartości wyeksportowane przez program. Eksport ma top-level `version` i `deployment`, a w `deployment.resources` znajdują się zasoby stosu. citeturn973623search0turn973623search2turn973623search6
 
-Dla v0.4 nie trzeba wymyślać własnego formatu diffa. Aktualne `pulumi preview --json` domyślnie zwraca pojedynczy `PreviewDigest`; `steps[]` zawiera operację, URN, `oldState`, `newState`, `diffReasons`, `replaceReasons` i `detailedDiff`. Pulumi ma również tryb streaming JSON aktywowany przez `PULUMI_ENABLE_STREAMING_JSON_PREVIEW`, dlatego parser InfraLens powinien rozpoznać oba formaty lub — w pierwszej implementacji — jawnie odrzucić JSONL z komunikatem o wspieranym trybie. citeturn688522search1turn988175view0
+Dla v0.4 nie trzeba wymyślać własnego formatu diffa. Aktualne `pulumi preview --json` domyślnie zwraca pojedynczy `PreviewDigest`; `steps[]` zawiera operację, URN, `oldState`, `newState`, `diffReasons`, `replaceReasons` i `detailedDiff`. Pulumi ma również tryb streaming JSON aktywowany przez `PULUMI_ENABLE_STREAMING_JSON_PREVIEW`, dlatego parser Laytrace powinien rozpoznać oba formaty lub — w pierwszej implementacji — jawnie odrzucić JSONL z komunikatem o wspieranym trybie. citeturn688522search1turn988175view0
 
 ### Priorytety adapterów
 
@@ -67,7 +67,7 @@ Pierwszy release powinien być nudny i przewidywalny:
 ```bash
 pulumi stack export --file stack.json
 
-infralens render \
+Laytrace render \
   --input stack.json \
   --output result.html
 ```
@@ -75,7 +75,7 @@ infralens render \
 Alternatywnie convenience mode:
 
 ```bash
-infralens render \
+Laytrace render \
   --stack my-org/my-project/dev \
   --output result.html
 ```
@@ -86,7 +86,7 @@ Diff:
 pulumi stack export --file stack.json
 pulumi preview --json > preview.json
 
-infralens diff \
+laytrace diff \
   --state stack.json \
   --preview preview.json \
   --output result.html
@@ -95,7 +95,7 @@ infralens diff \
 Debugging parsera:
 
 ```bash
-infralens graph \
+Laytrace graph \
   --input stack.json \
   --output graph.json
 ```
@@ -195,7 +195,7 @@ const (
 )
 ```
 
-Pulumi `ResourceV3` już przechowuje `URN`, `type`, `parent`, `dependencies`, `propertyDependencies`, inputs i outputs, więc adapter może pozostać stosunkowo cienki. Co ważne, dokładny JSON state nie jest traktowany przez Pulumi jako stabilny publiczny format na poziomie wszystkich pól; Pulumi wskazuje własne typy API jako definicję formatu. Dlatego parser powinien ignorować nierozpoznane pola i zależeć tylko od małego zestawu rzeczy rzeczywiście potrzebnych InfraLens. citeturn559474search0turn559474search3turn973623search10
+Pulumi `ResourceV3` już przechowuje `URN`, `type`, `parent`, `dependencies`, `propertyDependencies`, inputs i outputs, więc adapter może pozostać stosunkowo cienki. Co ważne, dokładny JSON state nie jest traktowany przez Pulumi jako stabilny publiczny format na poziomie wszystkich pól; Pulumi wskazuje własne typy API jako definicję formatu. Dlatego parser powinien ignorować nierozpoznane pola i zależeć tylko od małego zestawu rzeczy rzeczywiście potrzebnych Laytrace. citeturn559474search0turn559474search3turn973623search10
 
 Nie importowałbym całego Pulumi SDK do pierwszej wersji tylko po to, żeby sparsować state. Lokalny zestaw minimalnych struktur z `json.RawMessage` zmniejsza zależności i pozwala kontrolować powierzchnię danych. Testy kompatybilności powinny natomiast wykorzystywać realne eksporty generowane przez aktualne CLI.
 
@@ -242,11 +242,11 @@ Najważniejsza zasada UX: `depends_on` powinno wyglądać inaczej od traffic flo
 
 ### Bezpieczeństwo i sanitacja
 
-InfraLens powinien stosować **data minimization**, nie „najpierw wrzuć state do HTML, potem próbuj coś zamazać”. Pulumi export domyślnie nie odsłania plaintext secrets, ale state nadal może zawierać mnóstwo informacji operacyjnych, identyfikatorów i wartości niezdefiniowanych jako Pulumi secrets. citeturn623581search0turn973623search2
+Laytrace powinien stosować **data minimization**, nie „najpierw wrzuć state do HTML, potem próbuj coś zamazać”. Pulumi export domyślnie nie odsłania plaintext secrets, ale state nadal może zawierać mnóstwo informacji operacyjnych, identyfikatorów i wartości niezdefiniowanych jako Pulumi secrets. citeturn623581search0turn973623search2
 
 Domyślne `strict` powinno umieszczać w HTML tylko nazwę zasobu, normalized type, provider/category, diff status, relacje oraz niewielki allowlist bezpiecznych pól. Nie należy domyślnie embedować całych `inputs`, `outputs`, provider reference, pełnych URN-ów, ARN-ów, account IDs, endpointów ani tags. Sam node ID może być deterministycznym hashem URN-u.
 
-Sanitizer powinien działać przed relationship engine output i posiadać testy „canary secrets”: fixture zawiera np. `INFRA_LENS_SECRET_9f...`, a test failuje, jeśli ciąg pojawi się w `graph.json`, `result.html`, stdout lub stderr.
+Sanitizer powinien działać przed relationship engine output i posiadać testy „canary secrets”: fixture zawiera np. `LAYTRACE_SECRET_9f...`, a test failuje, jeśli ciąg pojawi się w `graph.json`, `result.html`, stdout lub stderr.
 
 ## Frontend, standalone HTML i struktura repozytorium
 
@@ -266,7 +266,7 @@ web/src/*
 web/dist/app.js
 web/dist/app.css
    ↓ go:embed
-binary infralens
+binary laytrace
    ↓ render
 result.html
 ```
@@ -296,7 +296,7 @@ Generator składa:
 <body>
   <div id="root"></div>
 
-  <script id="infralens-data" type="application/json">
+  <script id="laytrace-data" type="application/json">
     { ...sanitized graph... }
   </script>
 
@@ -317,14 +317,14 @@ Na canvasie potrzebujesz tylko node'ów, edge'ów, grup, zoom/pan, search i bocz
 
 Nie wrzucałbym na start oficjalnych AWS/Azure/GCP icon packów. Generyczne ikony kategoriami typu network/compute/database/storage/queue z permissive library ograniczą problemy licencyjne i rozmiar assetów. Cloud-specific icon packs można później dodawać jako osobne paczki z własnymi notice'ami.
 
-ELK.js jest obecnie publikowany pod `EPL-2.0 OR GPL-3.0-or-later`, natomiast React Flow jest MIT. Jeżeli InfraLens ma być Apache-2.0, dystrybucję bundled ELK trzeba potraktować jako zewnętrzny komponent z zachowaniem jego informacji licencyjnych, zamiast sugerować, że cały bundle jest wyłącznie Apache-2.0. citeturn654689search5turn654689search6turn654689search0
+ELK.js jest obecnie publikowany pod `EPL-2.0 OR GPL-3.0-or-later`, natomiast React Flow jest MIT. Jeżeli Laytrace ma być Apache-2.0, dystrybucję bundled ELK trzeba potraktować jako zewnętrzny komponent z zachowaniem jego informacji licencyjnych, zamiast sugerować, że cały bundle jest wyłącznie Apache-2.0. citeturn654689search5turn654689search6turn654689search0
 
 ### Struktura repo
 
 ```text
-infralens/
+laytrace/
 ├── cmd/
-│   └── infralens/
+│   └── laytrace/
 │       └── main.go
 │
 ├── internal/
@@ -429,7 +429,7 @@ Realistyczne założenie to **12–16 godzin tygodniowo przez około 12 tygodni*
 
 ```mermaid
 gantt
-    title InfraLens — plan solo development
+    title Laytrace — plan solo development
     dateFormat  YYYY-MM-DD
     axisFormat  %d %b
 
@@ -460,7 +460,7 @@ gantt
 
 Backend powinien mieć unit testy parsera, URN normalization, sanitizer, relation engine oraz diffa. Każdy realny scenariusz Pulumi powinien mieć fixture i golden `graph.json`. Test graphu powinien porównywać semantyczną strukturę, a nie kolejność map czy wygenerowany HTML byte-for-byte.
 
-Frontend: Vitest dla mapperów/modelu, a Playwright dla pełnego artefaktu. Najważniejszy test e2e nie powinien odpalać dev servera: `infralens render ...`, następnie `page.goto("file:///.../result.html")`, search node, kliknięcie, filter edge i sprawdzenie braku requestów sieciowych.
+Frontend: Vitest dla mapperów/modelu, a Playwright dla pełnego artefaktu. Najważniejszy test e2e nie powinien odpalać dev servera: `Laytrace render ...`, następnie `page.goto("file:///.../result.html")`, search node, kliknięcie, filter edge i sprawdzenie braku requestów sieciowych.
 
 Security suite powinna wrzucać sekrety w inputs, outputs, tags, URN-like values i nested objects, następnie wyszukiwać canary w każdym artefakcie i logu.
 
@@ -495,7 +495,7 @@ Największe ryzyka nie dotyczą implementacji Reacta, tylko poprawności modelu 
 | Preview może być JSON lub JSONL | średnie / średnie | format detection, jawny błąd / później oba tryby |
 | 500+ node'ów robi spaghetti | wysokie / średnie | grouping, edge filters, hide dependencies, ELK |
 | `file://` psuje asset loading | średnie / wysokie | wszystko inline, brak runtime fetch |
-| PR z forka wykonuje obcy kod | wysokie / krytyczne | InfraLens Action nie uruchamia automatycznie obcego Pulumi programu z write tokenem |
+| PR z forka wykonuje obcy kod | wysokie / krytyczne | Laytrace Action nie uruchamia automatycznie obcego Pulumi programu z write tokenem |
 | Scope creep | bardzo wysokie | Terraform dopiero po v0.4 |
 | Problemy licencyjne ikon/bundli | średnie / średnie | generic icons MVP, `NOTICE`, inventory dependencies |
 
@@ -508,7 +508,7 @@ W praktyce pierwsza GitHub Action powinna robić:
 ```text
 input stack.json / preview.json
           ↓
-     infralens diff
+     laytrace diff
           ↓
       result.html
           ↓
@@ -521,7 +521,7 @@ Niech Action **nie zarządza Pulumi credentials, backendem ani `pulumi preview`*
 
 ### Licencja
 
-Dla samego InfraLens rekomenduję **Apache-2.0**. Jest permissive i zawiera jawny patent grant dla kontrybutorów, co jest sensowne dla narzędzia, które potencjalnie będzie używane w firmowych CI/CD. OSI klasyfikuje Apache License 2.0 jako licencję open-source; jej warunki pozwalają na komercyjne użycie, modyfikację i dystrybucję przy zachowaniu wymaganych notices. citeturn687619search4turn687619search5
+Dla samego Laytrace rekomenduję **Apache-2.0**. Jest permissive i zawiera jawny patent grant dla kontrybutorów, co jest sensowne dla narzędzia, które potencjalnie będzie używane w firmowych CI/CD. OSI klasyfikuje Apache License 2.0 jako licencję open-source; jej warunki pozwalają na komercyjne użycie, modyfikację i dystrybucję przy zachowaniu wymaganych notices. citeturn687619search4turn687619search5
 
 Repo powinno mieć `LICENSE`, `NOTICE` i wygenerowany inventory zależności frontendowych. Zależności o innych licencjach, np. ELK, powinny pozostać oznaczone jako third-party components. citeturn654689search5turn654689search6
 
@@ -530,11 +530,11 @@ Repo powinno mieć `LICENSE`, `NOTICE` i wygenerowany inventory zależności fro
 Najpierw GitHub Releases z binarkami:
 
 ```text
-infralens_Darwin_arm64.tar.gz
-infralens_Darwin_x86_64.tar.gz
-infralens_Linux_arm64.tar.gz
-infralens_Linux_x86_64.tar.gz
-infralens_Windows_x86_64.zip
+laytrace_Darwin_arm64.tar.gz
+laytrace_Darwin_x86_64.tar.gz
+laytrace_Linux_arm64.tar.gz
+laytrace_Linux_x86_64.tar.gz
+laytrace_Windows_x86_64.zip
 checksums.txt
 ```
 
@@ -543,12 +543,12 @@ GoReleaser potrafi tworzyć GitHub Releases, uploadować artefakty i generować 
 Drugi kanał to własny Homebrew tap, np.:
 
 ```bash
-brew install yourname/tap/infralens
+brew install yourname/tap/laytrace
 ```
 
 Homebrew oficjalnie wspiera third-party taps i rekomenduje repozytoria nazwane `homebrew-*` dla wygodnej instalacji. citeturn687619search2turn687619search6
 
-Docker image zostawiłbym na później. Główną wartością InfraLens ma być właśnie brak potrzeby odpalania kontenera czy lokalnego serwera.
+Docker image zostawiłbym na później. Główną wartością Laytrace ma być właśnie brak potrzeby odpalania kontenera czy lokalnego serwera.
 
 ### Metryki sukcesu
 
@@ -562,4 +562,4 @@ Pierwszym etapem po MVP powinien być **Terraform plan JSON**, a zaraz po nim Op
 
 Dalsza kolejność, którą przyjąłbym dla projektu, to: Terraform/OpenTofu adapter → SVG/PNG export → większy AWS relation pack → Azure/GCP relation packs → blast-radius oparty o jawne edge kinds → Checkov/Infracost overlays → CloudFormation/Kubernetes → plugin API dla community rules.
 
-Najważniejsze, żeby nie rozmyć pierwotnej przewagi. **InfraLens powinien pozostać narzędziem typu `input IaC/state → jeden offline HTML`, a nie stopniowo zamieniać się w dashboard.** InfraSketch już pokrywa bardzo szeroki zakres formatów i funkcji browserowych, Inframap/Blast Radius/Rover pokazują, że istnieje popyt na lokalne wizualizatory Terraform, natomiast Pulumi state + Pulumi preview + standalone artifact pozostaje wystarczająco wąskim i technicznie wyróżniającym punktem wejścia. citeturn399012view0turn862828search0turn862828search2turn862828search3
+Najważniejsze, żeby nie rozmyć pierwotnej przewagi. **Laytrace powinien pozostać narzędziem typu `input IaC/state → jeden offline HTML`, a nie stopniowo zamieniać się w dashboard.** InfraSketch już pokrywa bardzo szeroki zakres formatów i funkcji browserowych, Inframap/Blast Radius/Rover pokazują, że istnieje popyt na lokalne wizualizatory Terraform, natomiast Pulumi state + Pulumi preview + standalone artifact pozostaje wystarczająco wąskim i technicznie wyróżniającym punktem wejścia. citeturn399012view0turn862828search0turn862828search2turn862828search3

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/app"
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/app"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 func TestPreviewGraphOutputErrors(t *testing.T) {
@@ -115,12 +115,12 @@ exec /bin/cat "$TEST_PREVIEW"
 	if cli.Run([]string{"preview", "--provider=pulumi"}) != 0 {
 		t.Fatal(logs.String())
 	}
-	output := filepath.Join(project, "infralens.html")
+	output := filepath.Join(project, "laytrace.html")
 	data, err := os.ReadFile(output)
 	if err != nil || !strings.Contains(string(data), `"change":"create"`) || !strings.Contains(string(data), `"change":"unchanged"`) || !strings.Contains(string(data), `"change":"delete"`) || strings.Contains(string(data)+logs.String(), "CANARY_SECRET") {
 		t.Fatal("missing preview statuses, HTML, or leaked secrets", err)
 	}
-	if !bytes.Contains(data, []byte(`<div id="infralens-root"></div>`)) {
+	if !bytes.Contains(data, []byte(`<div id="laytrace-root"></div>`)) {
 		t.Fatal("preview did not embed the React viewer")
 	}
 	rendered := filepath.Join(dir, "rendered.html")
@@ -132,7 +132,7 @@ exec /bin/cat "$TEST_PREVIEW"
 		t.Fatal("preview and render produced different HTML for the same preview", err)
 	}
 	uri, err := os.ReadFile(opened)
-	if err != nil || !strings.HasPrefix(string(uri), "file:///") || !strings.Contains(string(uri), "%20%231/infralens.html") {
+	if err != nil || !strings.HasPrefix(string(uri), "file:///") || !strings.Contains(string(uri), "%20%231/laytrace.html") {
 		t.Fatalf("browser did not receive an escaped file URL: %s, %v", uri, err)
 	}
 	if err := os.Remove(opened); err != nil {

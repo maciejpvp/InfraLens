@@ -4,9 +4,9 @@ Status: **zakres rozszerzony kolejnymi wymaganiami użytkownika**. Początkowe M
 
 ## Problem i odbiorca
 
-Aktualizacja 2026-11-21: podstawowe użycie to globalna binarka `InfraLens preview` uruchamiana w katalogu projektu Pulumi. Wykonuje preview aktywnego stosu, zapisuje lokalny HTML i otwiera przeglądarkę. Starsze ograniczenia dotyczące niewykonywania Pulumi odnoszą się do `graph`/`render`.
+Aktualizacja 2026-11-21: podstawowe użycie to globalna binarka `Laytrace preview` uruchamiana w katalogu projektu Pulumi. Wykonuje preview aktywnego stosu, zapisuje lokalny HTML i otwiera przeglądarkę. Starsze ograniczenia dotyczące niewykonywania Pulumi odnoszą się do `graph`/`render`.
 
-Developer używający Pulumi chce zobaczyć zasoby stosu i ich zależności bez stawiania serwera ani łączenia się z dodatkową usługą. Ma już lokalny eksport stosu; InfraLens nie pobiera go z chmury.
+Developer używający Pulumi chce zobaczyć zasoby stosu i ich zależności bez stawiania serwera ani łączenia się z dodatkową usługą. Ma już lokalny eksport stosu; Laytrace nie pobiera go z chmury.
 
 Podstawowy scenariusz: użytkownik przekazuje `stack.json`, otrzymuje `result.html`, otwiera plik w przeglądarce, wyszukuje zasób i sprawdza jego relacje.
 
@@ -35,7 +35,7 @@ Podstawowy scenariusz: użytkownik przekazuje `stack.json`, otrzymuje `result.ht
 - GitHub Action, komentarzy PR ani automatycznego publikowania artefaktów.
 - Kont, backendu, telemetrii, usług chmurowych ani pobierania aktualnego stanu.
 - Eksportów PNG/SVG, cloud icon packów, pluginów ani alternatywnego silnika layoutu.
-- Flagi ujawniającej sekrety, profili sanitacji ani wykonywania poleceń Pulumi przez InfraLens.
+- Flagi ujawniającej sekrety, profili sanitacji ani wykonywania poleceń Pulumi przez Laytrace.
 
 ## Kiedy v0.1 jest gotowe
 

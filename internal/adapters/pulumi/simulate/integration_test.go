@@ -8,7 +8,7 @@ import (
 	"slices"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestStackReferenceWithPulumiSDK(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 const unknownValue = "04da6b54-80e4-46f7-96ec-b56ff0331ba9"

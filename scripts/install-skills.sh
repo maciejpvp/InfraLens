@@ -5,7 +5,7 @@ usage() {
     cat <<EOF
 Usage: ${0##*/} [all|codex|claude|--dir DIRECTORY] [--dry-run] [--replace]
 
-Install all bundled InfraLens skills for Codex and Claude Code.
+Install all bundled Laytrace skills for Codex and Claude Code.
   all             Install for both clients (default)
   codex           Install in ~/.agents/skills
   claude          Install in ~/.claude/skills
@@ -47,8 +47,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 repo_dir=$(CDPATH= cd "$(dirname "$0")/.." && pwd -P)
-marker=.infralens-managed
-signature='InfraLens skills v1'
+marker=.laytrace-managed
+signature='Laytrace skills v1'
 
 install_skill() (
     source=$1
@@ -101,7 +101,7 @@ install_skill() (
         printf 'Dry run: %s -> %s\n' "$action" "$destination"
         exit 0
     fi
-    stage=$(mktemp -d "$destination_dir/.infralens-stage.XXXXXX") || exit 1
+    stage=$(mktemp -d "$destination_dir/.laytrace-stage.XXXXXX") || exit 1
     cp -R "$source" "$stage/skill" || exit 1
     if [ -L "$stage/skill" ]; then
         printf 'Bundled skill directory changed to a symbolic link: %s\n' "$source" >&2
@@ -114,7 +114,7 @@ install_skill() (
     printf '%s\n' "$signature" > "$stage/skill/$marker" || exit 1
     if [ "$action" != Installed ]; then
         # Keep backups outside the skills directory so clients cannot discover them.
-        backup=$(mktemp -d "$(dirname "$destination_dir")/.infralens-backup.XXXXXX") || exit 1
+        backup=$(mktemp -d "$(dirname "$destination_dir")/.laytrace-backup.XXXXXX") || exit 1
         previous="$backup/${source##*/}"
         mv "$destination" "$previous" || exit 1
     fi
@@ -140,7 +140,7 @@ install_skills() (
             ;;
     esac
     if ! "$dry_run"; then
-        lock="$destination_dir/.infralens-install.lock"
+        lock="$destination_dir/.laytrace-install.lock"
         if ! mkdir "$lock"; then
             printf 'Could not acquire installer lock: %s\n' "$lock" >&2
             exit 1

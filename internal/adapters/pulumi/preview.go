@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"infralens/internal/cost"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 // Preview builds a graph from the current Pulumi project.
@@ -22,7 +22,7 @@ func (Adapter) Preview(ctx context.Context, onPreview func(), inventory *cost.In
 			return graph.Graph{}, errors.New("run preview from a Pulumi project directory containing Pulumi.yaml or Pulumi.yml")
 		}
 	}
-	preview, cleanup, err := fileio.CreateScratch("infralens-preview-*.json")
+	preview, cleanup, err := fileio.CreateScratch("laytrace-preview-*.json")
 	if err != nil {
 		return graph.Graph{}, errors.New("cannot create temporary preview")
 	}

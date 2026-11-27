@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"infralens/internal/cost"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
-	"infralens/internal/render"
+	"laytrace/internal/cost"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
+	"laytrace/internal/render"
 )
 
 type outputFormat uint8
@@ -164,7 +164,7 @@ func checkSidecar(path string, format outputFormat) error {
 	}
 	var extra json.RawMessage
 	if !valid || decoder.Decode(&extra) != io.EOF {
-		return fmt.Errorf("existing JSON output is not an InfraLens %s report; choose a new output path", kind)
+		return fmt.Errorf("existing JSON output is not an Laytrace %s report; choose a new output path", kind)
 	}
 	return nil
 }

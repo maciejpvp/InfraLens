@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 var (

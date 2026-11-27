@@ -1,4 +1,4 @@
-# InfraLens agent instructions
+# Laytrace agent instructions
 
 ## Adding an IaC adapter
 

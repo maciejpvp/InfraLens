@@ -5,8 +5,8 @@ import (
 	"log"
 	"os"
 
-	"infralens/internal/graph"
-	"infralens/internal/render"
+	"laytrace/internal/graph"
+	"laytrace/internal/render"
 )
 
 func main() {

@@ -1,5 +1,5 @@
 {
-  "name": "infralens-viewer",
+  "name": "laytrace-viewer",
   "private": true,
   "type": "module",
   "scripts": {

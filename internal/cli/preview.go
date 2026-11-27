@@ -6,16 +6,16 @@ import (
 	"flag"
 	"fmt"
 
-	"infralens/internal/app"
+	"laytrace/internal/app"
 )
 
-const previewUsage = "InfraLens preview --provider NAME [--output infralens.html] [--no-open]" + sidecarUsage + costUsage
+const previewUsage = "Laytrace preview --provider NAME [--output laytrace.html] [--no-open]" + sidecarUsage + costUsage
 
 func (c *CLI) preview(args []string) error {
 	flags := newFlagSet("preview")
 	costs := costFlags(flags)
 	providerName := flags.String("provider", "", "IaC provider")
-	output := flags.String("output", "infralens.html", "destination HTML file")
+	output := flags.String("output", "laytrace.html", "destination HTML file")
 	sidecars := sidecarFlags(flags)
 	noOpen := flags.Bool("no-open", false, "save without opening the browser")
 	if err := flags.Parse(args); err != nil {

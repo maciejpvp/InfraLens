@@ -9,7 +9,7 @@ import (
 
 const maxQueryGraphBytes = 32 << 20
 
-// ReadJSON reads a normalized InfraLens graph, validates it, and sorts its results.
+// ReadJSON reads a normalized Laytrace graph, validates it, and sorts its results.
 func ReadJSON(r io.Reader) (Graph, error) {
 	data, err := io.ReadAll(io.LimitReader(r, maxQueryGraphBytes+1))
 	if err != nil {
@@ -20,7 +20,7 @@ func ReadJSON(r io.Reader) (Graph, error) {
 	}
 	var g Graph
 	if err := json.Unmarshal(data, &g); err != nil {
-		return Graph{}, errors.New("graph file is not valid InfraLens JSON")
+		return Graph{}, errors.New("graph file is not valid Laytrace JSON")
 	}
 	if err := g.Validate(); err != nil {
 		return Graph{}, err

@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/adapters/awscdk"
-	"infralens/internal/adapters/pulumi"
-	"infralens/internal/adapters/pulumi/simulate"
-	"infralens/internal/app"
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/adapters/awscdk"
+	"laytrace/internal/adapters/pulumi"
+	"laytrace/internal/adapters/pulumi/simulate"
+	"laytrace/internal/app"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 type stubAdapter struct {

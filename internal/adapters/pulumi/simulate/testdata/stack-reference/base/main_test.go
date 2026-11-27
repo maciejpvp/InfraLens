@@ -1,7 +1,7 @@
 package main
 
 import (
-	"infralens-simulation-fixture/fixture"
+	"laytrace-simulation-fixture/fixture"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )

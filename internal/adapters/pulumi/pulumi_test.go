@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestFixtures(t *testing.T) {

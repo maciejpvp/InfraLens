@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestMockTopologyRejectsDestinationChangedDuringBuild(t *testing.T) {

@@ -4,24 +4,24 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>InfraLens — Pulumi and AWS CDK preview visualizer</title>
-  <meta name="description" content="Review Pulumi and AWS CDK changes before deploying. Explore AWS connections and estimate costs by service and workflow with InfraLens.">
-  <link rel="canonical" href="https://maciejpvp.github.io/InfraLens/">
+  <title>Laytrace — Pulumi and AWS CDK preview visualizer</title>
+  <meta name="description" content="Review Pulumi and AWS CDK changes before deploying. Explore AWS connections and estimate costs by service and workflow with Laytrace.">
+  <link rel="canonical" href="https://maciejpvp.github.io/Laytrace/">
   <link rel="stylesheet" href="site.css">
 </head>
 <body>
   <header class="frame header">
-    <a class="brand" href="./">InfraLens</a>
+    <a class="brand" href="./">Laytrace</a>
     <nav aria-label="Main navigation">
       <a href="#quickstart">Quickstart</a>
       <a href="AGENT_GUIDE.md">Agent guide</a>
-      <a href="https://github.com/maciejpvp/InfraLens">GitHub</a>
+      <a href="https://github.com/maciejpvp/Laytrace">GitHub</a>
     </nav>
   </header>
   <main class="frame">
     <div class="intro">
       <h1>See what changes before you deploy</h1>
-      <p>InfraLens turns a Pulumi or AWS CDK preview into a report you can explore in your browser. See what will be added, updated, or removed, follow connections between services, and estimate what your changes could cost.</p>
+      <p>Laytrace turns a Pulumi or AWS CDK preview into a report you can explore in your browser. See what will be added, updated, or removed, follow connections between services, and estimate what your changes could cost.</p>
     </div>
 
     <figure class="panel preview">
@@ -32,25 +32,25 @@
         </div>
         <a class="button primary" href="demo.html">Open interactive demo</a>
       </figcaption>
-      <img src="demo-flow.png" width="1440" height="760" alt="InfraLens demo diagram showing connected AWS services, including AppSync, Lambda, and DynamoDB">
+      <img src="demo-flow.png" width="1440" height="760" alt="Laytrace demo diagram showing connected AWS services, including AppSync, Lambda, and DynamoDB">
     </figure>
 
     <div class="project-guide">
       <section id="quickstart" class="panel card" aria-labelledby="quickstart-title">
         <div class="quickstart-heading">
           <h2 id="quickstart-title">Run it in your project</h2>
-          <a class="button" href="https://github.com/maciejpvp/InfraLens#install">Install from GitHub</a>
+          <a class="button" href="https://github.com/maciejpvp/Laytrace#install">Install from GitHub</a>
         </div>
         <p>Run one of these commands from your project directory. It opens the report in your browser without deploying anything. You can share the HTML file or open it offline.</p>
         <div class="command">
           <h3>Pulumi preview</h3>
-          <pre><code>InfraLens preview --provider=pulumi</code></pre>
+          <pre><code>Laytrace preview --provider=pulumi</code></pre>
         </div>
         <div class="command">
           <h3>AWS CDK changes</h3>
-          <pre><code>InfraLens preview --provider=aws-cdk</code></pre>
+          <pre><code>Laytrace preview --provider=aws-cdk</code></pre>
         </div>
-        <p>Already have an export or a synthesized template? <a href="https://github.com/maciejpvp/InfraLens#render-saved-infrastructure-data">Render saved infrastructure data</a>.</p>
+        <p>Already have an export or a synthesized template? <a href="https://github.com/maciejpvp/Laytrace#render-saved-infrastructure-data">Render saved infrastructure data</a>.</p>
       </section>
 
       <section class="report-notes" aria-labelledby="review-title">
@@ -62,7 +62,7 @@
         <div>
           <h3>See what drives AWS costs</h3>
           <p>Break down the monthly estimate by service, with fixed and usage charges shown separately. Estimate what a workflow like uploading a photo costs per run, per million runs, or per month at your expected traffic.</p>
-          <p>Compare costs before and after a change at the same traffic level. Estimates use public AWS prices and flag missing usage. <a href="https://github.com/maciejpvp/InfraLens#estimate-aws-costs">How to enable cost estimates</a></p>
+          <p>Compare costs before and after a change at the same traffic level. Estimates use public AWS prices and flag missing usage. <a href="https://github.com/maciejpvp/Laytrace#estimate-aws-costs">How to enable cost estimates</a></p>
         </div>
         <div>
           <h3>Use a coding agent</h3>
@@ -72,8 +72,8 @@
     </div>
   </main>
   <footer class="frame footer">
-    <span>InfraLens</span>
-    <a href="https://github.com/maciejpvp/InfraLens/blob/main/LICENSE">MIT License</a>
+    <span>Laytrace</span>
+    <a href="https://github.com/maciejpvp/Laytrace/blob/main/LICENSE">MIT License</a>
   </footer>
 </body>
 </html>

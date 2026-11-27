@@ -9,8 +9,8 @@ import (
 	"io"
 	"strings"
 
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 //go:embed frontend/dist/viewer.css
@@ -35,16 +35,16 @@ var page = template.Must(template.New("diagram").Parse(`<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
-<title>InfraLens · Infrastructure diagram</title>
+<title>Laytrace · Infrastructure diagram</title>
 <style>{{.CSS}}</style>
 </head>
 <body class="dark bg-background text-foreground">
-<div id="infralens-root"></div>
+<div id="laytrace-root"></div>
 <noscript>This diagram requires JavaScript. All scripts are embedded in this file.</noscript>
-<pre id="infralens-licenses" hidden>{{.Notices}}</pre>
-<script id="infralens-data" type="application/json">{{.Data}}</script>
-{{if .Costs}}<script id="infralens-costs" type="application/json">{{.Costs}}</script>{{end}}
-<script id="infralens-icons" type="application/json">{{.Icons}}</script>
+<pre id="laytrace-licenses" hidden>{{.Notices}}</pre>
+<script id="laytrace-data" type="application/json">{{.Data}}</script>
+{{if .Costs}}<script id="laytrace-costs" type="application/json">{{.Costs}}</script>{{end}}
+<script id="laytrace-icons" type="application/json">{{.Icons}}</script>
 <script>{{.JS}}</script>
 </body>
 </html>

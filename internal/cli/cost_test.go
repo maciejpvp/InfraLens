@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"infralens/internal/app"
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/app"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 func TestRenderCostFlagAndPreservedOutput(t *testing.T) {
@@ -43,7 +43,7 @@ func TestRenderCostFlagAndPreservedOutput(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		marker := []byte(`<script id="infralens-costs" type="application/json">`)
+		marker := []byte(`<script id="laytrace-costs" type="application/json">`)
 		if bytes.Contains(body, marker) != enabled {
 			t.Fatalf("incorrect cost payload presence for --costs=%v", enabled)
 		}
@@ -64,7 +64,7 @@ func TestRenderCostFlagAndPreservedOutput(t *testing.T) {
 		t.Fatalf("resource collection ran %d times, want 1", pricedReads)
 	}
 	if c.Run(append(args, "--costs", "--cost-output", costOutput)) != 0 {
-		t.Fatal("could not replace prior InfraLens cost report:", logs.String())
+		t.Fatal("could not replace prior Laytrace cost report:", logs.String())
 	}
 	rules := filepath.Join(dir, "costs.json")
 	data := []byte(`{"AWS::IAM::Role":{"monthly":[{"serviceCode":"AWSExample","sku":"SKU","unit":"Hrs","quantity":1,"quantityFrom":"Missing"}]}}`)
@@ -147,8 +147,8 @@ func TestPreviewCosts(t *testing.T) {
 	for _, sidecar := range []struct {
 		path, element string
 	}{
-		{graphOutput, "infralens-data"},
-		{costOutput, "infralens-costs"},
+		{graphOutput, "laytrace-data"},
+		{costOutput, "laytrace-costs"},
 	} {
 		marker := []byte(`<script id="` + sidecar.element + `" type="application/json">`)
 		_, payload, found := bytes.Cut(html, marker)

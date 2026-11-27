@@ -4,7 +4,7 @@ Status początkowy: **2026-11-21**. „Założenie robocze” oznacza propozycj�
 
 ## CLI w docelowym projekcie — 2026-11-21
 
-Przyjęte na prośbę użytkownika: `InfraLens preview` wykonuje preview aktywnego stosu z `--show-sames`, zapisuje `infralens.html` w bieżącym katalogu projektu i otwiera przeglądarkę. Niezmienione zasoby są szare, tworzone zielone, usuwane czerwone; update/replace zachowują bursztynowe oznaczenie. Nie uruchamia `pulumi up`. To rozszerza wcześniejsze D04 dla tej komendy; `graph`/`render` nadal czytają tylko pliki. Dystrybucja: lokalny build binarki instalowanej w `PATH`, bez nowego menedżera pakietów.
+Przyjęte na prośbę użytkownika: `Laytrace preview` wykonuje preview aktywnego stosu z `--show-sames`, zapisuje `laytrace.html` w bieżącym katalogu projektu i otwiera przeglądarkę. Niezmienione zasoby są szare, tworzone zielone, usuwane czerwone; update/replace zachowują bursztynowe oznaczenie. Nie uruchamia `pulumi up`. To rozszerza wcześniejsze D04 dla tej komendy; `graph`/`render` nadal czytają tylko pliki. Dystrybucja: lokalny build binarki instalowanej w `PATH`, bez nowego menedżera pakietów.
 
 ## Opisy przepływu — 2026-11-21
 

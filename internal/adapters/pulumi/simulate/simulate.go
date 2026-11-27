@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"infralens/internal/adapters/pulumi"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/adapters/pulumi"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 //go:embed runner_test.go.txt
@@ -60,7 +60,7 @@ func Run(ctx context.Context, projects []Project, output string) (graph.Graph, e
 	if err != nil {
 		return graph.Graph{}, errors.New("cannot resolve output directory")
 	}
-	tmp, err := os.MkdirTemp("", "infralens-simulate-")
+	tmp, err := os.MkdirTemp("", "laytrace-simulate-")
 	if err != nil {
 		return graph.Graph{}, errors.New("cannot create simulation directory")
 	}
@@ -98,7 +98,7 @@ func (s *simulation) runProject(ctx context.Context, project Project) (pulumi.So
 	if err != nil {
 		return pulumi.Source{}, err
 	}
-	if err := os.WriteFile(filepath.Join(work, "zz_infralens_simulation_test.go"), []byte(runner), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(work, "zz_laytrace_simulation_test.go"), []byte(runner), 0600); err != nil {
 		return pulumi.Source{}, errors.New("cannot prepare simulation test")
 	}
 	result, err := os.CreateTemp(s.tmp, "capture-*.json")
@@ -113,9 +113,9 @@ func (s *simulation) runProject(ctx context.Context, project Project) (pulumi.So
 	if err := os.WriteFile(referencePath, raw, 0600); err != nil {
 		return pulumi.Source{}, errors.New("cannot prepare simulated stack outputs")
 	}
-	command := exec.CommandContext(ctx, "go", "test", "-buildvcs=false", "-count=1", "-run=^TestInfraLensSimulation$", "-timeout=8m", ".")
+	command := exec.CommandContext(ctx, "go", "test", "-buildvcs=false", "-count=1", "-run=^TestLaytraceSimulation$", "-timeout=8m", ".")
 	command.Dir = work
-	command.Env = append(environment(project.Stack, result.Name()), "INFRALENS_REFERENCES="+referencePath)
+	command.Env = append(environment(project.Stack, result.Name()), "LAYTRACE_REFERENCES="+referencePath)
 	// Test/build logs can contain project secrets and are never forwarded.
 	if err := command.Run(); err != nil {
 		if ctx.Err() != nil {
@@ -225,7 +225,7 @@ func environment(stack, output string) []string {
 	var env []string
 	for _, entry := range os.Environ() {
 		key, _, _ := strings.Cut(entry, "=")
-		if strings.HasPrefix(key, "AWS_") || strings.HasPrefix(key, "PULUMI_") || strings.HasPrefix(key, "INFRALENS_") {
+		if strings.HasPrefix(key, "AWS_") || strings.HasPrefix(key, "PULUMI_") || strings.HasPrefix(key, "LAYTRACE_") {
 			continue
 		}
 		switch key {
@@ -234,5 +234,5 @@ func environment(stack, output string) []string {
 		}
 		env = append(env, entry)
 	}
-	return append(env, "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=-mod=readonly", "AWS_EC2_METADATA_DISABLED=true", "INFRALENS_STACK="+stack, "INFRALENS_CAPTURE="+output)
+	return append(env, "GOPROXY=off", "GOSUMDB=off", "GOTOOLCHAIN=local", "GOWORK=off", "GOFLAGS=-mod=readonly", "AWS_EC2_METADATA_DISABLED=true", "LAYTRACE_STACK="+stack, "LAYTRACE_CAPTURE="+output)
 }

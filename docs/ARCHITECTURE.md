@@ -20,7 +20,7 @@ CLI przyjmuje również wiele wejść przez powtarzane `--input [org/project/sta
 
 Nie dodajemy Dagre jako fallbacku ani interfejsu pluginów przed wykazaniem potrzeby.
 
-Punkt wejścia w `cmd/infralens` rejestruje adaptery w `app.App` i przekazuje instancję do CLI. CLI parsuje flagi, przekazuje opcje do odpowiedniej metody `App` i prezentuje wynik. `App` wybiera adapter według `--provider` i zarządza przebiegiem komendy oraz zapisem plików.
+Punkt wejścia w `cmd/laytrace` rejestruje adaptery w `app.App` i przekazuje instancję do CLI. CLI parsuje flagi, przekazuje opcje do odpowiedniej metody `App` i prezentuje wynik. `App` wybiera adapter według `--provider` i zarządza przebiegiem komendy oraz zapisem plików.
 
 ## Przepływ danych
 
@@ -50,7 +50,7 @@ sequenceDiagram
 
 Przy `graph` i `render` adapter dostaje listę wejść oraz funkcję do ich bezpiecznego otwarcia, dostarczoną przez `App`. Adapter interpretuje format źródłowy, rozwiązuje relacje i zwraca wspólny graf. Przy `--costs` wypełnia też `cost.Inventory` danymi używanymi do wyceny. `cost.Estimator` rozwiązuje założenia, pobiera stawki i zwraca osobny `cost.Report`. HTML osadza graf i koszty w osobnych blokach JSON. `--graph-output` zapisuje graf, a `--cost-output` zapisuje raport kosztów.
 
-`query` korzysta z `App.Query`, które odczytuje zapisany graf InfraLens, waliduje go i deleguje filtrowanie do pakietu `graph`. CLI wypisuje wynik w JSON na stdout. Wycofywane `mock-topology` korzysta z symulatora Pulumi i wspólnej ścieżki zapisu HTML.
+`query` korzysta z `App.Query`, które odczytuje zapisany graf Laytrace, waliduje go i deleguje filtrowanie do pakietu `graph`. CLI wypisuje wynik w JSON na stdout. Wycofywane `mock-topology` korzysta z symulatora Pulumi i wspólnej ścieżki zapisu HTML.
 
 Do renderera trafia wspólny graf i opcjonalny raport wyceny. Inwentarz właściwości używanych przez estimator pozostaje danymi roboczymi. Przed udostępnieniem raportu sprawdź nazwy zasobów, ścieżki właściwości i wybrane wartości konfiguracji widoczne w dowodach relacji.
 
@@ -81,9 +81,9 @@ Dowody przepływu mają opcjonalne `label`/`details` bez zmiany `schemaVersion: 
 ## CLI
 
 ```bash
-InfraLens preview --provider=pulumi [--output infralens.html] [--no-open]
-infralens render --provider=pulumi --input stack.json --output result.html
-infralens graph --provider=pulumi --input stack.json --output graph.json
+Laytrace preview --provider=pulumi [--output laytrace.html] [--no-open]
+Laytrace render --provider=pulumi --input stack.json --output result.html
+Laytrace graph --provider=pulumi --input stack.json --output graph.json
 ```
 
 `preview` działa w katalogu projektu Pulumi: wykonuje `pulumi preview --json --show-sames --non-interactive`, wymusza niestreamingowy JSON, odczytuje wynik z prywatnego pliku tymczasowego i zapisuje HTML wspólnym rendererem React. Następnie otwiera plik systemowym launcherem, a plik tymczasowy usuwa po zakończeniu komendy. Preview wykonuje kod projektu, korzysta z aktywnego stosu i credentials; nie wykonuje wdrożenia. Błąd otwarcia przeglądarki nie cofa udanego zapisu. W `graph`/`render` obie ścieżki są jawnie wymagane. CLI obsługuje pomoc. Sukces: kod `0`; błąd: kod niezerowy i krótka diagnostyka na stderr, bez fragmentów dokumentu wejściowego. Istniejący wynik jest zastępowany dopiero po poprawnym przygotowaniu nowego; wejście nie może być wyjściem.
@@ -103,7 +103,7 @@ Bez autodetekcji wielu adapterów, `--stack`, `--open`, wyboru theme/layoutu i p
 ## Podział kodu
 
 ```text
-cmd/infralens/                     rejestracja adapterów i uruchomienie CLI
+cmd/laytrace/                     rejestracja adapterów i uruchomienie CLI
 internal/cli/                      flagi, komunikaty i otwarcie przeglądarki
 internal/app/                      przebieg komend i zapis raportów
 internal/adapters/pulumi/          eksport i preview Pulumi

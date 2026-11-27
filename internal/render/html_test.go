@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestHTMLTextEscaping(t *testing.T) {
@@ -21,7 +21,7 @@ func TestHTMLTextEscaping(t *testing.T) {
 	if strings.Contains(result, `</script><script>alert(1)</script>`) || strings.Contains(result, `<img src=x`) || !strings.Contains(result, `\u003cscript\u003e`) {
 		t.Fatal("unsafe script embedding")
 	}
-	matches := regexp.MustCompile(`(?s)<script id="infralens-data" type="application/json">(.*?)</script>`).FindStringSubmatch(result)
+	matches := regexp.MustCompile(`(?s)<script id="laytrace-data" type="application/json">(.*?)</script>`).FindStringSubmatch(result)
 	if len(matches) != 2 {
 		t.Fatal("missing embedded graph")
 	}
@@ -61,7 +61,7 @@ func TestOfflineIconsAndEnglishInterface(t *testing.T) {
 	if !strings.Contains(result, `<html lang="en">`) || !strings.Contains(result, "img-src data:") || !strings.Contains(result, "default-src 'none'") {
 		t.Fatal("missing English language or offline image policy")
 	}
-	match := regexp.MustCompile(`<script id="infralens-icons" type="application/json">(.*?)</script>`).FindStringSubmatch(result)
+	match := regexp.MustCompile(`<script id="laytrace-icons" type="application/json">(.*?)</script>`).FindStringSubmatch(result)
 	if len(match) != 2 {
 		t.Fatal("missing embedded icons")
 	}

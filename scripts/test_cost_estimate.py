@@ -1,4 +1,4 @@
-"""Exercise the skill with a current InfraLens binary passed as the first argument."""
+"""Exercise the skill with a current Laytrace binary passed as the first argument."""
 
 import json
 from pathlib import Path

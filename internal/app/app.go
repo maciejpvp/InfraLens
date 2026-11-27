@@ -1,4 +1,4 @@
-// Package app runs InfraLens workflows.
+// Package app runs Laytrace workflows.
 package app
 
 import (
@@ -10,8 +10,8 @@ import (
 	"slices"
 	"strings"
 
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 // Adapter builds graphs from a provider's files or project. A non-nil inventory

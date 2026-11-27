@@ -5,9 +5,9 @@ import (
 	"io"
 	"os"
 
-	"infralens/internal/cost"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 func readInputs(inputs []string, outputs []os.FileInfo, adapter Adapter, inventory *cost.Inventory) (graph.Graph, error) {

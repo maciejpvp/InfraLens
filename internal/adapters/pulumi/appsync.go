@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 const (

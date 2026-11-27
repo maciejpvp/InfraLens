@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"infralens/internal/cost"
+	"laytrace/internal/cost"
 )
 
 func (doc template) costResources(stack, region string) []cost.Resource {

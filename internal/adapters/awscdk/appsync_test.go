@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestAppSyncResolvers(t *testing.T) {

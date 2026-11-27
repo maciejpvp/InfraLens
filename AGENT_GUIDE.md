@@ -1,15 +1,15 @@
-## Using InfraLens
+## Using Laytrace
 
-Use InfraLens to inspect this project's infrastructure, review planned IaC changes, and estimate AWS costs when requested. Run commands from the affected IaC project directory. If the CLI is unavailable, report that briefly and continue the rest of the task where possible.
+Use Laytrace to inspect this project's infrastructure, review planned IaC changes, and estimate AWS costs when requested. Run commands from the affected IaC project directory. If the CLI is unavailable, report that briefly and continue the rest of the task where possible.
 
 ### Choose the command
 
 | Task | Command | Input |
 | --- | --- | --- |
-| Review planned changes in HTML | `InfraLens preview --provider NAME --no-open --output report.html --graph-output graph.json` | A configured IaC project |
-| Generate HTML from existing data | `InfraLens render --provider NAME --input FILE --output report.html --graph-output graph.json` | A current export, template, or supported saved preview |
-| Export a graph | `InfraLens graph --provider NAME --input FILE --output graph.json` | The same saved inputs as `render` |
-| Summarize a change or inspect a resource | `InfraLens query --input graph.json --summary` or `InfraLens query --input graph.json --name RESOURCE` | InfraLens graph JSON |
+| Review planned changes in HTML | `Laytrace preview --provider NAME --no-open --output report.html --graph-output graph.json` | A configured IaC project |
+| Generate HTML from existing data | `Laytrace render --provider NAME --input FILE --output report.html --graph-output graph.json` | A current export, template, or supported saved preview |
+| Export a graph | `Laytrace graph --provider NAME --input FILE --output graph.json` | The same saved inputs as `render` |
+| Summarize a change or inspect a resource | `Laytrace query --input graph.json --summary` or `Laytrace query --input graph.json --name RESOURCE` | Laytrace graph JSON |
 
 Use `--provider pulumi` for a project with `Pulumi.yaml` or `Pulumi.yml` and `--provider aws-cdk` for a project with `cdk.json`. Identify the intended project and stack before running a preview. Pulumi compares against the active stack's saved state. CDK compares against the deployed CloudFormation template and estimates replacements from the template diff. Preview executes project code and can require configured provider access. It performs no deployment.
 
@@ -24,13 +24,13 @@ For file-based input, Pulumi accepts stack exports and a single JSON preview doc
 
 ### Query a graph
 
-Call the CLI directly. Each invocation reads a saved InfraLens graph of up to 32 MiB, prints matching results as JSON, and exits.
+Call the CLI directly. Each invocation reads a saved Laytrace graph of up to 32 MiB, prints matching results as JSON, and exits.
 
 ```sh
-InfraLens query --input graph.json --summary
-InfraLens query --input graph.json --changed --limit 5
-InfraLens query --input graph.json --search uploads
-InfraLens query --input graph.json --name UploadsQueue
+Laytrace query --input graph.json --summary
+Laytrace query --input graph.json --changed --limit 5
+Laytrace query --input graph.json --search uploads
+Laytrace query --input graph.json --name UploadsQueue
 ```
 
 The summary includes counts by change status. `unclassified` means the resource has no change status in the input. Use `--search` for case-insensitive text in names, types, stacks, or services, and `--stack` or `--type` to narrow results. Use the result's `nextOffset` with `--offset` for the next page.
@@ -41,10 +41,10 @@ A single match includes direct relationships, their direction, and evidence. Use
 
 ### Estimate costs when requested
 
-Use `--costs` with `preview` or `render` for AWS catalog pricing. When workload depends on application behavior, use the `cost-estimate` skill if installed to produce `cost-assumptions.json`, or use assumptions supplied by the user. Cite code or measurements for usage quantities and record unknowns. Pass the file to InfraLens so it can resolve resources and prices.
+Use `--costs` with `preview` or `render` for AWS catalog pricing. When workload depends on application behavior, use the `cost-estimate` skill if installed to produce `cost-assumptions.json`, or use assumptions supplied by the user. Cite code or measurements for usage quantities and record unknowns. Pass the file to Laytrace so it can resolve resources and prices.
 
 ```sh
-InfraLens preview --provider=pulumi --no-open --costs \
+Laytrace preview --provider=pulumi --no-open --costs \
   --cost-assumptions cost-assumptions.json --output report.html \
   --graph-output graph.json --cost-output costs.json
 ```

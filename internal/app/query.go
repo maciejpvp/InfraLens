@@ -3,8 +3,8 @@ package app
 import (
 	"errors"
 
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 func (a *App) Query(input string, options graph.QueryOptions) (graph.QueryResult, error) {

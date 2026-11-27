@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"infralens/internal/cost"
+	"laytrace/internal/cost"
 )
 
 func TestCollectDeployedCosts(t *testing.T) {

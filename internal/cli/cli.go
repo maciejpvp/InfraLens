@@ -1,4 +1,4 @@
-// Package cli handles command-line interaction with InfraLens.
+// Package cli handles command-line interaction with Laytrace.
 package cli
 
 import (
@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 
-	"infralens/internal/app"
+	"laytrace/internal/app"
 )
 
-// CLI runs InfraLens commands using the configured output streams.
+// CLI runs Laytrace commands using the configured output streams.
 type CLI struct {
 	stdout, stderr io.Writer
 	app            *app.App
@@ -23,7 +23,7 @@ func New(stdout, stderr io.Writer, application *app.App) *CLI {
 // Run executes a command and returns its process exit code.
 func (c *CLI) Run(args []string) int {
 	if err := c.dispatch(args); err != nil {
-		fmt.Fprintln(c.stderr, "infralens:", err)
+		fmt.Fprintln(c.stderr, "laytrace:", err)
 		return 1
 	}
 	return 0
@@ -54,7 +54,7 @@ func (c *CLI) dispatch(args []string) error {
 }
 
 func (c *CLI) help() {
-	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       infralens graph"+graphUsage+"\n       infralens render"+graphUsage+sidecarUsage+costUsage+
+	fmt.Fprintln(c.stdout, "Usage: "+previewUsage+"\n       Laytrace graph"+graphUsage+"\n       Laytrace render"+graphUsage+sidecarUsage+costUsage+
 		"\n       "+queryUsage+"\n       "+mockTopologyUsage+" (deprecated)\n"+c.app.ProviderHelp())
 }
 

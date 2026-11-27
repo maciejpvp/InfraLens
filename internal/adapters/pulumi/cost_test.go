@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/cost"
+	"laytrace/internal/cost"
 )
 
 func TestCostInventoryKeepsDifferentPreviewStates(t *testing.T) {

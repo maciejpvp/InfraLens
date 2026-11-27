@@ -1,4 +1,4 @@
-module infralens-simulation-fixture
+module laytrace-simulation-fixture
 
 go 1.27.4
 

@@ -4,9 +4,9 @@ import (
 	"io"
 	"strings"
 
-	"infralens/internal/cost"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 type Adapter struct{}

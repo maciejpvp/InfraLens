@@ -14,7 +14,7 @@ try {
   const $=id=>document.getElementById(id);
   const assert=(ok,message)=>{if(!ok)throw Error(message);};
   const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-  const graph=JSON.parse($('infralens-data').textContent);
+  const graph=JSON.parse($('laytrace-data').textContent);
   const view=()=>$('diagram').querySelector('.react-flow__viewport').style.transform;
   const card=item=>item.closest('[data-diagram-card]');
   const cardColors={unchanged:'#7b8a9e',create:'#55d98a',delete:'#fa7882',update:'#f0c75e',replace:'#f0c75e'};
@@ -888,9 +888,9 @@ def main():
         raise SystemExit('Usage: python3 scripts/check_html.py RESULT.html CHROMIUM_EXECUTABLE')
     original = Path(sys.argv[1]).read_text()
     instrument = '<script>window.__qaErrors=[];window.__qaCSP=[];addEventListener("error",e=>window.__qaErrors.push(e.message));addEventListener("securitypolicyviolation",e=>window.__qaCSP.push(e.blockedURI));</script>'
-    with tempfile.TemporaryDirectory(prefix='infralens-html-check-') as folder:
+    with tempfile.TemporaryDirectory(prefix='laytrace-html-check-') as folder:
         path = Path(folder) / 'check.html'
-        data_pattern = r'(<script id="infralens-data" type="application/json">)(.*?)(</script>)'
+        data_pattern = r'(<script id="laytrace-data" type="application/json">)(.*?)(</script>)'
         source_graph = json.loads(re.search(data_pattern, original, re.S).group(2))
         long_graph = json.loads(json.dumps(source_graph))
         changes = ('create', 'delete', 'update', 'replace', 'unchanged')
@@ -936,8 +936,8 @@ def main():
         for name, width, height, graph, reduced in scenarios:
             data = json.dumps(graph).replace('<', r'\u003c').replace('>', r'\u003e').replace('&', r'\u0026')
             document = re.sub(data_pattern, lambda m: m.group(1) + data + m.group(3), original, flags=re.S)
-            path.write_text(document.replace('<script id="infralens-data"', instrument + '<script id="infralens-data"', 1).replace('</body>', CHECK + '</body>', 1))
-            screenshot = Path(tempfile.gettempdir()) / f'infralens-{name}.png'
+            path.write_text(document.replace('<script id="laytrace-data"', instrument + '<script id="laytrace-data"', 1).replace('</body>', CHECK + '</body>', 1))
+            screenshot = Path(tempfile.gettempdir()) / f'laytrace-{name}.png'
             command = [sys.argv[2], '--headless', '--no-sandbox', '--disable-gpu', '--disable-background-networking', '--no-first-run', '--user-data-dir=' + str(Path(folder) / f'profile-{name}'), f'--window-size={width},{height}', '--virtual-time-budget=15000', '--dump-dom']
             if reduced:
                 command.append('--force-prefers-reduced-motion')

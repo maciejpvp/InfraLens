@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare InfraLens graph evidence and reuse workflow states across Git snapshots."""
+"""Prepare Laytrace graph evidence and reuse workflow states across Git snapshots."""
 
 import argparse
 import hashlib
@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 
 
-CACHE = Path(".cache/infralens/cost-estimate")
+CACHE = Path(".cache/laytrace/cost-estimate")
 VERSION = 1
 DEFAULT_OUTPUT = "cost-assumptions.json"
 
@@ -124,7 +124,7 @@ def absolute_input(value):
 def graph_context(args):
     executable = shutil.which(args.cli)
     if executable is None:
-        raise ValueError("InfraLens CLI unavailable; pass a current binary with --cli")
+        raise ValueError("Laytrace CLI unavailable; pass a current binary with --cli")
     binary = Path(executable).resolve()
     # A CLI upgrade must regenerate normalized graphs.
     version = file_hash(binary)
@@ -233,7 +233,7 @@ def main():
     parser.add_argument("--scope", required=True, help="stable project, stack and workload scope")
     parser.add_argument("--side", required=True, choices=["before", "after"])
     parser.add_argument("--ref", help="Git commit or ref; omit for the working tree")
-    parser.add_argument("--cli", default="InfraLens", help="current InfraLens executable")
+    parser.add_argument("--cli", default="Laytrace", help="current Laytrace executable")
     parser.add_argument("--graph", type=Path, help="normalized graph matching this code snapshot")
     parser.add_argument("--provider", choices=["aws-cdk", "pulumi"])
     parser.add_argument("--input", action="append", default=[], help="local IaC input, optionally STACK=FILE")

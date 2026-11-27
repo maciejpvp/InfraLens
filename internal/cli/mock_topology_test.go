@@ -24,7 +24,7 @@ func TestMockTopologyCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	script := `#!/bin/sh
-printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev","type":"pulumi:pulumi:Stack"},{"urn":"urn:pulumi:dev::base::test:Resource::item","type":"test:Resource"}]}}' > "$INFRALENS_CAPTURE"
+printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev","type":"pulumi:pulumi:Stack"},{"urn":"urn:pulumi:dev::base::test:Resource::item","type":"test:Resource"}]}}' > "$LAYTRACE_CAPTURE"
 `
 	if err := os.WriteFile(filepath.Join(tools, "go"), []byte(script), 0700); err != nil {
 		t.Fatal(err)

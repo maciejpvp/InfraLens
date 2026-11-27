@@ -6,10 +6,10 @@ import (
 	"flag"
 	"fmt"
 
-	"infralens/internal/app"
+	"laytrace/internal/app"
 )
 
-const mockTopologyUsage = "infralens mock-topology --provider NAME --project NAME=DIRECTORY [--project ...] --output FILE"
+const mockTopologyUsage = "Laytrace mock-topology --provider NAME --project NAME=DIRECTORY [--project ...] --output FILE"
 
 func (c *CLI) mockTopology(args []string) error {
 	flags := newFlagSet("mock-topology")

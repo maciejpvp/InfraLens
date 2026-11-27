@@ -6,14 +6,14 @@ import (
 	"flag"
 	"fmt"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
-const queryUsage = "infralens query --input GRAPH.json [--summary] [--changed] [--change STATUS] [--search TEXT] [--id ID] [--name NAME] [--stack STACK] [--type TYPE] [--limit N] [--offset N] [--relation-offset N]"
+const queryUsage = "Laytrace query --input GRAPH.json [--summary] [--changed] [--change STATUS] [--search TEXT] [--id ID] [--name NAME] [--stack STACK] [--type TYPE] [--limit N] [--offset N] [--relation-offset N]"
 
 func (c *CLI) query(args []string) error {
 	flags := newFlagSet("query")
-	input := flags.String("input", "", "normalized InfraLens graph JSON")
+	input := flags.String("input", "", "normalized Laytrace graph JSON")
 	change := flags.String("change", "", "change status (replace also matches possible CDK replacements)")
 	var options graph.QueryOptions
 	flags.StringVar(&options.ID, "id", "", "exact resource ID")

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestAgentPreviewAndQueries(t *testing.T) {
@@ -32,13 +32,13 @@ func TestAgentPreviewAndQueries(t *testing.T) {
 		}
 	}
 	write(filepath.Join(dir, "Pulumi.yaml"), "name: image-pipeline\nruntime: go\n")
-	write(filepath.Join(bin, "pulumi"), "#!/bin/sh\nexec /bin/cat \"$INFRALENS_TEST_FIXTURE\"\n")
+	write(filepath.Join(bin, "pulumi"), "#!/bin/sh\nexec /bin/cat \"$LAYTRACE_TEST_FIXTURE\"\n")
 	t.Setenv("PATH", bin)
-	t.Setenv("INFRALENS_TEST_FIXTURE", fixture)
-	t.Setenv("INFRALENS_TEST_PROCESS", "1")
+	t.Setenv("LAYTRACE_TEST_FIXTURE", fixture)
+	t.Setenv("LAYTRACE_TEST_PROCESS", "1")
 
 	command := func(args ...string) *exec.Cmd {
-		cmd := exec.CommandContext(t.Context(), os.Args[0], append([]string{"-test.run=^TestInfraLensProcess$", "--"}, args...)...)
+		cmd := exec.CommandContext(t.Context(), os.Args[0], append([]string{"-test.run=^TestLaytraceProcess$", "--"}, args...)...)
 		cmd.Dir = dir
 		return cmd
 	}
@@ -54,7 +54,7 @@ func TestAgentPreviewAndQueries(t *testing.T) {
 		return data
 	}
 	html := read("report.html")
-	_, payload, _ := bytes.Cut(html, []byte(`<script id="infralens-data" type="application/json">`))
+	_, payload, _ := bytes.Cut(html, []byte(`<script id="laytrace-data" type="application/json">`))
 	payload, _, _ = bytes.Cut(payload, []byte("</script>"))
 	var embedded, saved graph.Graph
 	if err := json.Unmarshal(payload, &embedded); err != nil {
@@ -148,8 +148,8 @@ func TestAgentPreviewAndQueries(t *testing.T) {
 
 }
 
-func TestInfraLensProcess(t *testing.T) {
-	if os.Getenv("INFRALENS_TEST_PROCESS") != "1" {
+func TestLaytraceProcess(t *testing.T) {
+	if os.Getenv("LAYTRACE_TEST_PROCESS") != "1" {
 		return
 	}
 	separator := slices.Index(os.Args, "--")

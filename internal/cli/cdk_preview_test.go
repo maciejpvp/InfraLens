@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"infralens/internal/adapters/awscdk"
-	"infralens/internal/app"
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/adapters/awscdk"
+	"laytrace/internal/app"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 func TestCDKPreview(t *testing.T) {
@@ -83,7 +83,7 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 		},
 	}}})
 	args := []string{"preview", "--provider=aws-cdk", "--no-open", "--graph-output", "preview.json"}
-	const output = "infralens.html"
+	const output = "laytrace.html"
 	run := func() ([]byte, graph.Graph) {
 		t.Helper()
 		logs.Reset()
@@ -97,7 +97,7 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 		if bytes.Contains(report, []byte("CANARY_SECRET")) || strings.Contains(logs.String(), "CANARY_SECRET") {
 			t.Fatal("preview leaked raw diff output")
 		}
-		_, data, _ := bytes.Cut(report, []byte(`<script id="infralens-data" type="application/json">`))
+		_, data, _ := bytes.Cut(report, []byte(`<script id="laytrace-data" type="application/json">`))
 		data, _, _ = bytes.Cut(data, []byte("</script>"))
 		var g graph.Graph
 		if err := json.Unmarshal(data, &g); err != nil {
@@ -126,7 +126,7 @@ printf 'Stack Stage/Bucket (ProdBucket) (aws://123456789012/eu-west-1)\nResource
 	} {
 		logs.Reset()
 		conflict := append([]string{"preview", "--provider=aws-cdk", "--no-open", "--output", "blocked.html"}, test.flags...)
-		if cli.Run(conflict) == 0 || !strings.Contains(logs.String(), "not an InfraLens "+test.kind+" report") ||
+		if cli.Run(conflict) == 0 || !strings.Contains(logs.String(), "not an Laytrace "+test.kind+" report") ||
 			strings.Contains(logs.String(), "Generating an infrastructure preview") {
 			t.Fatalf("CDK preview accepted its configuration as %s output: %s", test.kind, logs.String())
 		}

@@ -1,4 +1,4 @@
-// Package fileio provides filesystem operations shared by InfraLens workflows.
+// Package fileio provides filesystem operations shared by Laytrace workflows.
 package fileio
 
 import (
@@ -53,7 +53,7 @@ func SameFile(a, b os.FileInfo) bool {
 
 // WriteAtomic replaces path only after write and close succeed.
 func WriteAtomic(path string, write func(io.Writer) error) error {
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".infralens-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".laytrace-*")
 	if err != nil {
 		return errors.New("cannot create output file")
 	}

@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"infralens/internal/cost"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 // Preview compares synthesized CDK stacks with their deployed templates.
@@ -27,7 +27,7 @@ func (Adapter) Preview(ctx context.Context, onStart func(), inventory *cost.Inve
 			return graph.Graph{}, errors.New("AWS CDK CLI not found; install the project dependencies or put cdk on PATH")
 		}
 	}
-	output, err := os.MkdirTemp("", "infralens-cdk-")
+	output, err := os.MkdirTemp("", "laytrace-cdk-")
 	if err != nil {
 		return graph.Graph{}, errors.New("cannot create temporary CDK assembly directory")
 	}

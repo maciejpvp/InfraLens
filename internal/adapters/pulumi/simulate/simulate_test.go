@@ -36,10 +36,10 @@ test -z "${AWS_ACCESS_KEY_ID:-}"
 test -z "${PULUMI_ACCESS_TOKEN:-}"
 test "$GOPROXY" = off
 test "$GOWORK" = off
-test -f zz_infralens_simulation_test.go
+test -f zz_laytrace_simulation_test.go
 test ! -f ../../.aws/credentials
 test ! -f ../../.env
-printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev","type":"pulumi:pulumi:Stack"},{"urn":"urn:pulumi:dev::base::test:Resource::item","type":"test:Resource"}]}}' > "$INFRALENS_CAPTURE"
+printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::base::pulumi:pulumi:Stack::base-dev","type":"pulumi:pulumi:Stack"},{"urn":"urn:pulumi:dev::base::test:Resource::item","type":"test:Resource"}]}}' > "$LAYTRACE_CAPTURE"
 `, 0700)
 	t.Setenv("PATH", tools)
 	t.Setenv("AWS_ACCESS_KEY_ID", "CANARY_SECRET")
@@ -51,7 +51,7 @@ printf '%s' '{"version":3,"deployment":{"resources":[{"urn":"urn:pulumi:dev::bas
 	if !g.Simulated || len(g.Nodes) != 1 || g.Nodes[0].Change != "create" {
 		t.Fatalf("unexpected simulation: %+v", g)
 	}
-	if _, err := os.Stat(filepath.Join(project, "zz_infralens_simulation_test.go")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(project, "zz_laytrace_simulation_test.go")); !os.IsNotExist(err) {
 		t.Fatal("modified source project")
 	}
 	if _, err := Run(context.Background(), []Project{{Stack: "org/base/dev", Directory: project}}, filepath.Join(module, "main.go")); err == nil {

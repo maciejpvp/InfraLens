@@ -9,7 +9,7 @@ export const viteConfig = defineConfig({
     license: { fileName: 'licenses.md' },
     lib: {
       entry: 'src/main.tsx',
-      name: 'InfraLensViewer',
+      name: 'LaytraceViewer',
       formats: ['iife'],
       fileName: () => 'viewer.js',
       cssFileName: 'viewer',

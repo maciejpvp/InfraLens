@@ -3,7 +3,7 @@ package cli
 import (
 	"flag"
 
-	"infralens/internal/app"
+	"laytrace/internal/app"
 )
 
 const costUsage = " [--costs [--cost-region REGION] [--cost-rules FILE] [--cost-assumptions FILE]]"

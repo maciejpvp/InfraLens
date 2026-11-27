@@ -14,7 +14,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/internals"
 )
 
-type infraLensCapture struct {
+type laytraceCapture struct {
 	URN                  string              `json:"urn"`
 	Type                 string              `json:"type"`
 	ID                   string              `json:"id,omitempty"`
@@ -25,15 +25,15 @@ type infraLensCapture struct {
 	Outputs              map[string]any      `json:"outputs,omitempty"`
 }
 
-type infraLensMonitor struct {
+type laytraceMonitor struct {
 	pulumi.MockResourceMonitor
 	sync.Mutex
 	references           map[string]map[string]any
-	resources            []infraLensCapture
+	resources            []laytraceCapture
 	project, stack, root string
 }
 
-func (m *infraLensMonitor) rewrite(t *testing.T, urn string) string {
+func (m *laytraceMonitor) rewrite(t *testing.T, urn string) string {
 	if urn == "" {
 		return ""
 	}
@@ -49,7 +49,7 @@ func (m *infraLensMonitor) rewrite(t *testing.T, urn string) string {
 	return strings.Join(parts, "::")
 }
 
-func (m *infraLensMonitor) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
+func (m *laytraceMonitor) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
 	var id string
 	var outputs resource.PropertyMap
 	var err error
@@ -72,7 +72,7 @@ func (m *infraLensMonitor) NewResource(args pulumi.MockResourceArgs) (string, re
 		}
 	}
 	// Capture only configuration needed by typed relationship rules. No arbitrary inputs.
-	item := infraLensCapture{Type: args.TypeToken, ID: id, Inputs: map[string]any{}, Outputs: map[string]any{}, PropertyDependencies: map[string][]string{}}
+	item := laytraceCapture{Type: args.TypeToken, ID: id, Inputs: map[string]any{}, Outputs: map[string]any{}, PropertyDependencies: map[string][]string{}}
 	for _, key := range []string{"name", "bucket", "queues", "lambdaFunctions", "topics", "eventbridge", "rule", "arn", "eventPattern", "definition", "taskDefinition", "containerDefinitions", "environment", "eventSourceArn", "functionName", "deadLetterConfig", "apiId", "integrationType", "integrationUri", "routeKey", "target", "authorizationType", "filterCriteria", "enabled", "startingPosition", "batchSize", "maximumBatchingWindowInSeconds", "scheduleExpression"} {
 		if value, ok := args.Inputs[resource.PropertyKey(key)]; ok && !value.ContainsSecrets() && !value.ContainsUnknowns() {
 			item.Inputs[key] = value.Mappable()
@@ -115,18 +115,18 @@ func (m *infraLensMonitor) NewResource(args pulumi.MockResourceArgs) (string, re
 	return id, outputs, nil
 }
 
-func TestInfraLensSimulation(t *testing.T) {
-	identity := strings.Split(os.Getenv("INFRALENS_STACK"), "/")
+func TestLaytraceSimulation(t *testing.T) {
+	identity := strings.Split(os.Getenv("LAYTRACE_STACK"), "/")
 	if len(identity) != 3 {
 		t.Fatal("invalid simulation identity")
 	}
 	project, stack := identity[1], identity[2]
 	root := string(resource.NewURN(tokens.QName(stack), tokens.PackageName(project), "", "pulumi:pulumi:Stack", project+"-"+stack))
-	raw, err := os.ReadFile(os.Getenv("INFRALENS_REFERENCES"))
+	raw, err := os.ReadFile(os.Getenv("LAYTRACE_REFERENCES"))
 	if err != nil {
 		t.Fatal("missing simulation references")
 	}
-	m := &infraLensMonitor{MockResourceMonitor: &infraMocks{}, project: project, stack: stack, root: root}
+	m := &laytraceMonitor{MockResourceMonitor: &infraMocks{}, project: project, stack: stack, root: root}
 	if json.Unmarshal(raw, &m.references) != nil {
 		t.Fatal("invalid simulation references")
 	}
@@ -146,7 +146,7 @@ func TestInfraLensSimulation(t *testing.T) {
 	if err != nil {
 		t.Fatal("cannot resolve simulated stack outputs")
 	}
-	resources := []infraLensCapture{{URN: root, Type: "pulumi:pulumi:Stack"}}
+	resources := []laytraceCapture{{URN: root, Type: "pulumi:pulumi:Stack"}}
 	for _, item := range m.resources {
 		item.Parent = m.rewrite(t, item.Parent)
 		if item.Parent == "" {
@@ -166,7 +166,7 @@ func TestInfraLensSimulation(t *testing.T) {
 	if err != nil {
 		t.Fatal("cannot encode simulation capture")
 	}
-	if err := os.WriteFile(os.Getenv("INFRALENS_CAPTURE"), data, 0600); err != nil {
+	if err := os.WriteFile(os.Getenv("LAYTRACE_CAPTURE"), data, 0600); err != nil {
 		t.Fatal("cannot write simulation capture")
 	}
 }

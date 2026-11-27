@@ -1,7 +1,7 @@
-# InfraLens workflow cost assumptions
+# Laytrace workflow cost assumptions
 
 Pass one UTF-8 JSON object of at most 1 MiB to `--costs --cost-assumptions FILE`.
-Write version 2 with semantic `usage` meters. InfraLens translates the usage into
+Write version 2 with semantic `usage` meters. Laytrace translates the usage into
 AWS billing dimensions and prices from the infrastructure snapshot and AWS Price List.
 Existing v1 overrides and v2 files with explicit `rate` selectors remain readable.
 
@@ -67,7 +67,7 @@ average retained bytes.
 | `requests` | Request, message, or event count on a supported resource such as API Gateway, AppSync, SQS or EventBridge |
 | `lambdaInvocations` | Invocation count for one Lambda |
 | `lambdaMs` | Total billed milliseconds for one Lambda, including all its invocations in the step |
-| `dynamoReadUnits`, `dynamoWriteUnits` | Total read/write units, with size, consistency, indexes and transactions reflected in the quantity where applicable. InfraLens prices on-demand requests and shows provisioned usage against separate monthly capacity |
+| `dynamoReadUnits`, `dynamoWriteUnits` | Total read/write units, with size, consistency, indexes and transactions reflected in the quantity where applicable. Laytrace prices on-demand requests and shows provisioned usage against separate monthly capacity |
 | `s3Get`, `s3Put` | GET/HEAD or PUT/POST/COPY/LIST counts, including Range or multipart calls |
 | `s3UploadBytes` | Payload bytes uploaded. This documents volume. Storage and network usage have separate meters |
 | `s3InternetBytes` | Bytes delivered directly from S3 to the public internet. Use the actual serving path. For CDN, inter-region or other unsupported transfer routes use `unpriced` and describe the route |
@@ -79,7 +79,7 @@ For S3 requests, retrieval and storage, optional `storageClass` identifies the c
 code or lifecycle rules. Supported values are `STANDARD` (default) and `STANDARD_IA`. Write a
 specific unsupported class if it is known, or `unknown` if it matters and cannot be resolved.
 For Standard-IA storage, estimate the retained bytes after applicable minimum size and retention
-adjustments when those affect the result. InfraLens selects the AWS rates for these usage kinds.
+adjustments when those affect the result. Laytrace selects the AWS rates for these usage kinds.
 
 ## State, identity and evidence
 

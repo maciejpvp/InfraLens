@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 
-	"infralens/internal/cost"
-	"infralens/internal/fileio"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/fileio"
+	"laytrace/internal/graph"
 )
 
 type CostOptions struct {

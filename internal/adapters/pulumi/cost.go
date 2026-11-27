@@ -5,8 +5,8 @@ import (
 	"maps"
 	"strings"
 
-	"infralens/internal/cost"
-	"infralens/internal/graph"
+	"laytrace/internal/cost"
+	"laytrace/internal/graph"
 )
 
 func (b *graphBuilder) collectCosts(inventory *cost.Inventory) {

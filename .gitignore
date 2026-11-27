@@ -30,9 +30,9 @@ Pulumi.*.yaml
 Pulumi.*.yml
 
 # Local reports and exported infrastructure data
-infralens.html
-infralens-preview-*.json
-.infralens-*
+laytrace.html
+laytrace-preview-*.json
+.laytrace-*
 /result.html
 /moj-diagram.html
 /graph.json

@@ -7,7 +7,7 @@ import (
 	"slices"
 	"testing"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 func TestAWSRelationRegressions(t *testing.T) {

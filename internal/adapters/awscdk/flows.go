@@ -3,7 +3,7 @@ package awscdk
 import (
 	"slices"
 
-	"infralens/internal/graph"
+	"laytrace/internal/graph"
 )
 
 const (

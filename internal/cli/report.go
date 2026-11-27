@@ -6,7 +6,7 @@ import (
 	"flag"
 	"fmt"
 
-	"infralens/internal/app"
+	"laytrace/internal/app"
 )
 
 const graphUsage = " --provider NAME --input [NAME=]FILE [--input ...] --output FILE"
@@ -56,7 +56,7 @@ func (c *CLI) graphOrRender(command string, args []string) error {
 		if command == "render" {
 			usage += sidecarUsage + costUsage
 		}
-		fmt.Fprintln(c.stdout, "Usage: infralens "+command+usage+"\n"+c.app.ProviderHelp())
+		fmt.Fprintln(c.stdout, "Usage: laytrace "+command+usage+"\n"+c.app.ProviderHelp())
 		return nil
 	}
 	if err != nil {

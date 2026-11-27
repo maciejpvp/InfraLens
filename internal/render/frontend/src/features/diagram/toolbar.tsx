@@ -1,5 +1,5 @@
 import { SlidersHorizontal } from 'lucide-react'
-import logoSource from '../../assets/infralens-logo.svg?inline'
+import logoSource from '../../assets/laytrace-logo.svg?inline'
 import { overlayPanelClass, segmentButtonClass, segmentedControlClass } from '../../components/overlay-styles'
 import { topologyNames } from '../../lib/graph-view'
 import { cn } from '../../lib/utils'
@@ -168,7 +168,7 @@ function Logo() {
   return (
     <Box className={logoStyles.root}>
       <Image className={logoStyles.mark} src={logoSource} alt="" />
-      <Text className={logoStyles.name}>InfraLens</Text>
+      <Text className={logoStyles.name}>Laytrace</Text>
     </Box>
   )
 }
