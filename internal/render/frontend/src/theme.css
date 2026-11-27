@@ -5,9 +5,9 @@
 @custom-variant reduced-transparency (@media (prefers-reduced-transparency: reduce));
 
 @theme {
-  --shadow-panel: 0 12px 30px -10px rgb(0 0 0 / .55), 0 1px 0 rgb(255 255 255 / .05) inset;
-  --shadow-window: 0 28px 72px -16px rgb(0 0 0 / .78), 0 1px 0 rgb(255 255 255 / .08) inset;
-  --shadow-node: 0 6px 16px -10px rgb(0 0 0 / .68);
+  --shadow-panel: var(--panel-shadow);
+  --shadow-window: var(--window-shadow);
+  --shadow-node: var(--node-shadow);
   --animate-window-in: window-in 170ms ease-out both;
   --animate-detail-in: window-in 140ms ease-out both;
 
@@ -31,6 +31,81 @@
   --color-muted: #1e2836;
   --color-muted-foreground: #a3afbe;
   --color-destructive: #eea5a5;
+  --color-highlight: #fff;
+  --color-cost-warning: var(--color-amber-300);
+  --color-cost-value: var(--color-amber-200);
+  --color-cost-increase: var(--color-orange-300);
+  --color-cost-decrease: var(--color-emerald-300);
+}
+
+:root.dark {
+  color-scheme: dark;
+  --panel-shadow: 0 12px 30px -10px rgb(0 0 0 / .55), 0 1px 0 rgb(255 255 255 / .05) inset;
+  --window-shadow: 0 28px 72px -16px rgb(0 0 0 / .78), 0 1px 0 rgb(255 255 255 / .08) inset;
+  --node-shadow: 0 6px 16px -10px rgb(0 0 0 / .68);
+  --diagram-grid: #7083992b;
+  --diagram-grid-inspecting: #80808012;
+  --card-unchanged: #7b8a9e;
+  --card-create: #55d98a;
+  --card-delete: #fa7882;
+  --card-update: #f0c75e;
+  --pipe-shadow: #070c10;
+  --pipe-event: #65ddca;
+  --pipe-event-wall: #315d57;
+  --pipe-event-channel: #142f2e;
+  --pipe-event-rim: #93cbb8;
+  --pipe-event-current: #9aefc7;
+  --pipe-reference: #bda8ff;
+  --pipe-reference-wall: #51466f;
+  --pipe-reference-channel: #251f39;
+  --pipe-reference-rim: #af9bd9;
+  --pipe-reference-current: #dfc3ff;
+  --pipe-dependency: #d6aa73;
+}
+
+:root:not(.dark) {
+  color-scheme: light;
+  --color-background: #fff;
+  --color-foreground: #18181b;
+  --color-card: #f4f4f5;
+  --color-border: #c5c9cf;
+  --color-input: #8c939b;
+  --color-ring: #06756d;
+  --color-primary: #06756d;
+  --color-primary-foreground: #fff;
+  --color-secondary: #e1e6eb;
+  --color-secondary-foreground: #25303b;
+  --color-accent: #dcebea;
+  --color-accent-foreground: #123732;
+  --color-muted: #e8ebee;
+  --color-muted-foreground: #475569;
+  --color-destructive: #a52137;
+  --color-highlight: #18181b;
+  --color-cost-warning: #884b06;
+  --color-cost-value: #884b06;
+  --color-cost-increase: #9a3412;
+  --color-cost-decrease: #065f46;
+  --panel-shadow: 0 12px 30px -10px rgb(15 23 42 / .23);
+  --window-shadow: 0 28px 72px -16px rgb(15 23 42 / .3);
+  --node-shadow: 0 6px 16px -10px rgb(15 23 42 / .28);
+  --diagram-grid: #64748b38;
+  --diagram-grid-inspecting: #64748b20;
+  --card-unchanged: #67778b;
+  --card-create: #178248;
+  --card-delete: #b92944;
+  --card-update: #95600b;
+  --pipe-shadow: #3341553d;
+  --pipe-event: #13746a;
+  --pipe-event-wall: #79b6ad;
+  --pipe-event-channel: #d3eeea;
+  --pipe-event-rim: #326c63;
+  --pipe-event-current: #087a55;
+  --pipe-reference: #6644a0;
+  --pipe-reference-wall: #aa9bc7;
+  --pipe-reference-channel: #ece3f9;
+  --pipe-reference-rim: #775e9f;
+  --pipe-reference-current: #72509b;
+  --pipe-dependency: #8f5a24;
 }
 
 @theme inline {

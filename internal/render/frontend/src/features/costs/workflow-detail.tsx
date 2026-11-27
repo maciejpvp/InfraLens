@@ -91,7 +91,7 @@ export function WorkflowDetail({ row, current, report, side, onEdit, onGraph, ba
               <th scope="col" className={rightCellClass}>Quantity</th><th scope="col" className={rightCellClass}>Cost</th>
             </tr></thead>
             {steps.map((step) => <tbody key={step.id}>
-              <tr className="border-t bg-white/5"><th colSpan={3} scope="rowgroup" className={leftCellClass}>
+              <tr className="border-t bg-highlight/5"><th colSpan={3} scope="rowgroup" className={leftCellClass}>
                 {step.label}
                 {!step.resourceId && !step.issue && <span className="ml-1 text-xs font-normal text-muted-foreground">External</span>}
               </th></tr>

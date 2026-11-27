@@ -22,8 +22,10 @@ jobs:
           cache: false
       - name: Build public site
         run: |
-          mkdir _site
-          cp site/index.html site/site.css docs/images/demo-flow.png AGENT_GUIDE.md _site/
+          mkdir -p _site/assets/brand
+          cp site/index.html site/site.css site/theme.js docs/images/demo-flow.png docs/images/demo-flow-light.png AGENT_GUIDE.md _site/
+          brand=internal/render/frontend/src/assets/brand
+          cp "$brand"/lockup-*.svg "$brand"/favicon.svg "$brand"/favicon.ico "$brand"/apple-touch-icon.png "$brand"/social-preview.png _site/assets/brand/
           go run ./site/render site/demo.graph.json > _site/demo.html
       - uses: actions/upload-pages-artifact@v5
         with:

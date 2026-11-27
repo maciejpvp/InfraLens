@@ -25,20 +25,24 @@ var dependencyNotices string
 //go:embed frontend/SHADCN-LICENSE.md
 var shadcnNotice string
 
+//go:embed frontend/src/assets/brand/favicon.svg
+var favicon []byte
+
 //go:embed icons/*.svg
 var iconFiles embed.FS
 
 var page = template.Must(template.New("diagram").Parse(`<!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:">
 <title>Laytrace · Infrastructure diagram</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,{{.Favicon}}">
 <style>{{.CSS}}</style>
 </head>
-<body class="dark bg-background text-foreground">
+<body class="bg-background text-foreground">
 <div id="laytrace-root"></div>
 <noscript>This diagram requires JavaScript. All scripts are embedded in this file.</noscript>
 <pre id="laytrace-licenses" hidden>{{.Notices}}</pre>
@@ -89,6 +93,7 @@ func HTML(w io.Writer, g graph.Graph, report *cost.Report) error {
 		Icons   template.JS
 		JS      template.JS
 		CSS     template.CSS
+		Favicon string
 		Notices string
-	}{template.JS(data), costs, template.JS(iconJSON), template.JS(viewerJS), template.CSS(css), shadcnNotice + "\n\n" + dependencyNotices})
+	}{template.JS(data), costs, template.JS(iconJSON), template.JS(viewerJS), template.CSS(css), base64.StdEncoding.EncodeToString(favicon), shadcnNotice + "\n\n" + dependencyNotices})
 }

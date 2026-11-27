@@ -14,12 +14,12 @@ import type { InspectorPage, OpenRelation, OpenResource, useInspector } from './
 
 const styles = {
   dialog:
-    'right-3 bottom-[max(3.75rem,calc(env(safe-area-inset-bottom)+3.25rem))] flex min-h-0 w-[min(23rem,calc(100vw-1.5rem))] max-w-[var(--inspector-max-width,100vw)] max-h-[min(61dvh,34rem,var(--inspector-max-height,100dvh))] flex-col overflow-hidden rounded-[1.65rem] border border-white/15 bg-card shadow-window sm:top-24 sm:right-5 sm:bottom-auto sm:max-h-[min(69dvh,37rem,var(--inspector-max-height,100dvh))] motion-safe:animate-window-in contrast-more:border-foreground',
+    'right-3 bottom-[max(3.75rem,calc(env(safe-area-inset-bottom)+3.25rem))] flex min-h-0 w-[min(23rem,calc(100vw-1.5rem))] max-w-[var(--inspector-max-width,100vw)] max-h-[min(61dvh,34rem,var(--inspector-max-height,100dvh))] flex-col overflow-hidden rounded-[1.65rem] border border-highlight/15 bg-card shadow-window sm:top-24 sm:right-5 sm:bottom-auto sm:max-h-[min(69dvh,37rem,var(--inspector-max-height,100dvh))] motion-safe:animate-window-in contrast-more:border-foreground',
   header:
-    'shrink-0 cursor-grab touch-none select-none bg-linear-to-b from-white/[.075] to-transparent px-3.5 pt-3 pb-2 active:cursor-grabbing',
+    'shrink-0 cursor-grab touch-none select-none bg-linear-to-b from-highlight/[.075] to-transparent px-3.5 pt-3 pb-2 active:cursor-grabbing',
   chrome: 'flex items-center gap-1.5',
   chromeButton:
-    'shrink-0 rounded-full border border-white/10 bg-white/5 motion-safe:active:scale-95',
+    'shrink-0 rounded-full border border-highlight/10 bg-highlight/5 motion-safe:active:scale-95',
   grip: 'shrink-0 cursor-grab rounded-full text-muted-foreground active:cursor-grabbing motion-safe:active:scale-95',
   label: 'min-w-0 flex-1 pl-1 text-xs font-semibold tracking-wide text-muted-foreground',
   body: 'min-h-0 overflow-auto overscroll-contain px-3.5 pt-1 pb-3.5 text-sm leading-relaxed wrap-anywhere',

@@ -35,11 +35,11 @@ const styles = {
   changedCard:
     '[box-shadow:0_0_3px_color-mix(in_srgb,var(--card-change)_40%,transparent),0_0_12px_color-mix(in_srgb,var(--card-change)_16%,transparent)]',
   changeColor: {
-    unchanged: '[--card-change:#7b8a9e]',
-    create: '[--card-change:#55d98a]',
-    delete: '[--card-change:#fa7882]',
-    update: '[--card-change:#f0c75e]',
-    replace: '[--card-change:#f0c75e]',
+    unchanged: '[--card-change:var(--card-unchanged)]',
+    create: '[--card-change:var(--card-create)]',
+    delete: '[--card-change:var(--card-delete)]',
+    update: '[--card-change:var(--card-update)]',
+    replace: '[--card-change:var(--card-update)]',
   },
   cardTop: 'flex items-center gap-2',
   reserveToggle: 'pr-9',
@@ -50,7 +50,7 @@ const styles = {
   change: 'shrink-0 text-[11px] text-muted-foreground',
   handle: 'opacity-0',
   toggle:
-    'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-full border border-input bg-accent p-0 text-lg font-medium text-foreground hover:bg-[#456070] focus-visible:ring-ring motion-safe:active:scale-95',
+    'nopan pointer-events-auto absolute top-1.5 right-2.5 size-[30px] cursor-pointer rounded-full border border-input bg-accent p-0 text-lg font-medium text-foreground hover:bg-accent/70 dark:hover:bg-[#456070] focus-visible:ring-ring motion-safe:active:scale-95',
 }
 
 const costPercent = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 })
@@ -100,7 +100,7 @@ export function DiagramItem({ data }: NodeProps<DiagramNode>) {
             {workflowHeat ? (
               <Text className="flex items-center gap-2">
                 {name}
-                <Text className="ml-auto shrink-0 text-xs text-amber-200 tabular-nums" title={costLabel}>
+                <Text className="ml-auto shrink-0 text-xs text-cost-value tabular-nums" title={costLabel}>
                   {percent}{workflowHeat.partial ? ' known' : ''}
                 </Text>
               </Text>

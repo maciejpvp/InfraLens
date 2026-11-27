@@ -45,7 +45,7 @@ function Difference({ before, after }: { before: Estimate; after: Estimate }) {
     label = delta > 0 ? '<$0.01 more' : '<$0.01 less'
   }
   return (
-    <td className={cn(cell, available && delta > 0 && 'text-orange-300', available && delta < 0 && 'text-emerald-300')}>
+    <td className={cn(cell, available && delta > 0 && 'text-cost-increase', available && delta < 0 && 'text-cost-decrease')}>
       {available ? label : <span aria-label="Difference unavailable">—</span>}
     </td>
   )
@@ -115,7 +115,7 @@ export function ResourceCosts({ report, icons, mode, setMode, scenario, setScena
         )}
       </div>
       {mode !== 'After' && report.beforeIssues?.map((issue) => (
-        <p key={issue} className="mb-2 max-w-80 text-xs text-amber-300">{issue}</p>
+        <p key={issue} className="mb-2 max-w-80 text-xs text-cost-warning">{issue}</p>
       ))}
       <div role="region" className="overflow-x-auto" tabIndex={compare ? 0 : undefined} aria-label="AWS cost table">
         <table className="w-full border-collapse text-sm">
@@ -197,7 +197,7 @@ function CostAssumptions({
         {split ? ' Each state can use different values.' : report.before && ' Both states use the same assumptions.'}
       </p>
       {imported?.warnings?.length ? (
-        <ul className="mb-2 max-w-96 space-y-1 text-xs text-amber-300">
+        <ul className="mb-2 max-w-96 space-y-1 text-xs text-cost-warning">
           {imported.warnings.map((warning) => <li key={warning}>{warning}</li>)}
         </ul>
       ) : null}

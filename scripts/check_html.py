@@ -78,6 +78,18 @@ try {
   }
   await waitForLayout();
   await wait(50);
+  if(['?desktop','?mobile'].includes(location.search)){
+    const theme=$('theme-toggle'), stage=$('stage');
+    const scheme=()=>getComputedStyle(document.documentElement).colorScheme;
+    const background=()=>getComputedStyle(stage).backgroundColor;
+    const camera=view();
+    assert(scheme()==='dark'&&theme.getAttribute('aria-pressed')==='false','The report should start in dark mode');
+    await click(theme);
+    assert(scheme()==='light'&&background()==='rgb(255, 255, 255)'&&theme.getAttribute('aria-pressed')==='true','Light mode did not apply to the report');
+    assert($('stage')===stage&&view()===camera,'Changing the theme reset the diagram');
+    await click(theme);
+    assert(scheme()==='dark'&&theme.getAttribute('aria-pressed')==='false','Dark mode could not be restored');
+  }
   if(location.search.includes('connection-scope')){
     const item=id=>[...document.querySelectorAll('[data-item]')].find(card=>card.dataset.item===id);
     const press=(id,type,detail)=>dispatch(item(id),new MouseEvent(type,{bubbles:true,detail}));

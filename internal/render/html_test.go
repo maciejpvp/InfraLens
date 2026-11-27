@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"html"
 	"regexp"
 	"strings"
 	"testing"
@@ -32,7 +33,7 @@ func TestHTMLTextEscaping(t *testing.T) {
 	if decoded.Nodes[0].Name != g.Nodes[0].Name {
 		t.Fatal("node label changed")
 	}
-	if strings.Contains(result, "<script src=") || strings.Contains(result, "<link ") {
+	if strings.Contains(result, "<script src=") || strings.Count(result, "<link ") != 1 || !strings.Contains(html.UnescapeString(result), `href="data:image/svg+xml;base64,`+base64.StdEncoding.EncodeToString(favicon)+`"`) {
 		t.Fatal("external assets")
 	}
 
@@ -58,7 +59,7 @@ func TestOfflineIconsAndEnglishInterface(t *testing.T) {
 		t.Fatal(err)
 	}
 	result := out.String()
-	if !strings.Contains(result, `<html lang="en">`) || !strings.Contains(result, "img-src data:") || !strings.Contains(result, "default-src 'none'") {
+	if !strings.Contains(result, `<html lang="en" class="dark">`) || !strings.Contains(result, "img-src data:") || !strings.Contains(result, "default-src 'none'") {
 		t.Fatal("missing English language or offline image policy")
 	}
 	match := regexp.MustCompile(`<script id="laytrace-icons" type="application/json">(.*?)</script>`).FindStringSubmatch(result)

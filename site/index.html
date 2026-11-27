@@ -1,21 +1,36 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="dark light">
   <title>Laytrace — Pulumi and AWS CDK preview visualizer</title>
   <meta name="description" content="Review Pulumi and AWS CDK changes before deploying. Explore AWS connections and estimate costs by service and workflow with Laytrace.">
   <link rel="canonical" href="https://maciejpvp.github.io/Laytrace/">
+  <meta property="og:image" content="https://maciejpvp.github.io/Laytrace/assets/brand/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <link rel="icon" href="assets/brand/favicon.ico" sizes="any">
+  <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
+  <script src="theme.js"></script>
   <link rel="stylesheet" href="site.css">
 </head>
 <body>
   <header class="frame header">
-    <a class="brand" href="./">Laytrace</a>
+    <a class="brand" href="./">
+      <img src="assets/brand/lockup-dark.svg" data-light-src="assets/brand/lockup-light.svg" width="110" height="32" alt="Laytrace">
+    </a>
     <nav aria-label="Main navigation">
       <a href="#quickstart">Quickstart</a>
       <a href="AGENT_GUIDE.md">Agent guide</a>
       <a href="https://github.com/maciejpvp/Laytrace">GitHub</a>
+      <button id="theme-toggle" type="button" aria-label="Light mode" aria-pressed="false" title="Light mode" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>
+        </svg>
+      </button>
     </nav>
   </header>
   <main class="frame">
@@ -32,7 +47,7 @@
         </div>
         <a class="button primary" href="demo.html">Open interactive demo</a>
       </figcaption>
-      <img src="demo-flow.png" width="1440" height="760" alt="Laytrace demo diagram showing connected AWS services, including AppSync, Lambda, and DynamoDB">
+      <img src="demo-flow.png" data-light-src="demo-flow-light.png" width="1440" height="760" alt="Laytrace demo diagram showing connected AWS services, including AppSync, Lambda, and DynamoDB">
     </figure>
 
     <div class="project-guide">

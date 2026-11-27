@@ -269,7 +269,7 @@ function WorkflowList({ current, previous, tableRef, onSelect, filter, setFilter
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ entry }) => <tr key={entry.workflow.id} className="cursor-pointer border-b hover:bg-white/5"
+            {rows.map(({ entry }) => <tr key={entry.workflow.id} className="cursor-pointer border-b hover:bg-highlight/5"
               onClick={() => onSelect(entry.workflow.id)}>
               <th scope="row" className="p-0 text-left">
                 <Button data-workflow={entry.workflow.id} type="button" variant="ghost" size="sm"

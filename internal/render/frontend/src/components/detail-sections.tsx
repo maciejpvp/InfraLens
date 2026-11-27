@@ -12,10 +12,10 @@ export type MetadataRow = [label: string, value: string, icon?: string]
 
 const styles = {
   metadata: 'mb-3 grid grid-cols-2 gap-1.5',
-  metadataRow: 'min-w-0 rounded-[.85rem] bg-white/5 px-2.5 py-2',
+  metadataRow: 'min-w-0 rounded-[.85rem] bg-highlight/5 px-2.5 py-2',
   metadataLabel: 'flex items-center gap-1.5 text-[.6875rem] leading-tight font-medium tracking-wide text-muted-foreground [&_img]:size-4',
   metadataValue: 'mt-0.5 text-xs leading-relaxed font-medium wrap-anywhere',
-  section: 'overflow-hidden rounded-[1rem] border border-white/10 bg-background/25 last:border-b',
+  section: 'overflow-hidden rounded-[1rem] border border-highlight/10 bg-background/25 last:border-b',
   sectionTitle: 'min-h-10 rounded-none px-3 py-2.5 text-xs hover:bg-accent/55 hover:no-underline',
   sectionBody: 'px-2.5 pb-2.5',
 }

@@ -50,7 +50,7 @@ export function Issues({ reasons }: { reasons?: string[] }) {
   if (!reasons?.length) return null
 
   return (
-    <ul className="my-1 space-y-1 break-words text-xs text-amber-300">
+    <ul className="my-1 space-y-1 break-words text-xs text-cost-warning">
       {[...new Set(reasons)].map((reason) => <li key={reason}>{reason}</li>)}
     </ul>
   )
@@ -141,7 +141,7 @@ export function EstimateCell({ value, before, precise = false }: {
       </span>
       {Math.abs(delta) > 1e-9 && (
         <span aria-label={`Monthly change ${signedUSD.format(delta)}`} title="Change from Before"
-          className={`block whitespace-nowrap text-[11px] ${delta > 0 ? 'text-orange-300' : 'text-emerald-300'}`}>
+          className={`block whitespace-nowrap text-[11px] ${delta > 0 ? 'text-cost-increase' : 'text-cost-decrease'}`}>
           {changeLabel}
         </span>
       )}

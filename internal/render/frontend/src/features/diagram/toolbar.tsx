@@ -1,5 +1,9 @@
-import { SlidersHorizontal } from 'lucide-react'
-import logoSource from '../../assets/laytrace-logo.svg?inline'
+import { SlidersHorizontal, Sun } from 'lucide-react'
+import lockupDark from '../../assets/brand/lockup-dark.svg?inline'
+import lockupLight from '../../assets/brand/lockup-light.svg?inline'
+import logoDark from '../../assets/brand/logo-dark.svg?inline'
+import logoLight from '../../assets/brand/logo-light.svg?inline'
+import type { useTheme } from '../../hooks/use-theme'
 import { overlayPanelClass, segmentButtonClass, segmentedControlClass } from '../../components/overlay-styles'
 import { topologyNames } from '../../lib/graph-view'
 import { cn } from '../../lib/utils'
@@ -22,7 +26,7 @@ const styles = {
     'inset-x-2.5 top-2.5 flex min-h-15 flex-wrap items-center justify-between gap-2 p-2 min-[621px]:inset-x-4 min-[621px]:top-[max(1rem,env(safe-area-inset-top))] min-[621px]:flex-nowrap min-[621px]:gap-3',
   brand: 'flex shrink-0 items-center gap-2',
   provenance: 'text-[.6rem] sm:text-xs',
-  simulation: 'border-amber-700/50 bg-amber-950 text-amber-200',
+  simulation: 'border-amber-700/50 bg-amber-100 text-amber-950 dark:bg-amber-950 dark:text-amber-200',
   actions: 'flex shrink-0 items-center gap-1',
   filters:
     'right-2.5 top-30 max-h-[calc(100dvh-10rem)] w-[min(330px,calc(100%-1.25rem))] overflow-auto p-5 text-sm min-[621px]:right-4 min-[621px]:top-22',
@@ -32,18 +36,12 @@ const styles = {
   note: 'text-muted-foreground',
   simulationNote: 'mt-3 text-muted-foreground',
 }
-const logoStyles = {
-  root: 'flex shrink-0 items-center gap-2',
-  mark: 'size-6 shrink-0',
-  name: 'sr-only font-semibold tracking-tight lg:not-sr-only',
-}
-
 const topologyOptions = [
   { value: 'after', label: topologyNames.after },
   { value: 'before', label: topologyNames.before },
 ]
 
-export function Toolbar({ onClearWorkflow, onExitDetailsView, ...props }: ToolbarOptions & {
+export function Toolbar({ onClearWorkflow, onExitDetailsView, theme, toggleTheme, ...props }: ToolbarOptions & ReturnType<typeof useTheme> & {
   onClearWorkflow?: () => void
   onExitDetailsView?: () => void
 }) {
@@ -54,7 +52,10 @@ export function Toolbar({ onClearWorkflow, onExitDetailsView, ...props }: Toolba
     <>
       <Box aria-label="Diagram tools" className={cn(overlayPanelClass, styles.toolbar)}>
         <Box className={styles.brand}>
-          <Logo />
+          <Box className="shrink-0">
+            <Image className="block h-6 w-auto shrink-0 lg:hidden" src={theme === 'dark' ? logoDark : logoLight} alt="Laytrace" />
+            <Image className="hidden h-6 w-auto shrink-0 lg:block" src={theme === 'dark' ? lockupDark : lockupLight} alt="Laytrace" />
+          </Box>
           <Badge
             id="provenance"
             variant="secondary"
@@ -84,6 +85,18 @@ export function Toolbar({ onClearWorkflow, onExitDetailsView, ...props }: Toolba
               </Button>
             ))}
           </Box>
+          <Button
+            id="theme-toggle"
+            className="rounded-full aria-pressed:bg-accent"
+            variant="ghost"
+            size="icon-lg"
+            aria-label="Light mode"
+            aria-pressed={theme === 'light'}
+            title="Light mode"
+            onClick={toggleTheme}
+          >
+            <Icon icon={Sun} />
+          </Button>
           <Button
             id="filter-button"
             className="rounded-full motion-safe:active:scale-95"
@@ -160,15 +173,6 @@ function DiagramFilters({
       <Text as="p" id="simulation-note" hidden={!simulated} className={styles.simulationNote}>
         Simulation uses mocked provider responses. “+ create” means comparison with an empty state.
       </Text>
-    </Box>
-  )
-}
-
-function Logo() {
-  return (
-    <Box className={logoStyles.root}>
-      <Image className={logoStyles.mark} src={logoSource} alt="" />
-      <Text className={logoStyles.name}>Laytrace</Text>
     </Box>
   )
 }

@@ -91,7 +91,11 @@ export function CostWindow({
       </RadixDialog.Trigger>
       <FloatingWindow
         id="report-cost-window" ref={windowRef} aria-describedby={undefined}
-        onInteractOutside={selection ? (event) => event.preventDefault() : undefined}
+        onInteractOutside={(event) => {
+          if (selection || (event.target instanceof Element && event.target.closest('#theme-toggle'))) {
+            event.preventDefault()
+          }
+        }}
         className={cn('bottom-28 left-2.5 flex w-max max-w-[var(--inspector-max-width,calc(100vw-1.25rem))] flex-col overflow-hidden rounded-2xl border bg-card text-sm shadow-panel sm:left-4',
           report.workflows ? 'max-h-[min(76dvh,var(--inspector-max-height,100dvh))]' : 'max-h-[var(--inspector-max-height,calc(100dvh-1.25rem))]')}
       >
