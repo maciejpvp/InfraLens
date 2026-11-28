@@ -1,0 +1,83 @@
+---
+interface Props {
+  copyLabel: string
+  multiline?: boolean
+}
+
+const { copyLabel, multiline } = Astro.props
+---
+
+<div class:list={['command', { multiline }]} data-command>
+  <pre><code><slot /></code></pre>
+  <button class="copy control" type="button" aria-label={copyLabel} title={copyLabel} hidden>
+    <svg class="icon copy-icon" aria-hidden="true"><use href="#copy-icon"/></svg>
+    <svg class="icon check-icon" aria-hidden="true"><use href="#check-icon"/></svg>
+  </button>
+</div>
+
+<script>
+  const status = document.getElementById('copy-status')
+  for (const block of document.querySelectorAll('[data-command]')) {
+    const command = block.querySelector('code')
+    const button = block.querySelector('button')
+    if (!command || !button || !status) continue
+
+    let reset: number | undefined
+    button.hidden = false
+    button.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(command.textContent ?? '')
+        status.textContent = 'Copied to clipboard.'
+        button.setAttribute('data-copied', '')
+        window.clearTimeout(reset)
+        reset = window.setTimeout(() => {
+          button.removeAttribute('data-copied')
+          status.textContent = ''
+        }, 1600)
+      } catch {
+        const selection = window.getSelection()
+        const range = document.createRange()
+        range.selectNodeContents(command)
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+        status.textContent = 'Command selected. Use your keyboard or browser menu to copy.'
+      }
+    })
+  }
+</script>
+
+<style>
+  .command {
+    display: flex;
+    align-items: start;
+    gap: .25rem;
+    padding: .45rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-card);
+  }
+  .command pre {
+    flex: 1;
+    min-width: 0;
+    padding: .33rem .25rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: .75rem;
+    line-height: 1.65;
+  }
+  .multiline { position: relative; }
+  .multiline .copy { position: absolute; inset: .25rem .45rem auto auto; }
+  .copy { display: grid; flex: none; width: 1.9rem; height: 1.9rem; place-items: center; border-radius: var(--radius-sm); color: var(--color-muted-foreground); }
+  .copy:hover { background: var(--color-accent); color: var(--color-foreground); }
+  .copy .icon { grid-area: 1 / 1; transition: opacity var(--motion-feedback) var(--motion-standard); }
+  .copy .check-icon, .copy[data-copied] .copy-icon { opacity: 0; }
+  .copy[data-copied] .check-icon { opacity: 1; }
+
+  @media (max-width: 52rem) {
+    .command { max-width: 34rem; }
+  }
+
+  @media (pointer: coarse) {
+    .copy { min-height: 2.75rem; min-width: 2.75rem; }
+  }
+</style>

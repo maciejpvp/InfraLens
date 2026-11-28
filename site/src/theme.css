@@ -1,0 +1,44 @@
+:root {
+  --gutter: clamp(1rem, 3.5vw, 3.5rem);
+  --column-padding: clamp(1.25rem, 2.5vw, 2.5rem);
+  --motion-hover: 100ms;
+  --motion-feedback: 140ms;
+  --motion-content: 170ms;
+  --motion-standard: cubic-bezier(.2, 0, 0, 1);
+  background: var(--color-background);
+  color: var(--color-foreground);
+  transition: background-color var(--motion-content) var(--motion-standard), color var(--motion-content) var(--motion-standard);
+}
+
+body { min-width: 0; }
+:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 3px; }
+[hidden], .dark .light-asset, :root:not(.dark) .dark-asset { display: none !important; }
+.frame { width: min(calc(100% - 2 * var(--gutter)), 93rem); margin-inline: auto; }
+.icon-library { position: absolute; pointer-events: none; }
+.icon { width: 1rem; height: 1rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+.label {
+  color: var(--color-muted-foreground);
+  font: 500 .75rem/1.5 var(--font-mono);
+}
+h2 { font-size: 1.1875rem; font-weight: 650; letter-spacing: -.026em; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { transition-duration: 0s !important; }
+}
+
+.control {
+  cursor: pointer;
+  transition: background-color var(--motion-hover) var(--motion-standard),
+    color var(--motion-hover) var(--motion-standard), border-color var(--motion-hover) var(--motion-standard);
+}
+
+.tab-panel {
+  transition: opacity var(--motion-content) var(--motion-standard),
+    visibility var(--motion-content) allow-discrete;
+}
+.tab-panel:not([data-active]) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}

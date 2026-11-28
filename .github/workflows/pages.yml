@@ -20,16 +20,20 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: site/package-lock.json
       - name: Build public site
+        working-directory: site
         run: |
-          mkdir -p _site/assets/brand
-          cp site/index.html site/site.css site/theme.js docs/images/demo-flow.png docs/images/demo-flow-light.png AGENT_GUIDE.md _site/
-          brand=internal/render/frontend/src/assets/brand
-          cp "$brand"/lockup-*.svg "$brand"/favicon.svg "$brand"/favicon.ico "$brand"/apple-touch-icon.png "$brand"/social-preview.png _site/assets/brand/
-          go run ./site/render site/demo.graph.json > _site/demo.html
+          npm ci
+          npm run check
+          npm run build
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: _site
+          path: site/dist
           retention-days: 7
 
   deploy:

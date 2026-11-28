@@ -1,0 +1,196 @@
+---
+import CommandBlock from './command-block.astro'
+
+const providers = [
+  { id: 'pulumi', name: 'Pulumi', flag: 'pulumi' },
+  { id: 'cdk', name: 'AWS CDK', flag: 'aws-cdk' },
+]
+---
+
+<section class="quickstart" id="quickstart" aria-labelledby="quickstart-title">
+  <h2 id="quickstart-title">Quickstart</h2>
+  <h3>Install from source</h3>
+  <p>Build on macOS or Linux with Go, Node.js, and npm. Use <code>./install.sh --yes</code> for unattended installation.</p>
+  <CommandBlock copyLabel="Copy installation commands" multiline>
+    <Fragment>git clone \
+https://github.com/<wbr>maciejpvp/Laytrace.git
+cd Laytrace
+./install.sh</Fragment>
+  </CommandBlock>
+  <a class="docs-link" href="https://github.com/maciejpvp/Laytrace#install">
+    Full installation instructions <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
+  </a>
+
+  <h3>Preview your project</h3>
+  <p>Run from your project directory to open <code>laytrace.html</code> in your browser.</p>
+  <div class="command-switcher" id="preview-providers" aria-label="Preview providers" hidden>
+    {providers.map(({ id, name }) => (
+      <button class="control" id={`tab-${id}`} type="button" data-tab={id}>{name}</button>
+    ))}
+  </div>
+  <div class="preview-commands">
+    {providers.map(({ id, name, flag }, index) => (
+      <div class="command-choice" id={id} data-active={index === 0 || undefined}>
+        <CommandBlock copyLabel={`Copy ${name} preview command`}>{`Laytrace preview --provider=${flag}`}</CommandBlock>
+      </div>
+    ))}
+  </div>
+  <a class="docs-link" href="https://github.com/maciejpvp/Laytrace#render-saved-infrastructure-data">
+    Render a saved export or template <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
+  </a>
+  <span class="sr-only" id="copy-status" role="status"></span>
+</section>
+
+<script>
+  import { connectTabs } from '../../components/tabs'
+
+  const tablist = document.getElementById('preview-providers')
+  if (tablist) connectTabs(tablist)
+</script>
+
+<style>
+  .quickstart { grid-column: 1; padding-inline-end: var(--column-padding); }
+  .intro { grid-row: 1; padding-block: 2.05rem 1.15rem; }
+  .product {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    min-width: 0;
+    border-inline-start: 1px solid var(--color-border);
+    padding: 1.4rem 0 1.45rem var(--column-padding);
+  }
+
+  .label, .index-number {
+    color: var(--color-muted-foreground);
+    font: 500 .75rem/1.5 var(--font-mono);
+  }
+  h1 {
+    margin-block: .7rem 1rem;
+    color: var(--color-highlight);
+    font-size: clamp(2rem, 3.35vw, 3.375rem);
+    font-weight: 650;
+    letter-spacing: -.06em;
+    line-height: 1.04;
+  }
+  h2 { font-size: 1.1875rem; font-weight: 650; letter-spacing: -.026em; }
+  .lede { max-width: 36ch; color: var(--color-muted-foreground); line-height: 1.58; }
+  .report-properties { margin-top: 1.45rem; }
+  .report-properties > div {
+    padding-block: .55rem;
+    border-block: 1px solid var(--color-border);
+    display: grid;
+    grid-template-columns: 6.25rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: .375rem;
+  }
+  .report-properties > div + div { border-block-start: 0; }
+  .report-properties dt { color: var(--color-muted-foreground); font: .75rem/1.5 var(--font-mono); }
+  .report-properties dd { font-size: .875rem; font-weight: 500; }
+
+  .showcase-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .625rem; }
+  .demo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    min-height: 2.375rem;
+    padding: .375rem .75rem;
+    border: 1px solid var(--color-control-border);
+    border-radius: var(--radius-md);
+    background: var(--color-card);
+    color: var(--color-foreground);
+    font-size: .875rem;
+    font-weight: 600;
+  }
+  .demo-link:hover { background: var(--color-accent); border-color: var(--color-muted-foreground); }
+  .demo-link .icon, .docs-link .icon { width: .8125rem; height: .8125rem; }
+  .view-switcher { display: flex; gap: .1875rem; margin-bottom: .625rem; border-block-end: 1px solid var(--color-border); }
+  .view-switcher a {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: .5rem;
+    min-height: 2.625rem;
+    padding: .35rem .75rem;
+    margin-block-end: -1px;
+    border-block-end: 2px solid transparent;
+    color: var(--color-muted-foreground);
+    font-size: .875rem;
+    font-weight: 560;
+  }
+  .view-switcher a:hover { color: var(--color-foreground); background: var(--color-accent); }
+  .view-switcher [aria-selected="true"] { border-color: var(--color-foreground); color: var(--color-foreground); }
+  .previews { display: grid; }
+  .preview { grid-area: 1 / 1; min-width: 0; }
+  .capture {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    aspect-ratio: 16 / 9;
+    background: var(--color-card);
+  }
+  .capture img { width: 100%; height: 100%; }
+  figcaption {
+    display: grid;
+    grid-template-columns: 10.5rem minmax(0, 1fr) auto;
+    gap: .375rem .875rem;
+    align-items: baseline;
+    padding-block: .75rem .875rem;
+    color: var(--color-muted-foreground);
+    font-size: .875rem;
+    line-height: 1.45;
+  }
+  .full-image { white-space: nowrap; text-decoration: underline; text-underline-offset: .22em; }
+
+  .feature-index { margin-top: .625rem; }
+  .feature-index h2, .quickstart h2 { margin-bottom: .5rem; }
+  .feature-index ol { border-block-end: 1px solid var(--color-border); }
+  .feature-index li { border-block-start: 1px solid var(--color-border); }
+  .feature-index a {
+    display: grid;
+    grid-template-columns: 2.15rem minmax(10.25rem, .95fr) minmax(0, 2fr) auto;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .65rem .5rem;
+    font-size: .875rem;
+  }
+  .feature-index a:hover { background: var(--color-accent); }
+  .feature-index strong { font-weight: 600; }
+  .feature-index .icon { align-self: center; color: var(--color-muted-foreground); width: .875rem; height: .875rem; }
+  .index-detail { color: var(--color-muted-foreground); }
+
+  .quickstart {
+    grid-area: 2 / 1;
+    padding-inline-end: var(--column-padding);
+    min-width: 0;
+    padding-block-end: 1.5rem;
+    scroll-margin-top: 1rem;
+  }
+  .quickstart h3 { margin-block: .75rem .25rem; font-size: .9375rem; font-weight: 600; }
+  .quickstart p { margin-bottom: .55rem; color: var(--color-muted-foreground); font-size: .875rem; }
+  .docs-link { display: inline-flex; align-items: center; gap: .4rem; margin-block: .55rem .45rem; font-size: .875rem; text-decoration: underline; text-underline-offset: .22em; }
+
+  .quickstart h2 { margin-bottom: .5rem; }
+  .docs-link:hover { color: var(--color-foreground); }
+  .docs-link .icon { width: .8125rem; height: .8125rem; }
+
+  .command-switcher { display: flex; gap: .125rem; margin-bottom: .4rem; }
+  .command-switcher button {
+    padding: .4rem .625rem;
+    border-radius: var(--radius-sm);
+    color: var(--color-muted-foreground);
+    font-size: .875rem;
+    font-weight: 550;
+  }
+  .command-switcher button:hover { background: var(--color-accent); color: var(--color-foreground); }
+  .command-switcher [aria-selected="true"] { background: var(--color-secondary); color: var(--color-secondary-foreground); }
+  .preview-commands:has([role="tabpanel"]) { display: grid; }
+  .command-choice[role="tabpanel"] { grid-area: 1 / 1; min-width: 0; }
+  .command-choice + .command-choice:not([role="tabpanel"]) { margin-top: .4rem; }
+
+  @media (max-width: 52rem) {
+    .quickstart { padding-inline-end: 0; padding-block-start: .25rem; }
+  }
+
+  @media (pointer: coarse) {
+    .command-switcher button { min-height: 2.75rem; min-width: 2.75rem; }
+  }
+</style>

@@ -1,0 +1,51 @@
+---
+import { sitePath } from '../../lib/site-path'
+
+const features = [
+  { title: 'Review changes', description: 'See what a preview adds, updates, or removes.', view: 'changes' },
+  { title: 'Trace relationships', description: 'Inspect events, references, and deployment dependencies.', view: 'architecture' },
+  { title: 'Estimate AWS costs', description: 'Break down charges by service or model cost per workflow run.', view: 'costs' },
+  { title: 'Coding agent integration', description: 'Generate reports and query graph JSON from a coding agent.' },
+]
+---
+
+<section class="feature-index" aria-labelledby="index-title">
+  <h2 id="index-title">Feature index</h2>
+  <ol role="list">
+    {features.map(({ title, description, view }, index) => (
+      <li>
+        <a class="control" href={sitePath(view ? `showcase/${view}-dark.webp` : 'AGENT_GUIDE.md')} data-show={view}>
+          <span class="label index-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <strong>{title}</strong>
+          <span class="index-detail">{description}</span>
+          <svg class="icon" aria-hidden="true"><use href="#chevron-icon"/></svg>
+        </a>
+      </li>
+    ))}
+  </ol>
+</section>
+
+<style>
+  .feature-index { margin-top: .625rem; }
+  .feature-index h2 { margin-bottom: .5rem; }
+  .feature-index ol { border-block-end: 1px solid var(--color-border); }
+  .feature-index li { border-block-start: 1px solid var(--color-border); }
+  .feature-index a {
+    display: grid;
+    grid-template-columns: 2.15rem minmax(10.25rem, .95fr) minmax(0, 2fr) auto;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .65rem .5rem;
+    font-size: .875rem;
+  }
+  .feature-index a:hover { background: var(--color-accent); }
+  .feature-index strong { font-weight: 600; }
+  .feature-index .icon { align-self: center; color: var(--color-muted-foreground); width: .875rem; height: .875rem; }
+  .index-detail { color: var(--color-muted-foreground); }
+
+  @media (max-width: 34rem) {
+    .feature-index a { grid-template-columns: 1.75rem minmax(0, 1fr) auto; row-gap: .1rem; }
+    .feature-index .icon { grid-area: 1 / 3 / span 2; }
+    .index-detail { grid-column: 2; }
+  }
+</style>

@@ -1,0 +1,63 @@
+---
+import SiteLayout from '../layouts/site-layout.astro'
+import Quickstart from '../features/quickstart/quickstart.astro'
+import ReportShowcase from '../features/showcase/report-showcase.astro'
+---
+
+<SiteLayout>
+  <main class="frame workspace">
+    <section class="intro" aria-labelledby="intro-title">
+      <p class="label">Infrastructure as code</p>
+      <h1 id="intro-title">Read your<br> infrastructure.</h1>
+      <p class="lede">Laytrace turns Pulumi previews and AWS CDK changes into interactive HTML reports. Trace service connections, review planned changes, and estimate AWS costs.</p>
+      <dl class="report-properties">
+        <div><dt>Providers</dt><dd>Pulumi · AWS CDK</dd></div>
+        <div><dt>Execution</dt><dd>Local CLI</dd></div>
+        <div><dt>Output</dt><dd>Offline, standalone HTML</dd></div>
+      </dl>
+    </section>
+
+    <ReportShowcase />
+    <Quickstart />
+  </main>
+</SiteLayout>
+
+<style>
+  .workspace { display: grid; grid-template-columns: minmax(0, 30fr) minmax(0, 70fr); grid-template-rows: auto 1fr; }
+  .intro { grid-area: 1 / 1; padding-block: 2.05rem 1.15rem; padding-inline-end: var(--column-padding); }
+
+  h1 {
+    margin-block: .7rem 1rem;
+    color: var(--color-highlight);
+    font-size: clamp(2rem, 3.35vw, 3.375rem);
+    font-weight: 650;
+    letter-spacing: -.06em;
+    line-height: 1.04;
+  }
+  .lede { max-width: 36ch; color: var(--color-muted-foreground); line-height: 1.58; }
+  .report-properties { margin-top: 1.45rem; }
+  .report-properties > div {
+    padding-block: .55rem;
+    border-block: 1px solid var(--color-border);
+    display: grid;
+    grid-template-columns: 6.25rem minmax(0, 1fr);
+    align-items: baseline;
+    gap: .375rem;
+  }
+  .report-properties > div + div { border-block-start: 0; }
+  .report-properties dt { color: var(--color-muted-foreground); font: .75rem/1.5 var(--font-mono); }
+  .report-properties dd { font-size: .875rem; font-weight: 500; }
+
+  @media (max-width: 67rem) {
+    .report-properties > div { grid-template-columns: minmax(4.65rem, auto) minmax(0, 1fr); }
+  }
+
+  @media (max-width: 52rem) {
+    .workspace { display: block; }
+    .intro { padding: 1.8rem 0 1.4rem; }
+    .intro h1 br { display: none; }
+    .lede { max-width: 56ch; }
+    .report-properties { margin-top: 1rem; }
+    .report-properties > div { grid-template-columns: 6.25rem minmax(0, 1fr); }
+  }
+</style>

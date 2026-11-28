@@ -19,16 +19,17 @@ The public AWS CDK demo shows AppSync, Lambda, S3, SQS, and DynamoDB connections
 
 ## Install
 
-Build from source on macOS or Linux with Go 1.27.4 or later. The installer also requires npm and Node.js 22.12 or a newer supported release.
+Build from source on macOS or Linux with Go 1.27.4 or later, Node.js 22.12 or later, and npm.
 
 ```bash
 git clone https://github.com/maciejpvp/Laytrace.git
 cd Laytrace
-./scripts/update-global.sh
-Laytrace --help
+./install.sh
 ```
 
-The script builds the viewer and installs `Laytrace` in `~/.local/bin`. Add that directory to your `PATH`, or set `LAYTRACE_BIN_DIR` to an installation directory of your choice. Run the script again after updating your checkout.
+Use the arrow keys to choose a destination and optional agent skills. The default destination is `~/.local/bin` or the directory in `LAYTRACE_BIN_DIR`. The installer prints how to run `Laytrace --help` and how to update your `PATH` if needed. Run it again after updating your checkout.
+
+For CI or unattended installation, run `./install.sh --yes`. Use `--dir DIRECTORY` to override the destination and `--skills codex`, `--skills claude`, or `--skills all` to also install skills.
 
 ### Install agent skills
 
@@ -238,3 +239,16 @@ go test ./...
 ```
 
 See the [architecture notes](docs/ARCHITECTURE.md), [product scope](docs/PRODUCT.md), and [roadmap](docs/ROADMAP.md) for project context. Laytrace is distributed under the [MIT License](LICENSE). See the [AWS icon notice](internal/render/icons/NOTICE.md) for icon attribution.
+
+### Develop the GitHub Pages site
+
+The Astro site uses Node.js 22.23.4 or later and the Go version in `go.mod`.
+From the repository root, install dependencies and start the preview at
+`http://localhost:4321/Laytrace/`.
+
+```bash
+npm ci --prefix site
+npm run dev --prefix site
+```
+
+`npm run build --prefix site` writes the static site and generated report demo to `site/dist`.

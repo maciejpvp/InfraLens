@@ -1,0 +1,90 @@
+---
+import { sitePath } from '../lib/site-path'
+---
+<header class="site-header">
+  <div class="frame header-inner">
+    <a class="brand" href="#top" aria-label="Laytrace home">
+      <img class="dark-asset" src={sitePath('assets/brand/lockup-dark.svg')} width="118" height="34" alt="">
+      <img class="light-asset" src={sitePath('assets/brand/lockup-light.svg')} width="118" height="34" alt="">
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#quickstart">Quickstart</a>
+      <a href={sitePath('AGENT_GUIDE.md')}>Agent guide</a>
+      <a href="https://github.com/maciejpvp/Laytrace">GitHub</a>
+      <button class="icon-button control" id="theme-toggle" type="button" aria-label="Light mode" aria-pressed="false" title="Light mode" hidden>
+        <svg class="icon" aria-hidden="true"><use href="#sun-icon"/></svg>
+      </button>
+    </nav>
+  </div>
+</header>
+<script>
+  import { themeStorageKey } from '../lib/theme'
+
+  const toggle = document.querySelector<HTMLButtonElement>('#theme-toggle')
+  const root = document.documentElement
+
+  if (toggle) {
+    const applyTheme = (light: boolean) => {
+      root.classList.toggle('dark', !light)
+      toggle.setAttribute('aria-pressed', String(light))
+    }
+
+    applyTheme(!root.classList.contains('dark'))
+    toggle.hidden = false
+    window.addEventListener('pageshow', event => {
+      if (!event.persisted) return
+      try {
+        const theme = localStorage.getItem(themeStorageKey)
+        if (theme) applyTheme(theme === 'light')
+      } catch {
+        // Keep the visible theme when storage is blocked.
+      }
+    })
+    toggle.addEventListener('click', () => {
+      const light = root.classList.contains('dark')
+      applyTheme(light)
+      try {
+        localStorage.setItem(themeStorageKey, light ? 'light' : 'dark')
+      } catch {
+        // The theme still applies on this page.
+      }
+    })
+  }
+</script>
+
+<style>
+  .site-header { border-block-end: 1px solid var(--color-border); }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; gap: .625rem 1rem; }
+  .header-inner { min-height: 3.625rem; }
+  .brand { flex: none; }
+  .brand img { width: 7.375rem; height: auto; }
+  .site-header nav { display: flex; align-items: center; gap: clamp(.625rem, 2vw, 1.625rem); }
+  .site-header nav a { font-size: .875rem; color: var(--color-muted-foreground); }
+  .site-header nav a:hover { color: var(--color-foreground); text-decoration: underline; text-underline-offset: .24em; }
+  .icon-button {
+    display: grid;
+    width: 2.375rem;
+    height: 2.375rem;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-muted-foreground);
+  }
+  .icon-button[aria-pressed="true"] { background: var(--color-card); color: var(--color-foreground); }
+  .icon-button:hover { background: var(--color-accent); color: var(--color-foreground); }
+
+  @media (max-width: 34rem) {
+    .header-inner { gap: .375rem; }
+    .site-header nav { gap: .625rem; }
+    .brand img { width: 5.25rem; }
+  }
+
+  @media (max-width: 23rem) {
+    .header-inner { flex-wrap: wrap; padding-block: .625rem; }
+    .site-header nav { flex: 1 1 100%; justify-content: space-between; }
+  }
+
+  @media (pointer: coarse) {
+    .icon-button { min-height: 2.75rem; min-width: 2.75rem; }
+  }
+</style>

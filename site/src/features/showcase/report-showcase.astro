@@ -1,0 +1,177 @@
+---
+import { sitePath } from '../../lib/site-path'
+import FeatureIndex from './feature-index.astro'
+
+const views = [
+  {
+    id: 'architecture',
+    title: 'Architecture',
+    icon: 'workflow',
+    label: 'AWS CDK / Flow',
+    alt: 'Laytrace Flow view mapping AppSync, Lambda, S3, SQS, and DynamoDB connections in an AWS CDK stack',
+    description: 'Follow events and references in Flow. Switch to Infrastructure for the resource inventory and deployment dependencies.',
+  },
+  {
+    id: 'changes',
+    title: 'Deployment changes',
+    icon: 'diff',
+    label: 'AWS CDK / Preview',
+    alt: 'Laytrace change summary grouped by AWS service alongside the inspector for a new Lambda function',
+    description: 'Review planned creates, updates, and deletes by service. Select a changed resource to inspect its relationships.',
+  },
+  {
+    id: 'costs',
+    title: 'AWS cost estimation',
+    icon: 'cost',
+    label: 'AWS / Sample estimate',
+    alt: 'Laytrace AWS cost panel comparing sample before and after estimates by service below the infrastructure graph',
+    description: 'Compare regional on-demand estimates at the same traffic level. Open Costs in a report generated with',
+    flag: '--costs',
+  },
+]
+const themes = ['dark', 'light'] as const
+---
+
+<section class="product" id="report-viewer" aria-labelledby="viewer-title">
+  <div class="showcase-heading">
+    <h2 id="viewer-title">Report viewer</h2>
+    <a class="demo-link control" href={sitePath('demo.html')}>
+      <span>Open <span class="demo-adjective">interactive </span>demo</span>
+      <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
+    </a>
+  </div>
+
+  <div class="view-switcher" id="report-views" aria-label="Report views">
+    {views.map(({ id, title, icon }) => (
+      <a class="control" id={`tab-${id}`} href={sitePath(`showcase/${id}-dark.webp`)} data-tab={id}>
+        <svg class="icon" aria-hidden="true"><use href={`#${icon}-icon`}/></svg>
+        <span>{title}</span>
+      </a>
+    ))}
+  </div>
+
+  <div class="previews">
+    {views.map(({ id, title, label, alt, description, flag }, index) => (
+      <div class="preview tab-panel" id={id} data-active={index === 0 || undefined}>
+        <figure>
+          <div class="capture">
+            {themes.map(theme => (
+              <img class={`${theme}-asset`} src={sitePath(`showcase/${id}-${theme}.webp`)}
+                width="1280" height="720" alt={alt}>
+            ))}
+          </div>
+          <figcaption>
+            <span class="label">{label}</span>
+            <p>{description}{flag && <> <code>{flag}</code>.</>}</p>
+            {themes.map(theme => (
+              <a class={`full-image ${theme}-asset`} href={sitePath(`showcase/${id}-${theme}.webp`)}>
+                Full size<span class="sr-only"> {title.toLowerCase()} screenshot</span>
+              </a>
+            ))}
+          </figcaption>
+        </figure>
+      </div>
+    ))}
+  </div>
+
+  <FeatureIndex />
+</section>
+
+<script>
+  import { connectTabs } from '../../components/tabs'
+
+  const tablist = document.getElementById('report-views')
+  if (tablist) {
+    const focusView = connectTabs(tablist)
+    for (const link of document.querySelectorAll<HTMLAnchorElement>('#report-viewer [data-show]')) {
+      link.href = '#report-viewer'
+      link.addEventListener('click', event => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+        if (focusView(link.dataset.show ?? '')) event.preventDefault()
+      })
+    }
+  }
+</script>
+
+<style>
+  .product {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    min-width: 0;
+    border-inline-start: 1px solid var(--color-border);
+    padding: 1.4rem 0 1.45rem var(--column-padding);
+  }
+
+  .showcase-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .625rem; }
+  .demo-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    min-height: 2.375rem;
+    padding: .375rem .75rem;
+    border: 1px solid var(--color-control-border);
+    border-radius: var(--radius-md);
+    background: var(--color-card);
+    color: var(--color-foreground);
+    font-size: .875rem;
+    font-weight: 600;
+  }
+  .demo-link:hover { background: var(--color-accent); border-color: var(--color-muted-foreground); }
+  .demo-link .icon { width: .8125rem; height: .8125rem; }
+  .view-switcher { display: flex; gap: .1875rem; margin-bottom: .625rem; border-block-end: 1px solid var(--color-border); }
+  .view-switcher a {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: .5rem;
+    min-height: 2.625rem;
+    padding: .35rem .75rem;
+    margin-block-end: -1px;
+    border-block-end: 2px solid transparent;
+    color: var(--color-muted-foreground);
+    font-size: .875rem;
+    font-weight: 560;
+  }
+  .view-switcher a:hover { color: var(--color-foreground); background: var(--color-accent); }
+  .view-switcher [aria-selected="true"] { border-color: var(--color-foreground); color: var(--color-foreground); }
+  .previews { display: grid; }
+  .preview { grid-area: 1 / 1; min-width: 0; }
+  .capture {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    aspect-ratio: 16 / 9;
+    background: var(--color-card);
+  }
+  .capture img { width: 100%; height: 100%; }
+  figcaption {
+    display: grid;
+    grid-template-columns: 10.5rem minmax(0, 1fr) auto;
+    gap: .375rem .875rem;
+    align-items: baseline;
+    padding-block: .75rem .875rem;
+    color: var(--color-muted-foreground);
+    font-size: .875rem;
+    line-height: 1.45;
+  }
+  .full-image { white-space: nowrap; text-decoration: underline; text-underline-offset: .22em; }
+  .full-image:hover { color: var(--color-foreground); }
+
+  @media (max-width: 67rem) {
+    figcaption { grid-template-columns: minmax(0, 1fr) auto; }
+    figcaption p { grid-row: 2; grid-column: 1 / -1; }
+  }
+
+  @media (max-width: 52rem) {
+    .product { padding: 0 0 1.5rem; border: 0; }
+  }
+
+  @media (max-width: 34rem) {
+    .view-switcher a { flex: 1; justify-content: start; padding-inline: .4rem; gap: .3rem; line-height: 1.25; }
+    .view-switcher .icon { width: .875rem; height: .875rem; }
+  }
+
+  @media (max-width: 23rem) {
+    .demo-adjective, .view-switcher .icon { display: none; }
+  }
+</style>

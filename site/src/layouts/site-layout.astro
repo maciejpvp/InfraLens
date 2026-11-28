@@ -1,0 +1,61 @@
+---
+import IconLibrary from '../components/icon-library.astro'
+import SiteHeader from '../components/site-header.astro'
+import { sitePath } from '../lib/site-path'
+import { themeStorageKey } from '../lib/theme'
+import '../theme.css'
+
+const title = 'Laytrace — Pulumi and AWS CDK infrastructure reports'
+const canonical = new URL(sitePath(), Astro.site)
+const socialImage = new URL(sitePath('assets/brand/social-preview.png'), Astro.site)
+---
+<!doctype html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>{title}</title>
+  <meta name="description" content="Turn Pulumi previews and AWS CDK changes into interactive HTML reports. Trace infrastructure dependencies, review planned changes, and estimate AWS costs.">
+  <link rel="canonical" href={canonical}>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Laytrace">
+  <meta property="og:title" content={title}>
+  <meta property="og:description" content="Trace infrastructure dependencies, review deployment changes, and estimate AWS costs in an interactive report.">
+  <meta property="og:url" content={canonical}>
+  <meta property="og:image" content={socialImage}>
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="Laytrace logo beside an infrastructure report diagram">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href={sitePath('assets/brand/favicon.ico')} sizes="any">
+  <link rel="icon" href={sitePath('assets/brand/favicon.svg')} type="image/svg+xml">
+  <link rel="apple-touch-icon" href={sitePath('assets/brand/apple-touch-icon.png')}>
+  <script define:vars={{ themeStorageKey }}>
+    try {
+      document.documentElement.classList.toggle('dark', localStorage.getItem(themeStorageKey) !== 'light')
+    } catch {
+      // Use the default theme when storage is blocked.
+    }
+  </script>
+  <link rel="stylesheet" href={sitePath('assets/viewer.css')}>
+</head>
+<body id="top">
+  <SiteHeader />
+  <slot />
+  <footer class="site-footer">
+    <div class="frame footer-inner">
+      <a href="https://github.com/maciejpvp/Laytrace/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/maciejpvp/Laytrace#estimate-aws-costs">AWS cost estimation docs</a>
+    </div>
+  </footer>
+  <IconLibrary />
+</body>
+</html>
+
+<style>
+  .site-footer { border-block-start: 1px solid var(--color-border); }
+  .footer-inner { display: flex; align-items: center; justify-content: flex-end; min-height: 3.25rem; gap: 1.25rem; }
+  .footer-inner a { font-size: .875rem; color: var(--color-muted-foreground); }
+  .footer-inner a:hover { color: var(--color-foreground); text-decoration: underline; text-underline-offset: .24em; }
+</style>
