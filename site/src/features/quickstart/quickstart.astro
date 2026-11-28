@@ -9,17 +9,13 @@ const providers = [
 
 <section class="quickstart" id="quickstart" aria-labelledby="quickstart-title">
   <h2 id="quickstart-title">Quickstart</h2>
-  <h3>Install from source</h3>
-  <p>Build on macOS or Linux with Go, Node.js, and npm. Use <code>./install.sh --yes</code> for unattended installation.</p>
-  <CommandBlock copyLabel="Copy installation commands" multiline>
-    <Fragment>git clone \
-https://github.com/<wbr>maciejpvp/Laytrace.git
-cd Laytrace
-./install.sh</Fragment>
-  </CommandBlock>
-  <a class="docs-link" href="https://github.com/maciejpvp/Laytrace#install">
-    Full installation instructions <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
+  <h3>Install a prebuilt binary</h3>
+  <p>Use Homebrew on macOS or Linux.</p>
+  <CommandBlock copyLabel="Copy Homebrew install command">brew install maciejpvp/tap/laytrace</CommandBlock>
+  <a class="docs-link" href="https://github.com/maciejpvp/Laytrace/releases/latest">
+    Download the latest release <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
   </a>
+  <p>Install the <code>.deb</code> with <code>apt</code> on Ubuntu, Debian, or Linux Mint, or the <code>.rpm</code> with <code>dnf</code> on Fedora. Use the <code>.tar.gz</code> on Arch and other Linux distributions, or the <code>.zip</code> on Windows.</p>
 
   <h3>Preview your project</h3>
   <p>Run from your project directory to open <code>laytrace.html</code> in your browser.</p>
@@ -31,12 +27,24 @@ cd Laytrace
   <div class="preview-commands">
     {providers.map(({ id, name, flag }, index) => (
       <div class="command-choice" id={id} data-active={index === 0 || undefined}>
-        <CommandBlock copyLabel={`Copy ${name} preview command`}>{`Laytrace preview --provider=${flag}`}</CommandBlock>
+        <CommandBlock copyLabel={`Copy ${name} preview command`}>{`laytrace preview --provider=${flag}`}</CommandBlock>
       </div>
     ))}
   </div>
   <a class="docs-link" href="https://github.com/maciejpvp/Laytrace#render-saved-infrastructure-data">
     Render a saved export or template <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
+  </a>
+
+  <h3>Build from source</h3>
+  <p>Build on macOS or Linux with Go, Node.js, and npm. The source installer names the executable <code>Laytrace</code>.</p>
+  <CommandBlock copyLabel="Copy source build commands" multiline>
+    <Fragment>git clone \
+https://github.com/<wbr>maciejpvp/Laytrace.git
+cd Laytrace
+./install.sh</Fragment>
+  </CommandBlock>
+  <a class="docs-link" href="https://github.com/maciejpvp/Laytrace#build-from-source">
+    Build instructions <svg class="icon" aria-hidden="true"><use href="#external-icon"/></svg>
   </a>
   <span class="sr-only" id="copy-status" role="status"></span>
 </section>

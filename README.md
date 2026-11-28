@@ -19,6 +19,36 @@ The public AWS CDK demo shows AppSync, Lambda, S3, SQS, and DynamoDB connections
 
 ## Install
 
+### Install a prebuilt binary (recommended)
+
+**macOS and Linux with Homebrew**
+
+```bash
+brew install maciejpvp/tap/laytrace
+```
+
+Run `brew upgrade maciejpvp/tap/laytrace` to update.
+
+**Ubuntu, Debian, Linux Mint, and Fedora**
+
+Download the `.deb` (Ubuntu, Debian, Linux Mint) or `.rpm` (Fedora) for your architecture from the [latest GitHub release](https://github.com/maciejpvp/Laytrace/releases/latest). Run the matching command from your download directory using the downloaded filename. For example, for v0.1.0 on x86-64:
+
+```bash
+# Ubuntu, Debian, or Linux Mint
+sudo apt install ./laytrace_0.1.0_linux_amd64.deb
+
+# Fedora
+sudo dnf install ./laytrace_0.1.0_linux_amd64.rpm
+```
+
+To update a downloaded package, install the file from the newer release.
+
+**Arch, other Linux distributions, and Windows**
+
+On Linux, you can use Homebrew or extract the Linux `.tar.gz` and put `laytrace` on your `PATH`. On Windows, extract the Windows `.zip` and run `laytrace.exe` from the extracted folder or add that folder to your `PATH`. [Download release archives](https://github.com/maciejpvp/Laytrace/releases/latest)
+
+### Build from source
+
 Build from source on macOS or Linux with Go 1.27.4 or later, Node.js 22.12 or later, and npm.
 
 ```bash
@@ -27,7 +57,7 @@ cd Laytrace
 ./install.sh
 ```
 
-Use the arrow keys to choose a destination and optional agent skills. The default destination is `~/.local/bin` or the directory in `LAYTRACE_BIN_DIR`. The installer prints how to run `Laytrace --help` and how to update your `PATH` if needed. Run it again after updating your checkout.
+Use the arrow keys to choose a destination and optional agent skills. The default destination is `~/.local/bin` or the directory in `LAYTRACE_BIN_DIR`. The source installer names the executable `Laytrace`. Use that capitalization in the examples below if you installed from source. Run the installer again after updating your checkout.
 
 For CI or unattended installation, run `./install.sh --yes`. Use `--dir DIRECTORY` to override the destination and `--skills codex`, `--skills claude`, or `--skills all` to also install skills.
 
@@ -46,7 +76,7 @@ The script copies the full skill directories to `~/.agents/skills` and `~/.claud
 From the Laytrace checkout, generate a small image-processing pipeline report and open `image-pipeline.html` in your browser. This example uses a [synthetic Pulumi preview](docs/examples/image-pipeline.preview.json) and needs no cloud credentials or provider CLI.
 
 ```bash
-Laytrace render --provider=pulumi \
+laytrace render --provider=pulumi \
   --input docs/examples/image-pipeline.preview.json \
   --output image-pipeline.html
 ```
@@ -65,8 +95,8 @@ Choose a provider explicitly with `--provider`.
 Run the command for your provider from the project directory.
 
 ```bash
-Laytrace preview --provider=pulumi
-Laytrace preview --provider=aws-cdk
+laytrace preview --provider=pulumi
+laytrace preview --provider=aws-cdk
 ```
 
 By default, `preview` writes `laytrace.html` and opens it in your browser. Use `--no-open` to save it without launching a browser, or `--output review.html` to choose the destination. Each output is replaced only after its write succeeds. If a requested JSON output fails after HTML is saved, the command returns an error and prints the paths it saved.
@@ -85,11 +115,11 @@ Try “Add a dead-letter queue to UploadsQueue and show me the Laytrace report.�
 Use the CLI to generate a report and ask for specific changes or relationships.
 
 ```bash
-Laytrace preview --provider=pulumi --no-open \
+laytrace preview --provider=pulumi --no-open \
   --output review.html --graph-output review.json
-Laytrace query --input review.json --summary
-Laytrace query --input review.json --changed
-Laytrace query --input review.json --name UploadsQueue
+laytrace query --input review.json --summary
+laytrace query --input review.json --changed
+laytrace query --input review.json --name UploadsQueue
 ```
 
 Both `preview` and `render` can produce HTML and graph JSON in one run. Add `--costs --cost-output costs.json` to export the same cost inputs and rates that the report uses. Use a new file or a previous Laytrace report of the matching type for each JSON output. `query` prints JSON and exits. A single match includes direct relationships and evidence. CDK preview relationships describe the target template, and results identify graph coverage and omitted references. [Query options](AGENT_GUIDE.md#query-a-graph)
@@ -110,8 +140,8 @@ Add `--costs` to a preview or HTML report to fetch regional AWS on-demand prices
 | **AWS catalog rates** | Published unit prices for detected services, including prices for charges whose usage is unknown. |
 
 ```bash
-Laytrace preview --provider=aws-cdk --costs
-Laytrace render --provider=pulumi --input stack.json --output report.html --costs --cost-region eu-west-1
+laytrace preview --provider=aws-cdk --costs
+laytrace render --provider=pulumi --input stack.json --output report.html --costs --cost-region eu-west-1
 ```
 
 In the resource cost view, **Monthly** shows provisioned charges
@@ -145,7 +175,7 @@ and generate `cost-assumptions.json`. Invoke `$cost-estimate --diff HEAD` in Cod
 Install it along with the other bundled skills using `./scripts/install-skills.sh`.
 
 ```bash
-Laytrace preview --provider=aws-cdk --costs --cost-assumptions cost-assumptions.json
+laytrace preview --provider=aws-cdk --costs --cost-assumptions cost-assumptions.json
 ```
 
 Both `preview` and `render` accept the file. Open **Costs → Workflows**
@@ -205,12 +235,12 @@ Use `render` for HTML or `graph` for the normalized JSON graph.
 
 ```bash
 pulumi stack export --file stack.json
-Laytrace render --provider=pulumi --input stack.json --output report.html
+laytrace render --provider=pulumi --input stack.json --output report.html
 
-Laytrace render --provider=aws-cdk \
+laytrace render --provider=aws-cdk \
   --input cdk.out/MyStack.template.json --output report.html
 
-Laytrace graph --provider=aws-cdk \
+laytrace graph --provider=aws-cdk \
   --input cdk.out/MyStack.template.json --output graph.json
 ```
 
